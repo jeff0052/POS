@@ -1,0 +1,4 @@
+interface:
+  display_name: "Developer"
+  short_description: "Plan lean software delivery and docs"
+  default_prompt: "Use $developer to turn my product idea into a practical development operating system with plan, docs, and release checkpoints."

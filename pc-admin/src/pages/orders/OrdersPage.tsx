@@ -1,0 +1,89 @@
+import { Alert, Card, DatePicker, Input, Select, Space, Table, Tag, Typography } from "antd";
+import { useMemo, useState } from "react";
+import { getOrders } from "../../api/services/orderService";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import type { Order } from "../../types";
+import { OrderDetailDrawer } from "./components/OrderDetailDrawer";
+
+const columns = [
+  { title: "Order No", dataIndex: "orderNo", key: "orderNo" },
+  { title: "Amount", dataIndex: "amount", key: "amount" },
+  {
+    title: "Status",
+    dataIndex: "status",
+    key: "status",
+    render: (value: string) => <Tag color={value === "PAID" ? "green" : "gold"}>{value}</Tag>
+  },
+  { title: "Payment", dataIndex: "payment", key: "payment" },
+  { title: "Time", dataIndex: "time", key: "time" }
+];
+
+export function OrdersPage() {
+  const [keyword, setKeyword] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<string | undefined>();
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const query = useAsyncData(getOrders);
+
+  const data = useMemo(() => {
+    let list = query.data ?? [];
+    if (keyword.trim()) {
+      list = list.filter((item) => item.orderNo.toLowerCase().includes(keyword.toLowerCase()));
+    }
+    if (selectedStatus) {
+      list = list.filter((item) => item.status === selectedStatus);
+    }
+    return list;
+  }, [query.data, keyword, selectedStatus]);
+
+  return (
+    <div className="page-shell">
+      <Typography.Title className="page-title" level={2}>
+        Orders
+      </Typography.Title>
+      <Typography.Paragraph className="page-subtitle">
+        订单查询、支付状态、打印状态和退款排查的核心页面。
+      </Typography.Paragraph>
+
+      <Card>
+        <Space wrap>
+          <Input
+            placeholder="Order No"
+            style={{ width: 220 }}
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+          />
+          <Select
+            placeholder="Status"
+            style={{ width: 180 }}
+            allowClear
+            onChange={(value) => setSelectedStatus(value)}
+            options={[
+              { label: "Pending", value: "PENDING" },
+              { label: "Paid", value: "PAID" },
+              { label: "Refunded", value: "REFUNDED" }
+            ]}
+          />
+          <DatePicker.RangePicker />
+        </Space>
+        {query.error ? <Alert type="error" message={query.error} style={{ marginTop: 16 }} /> : null}
+
+        <Table
+          style={{ marginTop: 16 }}
+          rowKey="orderNo"
+          columns={columns}
+          loading={query.loading}
+          dataSource={data}
+          locale={{ emptyText: "No orders yet" }}
+          onRow={(record) => ({
+            onClick: () => setSelectedOrder(record)
+          })}
+        />
+      </Card>
+      <OrderDetailDrawer
+        order={selectedOrder}
+        open={Boolean(selectedOrder)}
+        onClose={() => setSelectedOrder(null)}
+      />
+    </div>
+  );
+}
