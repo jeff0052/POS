@@ -39,7 +39,7 @@ fun PaymentSuccessScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    if (scenario.source == "QR") "Cashier Settlement Complete" else "Payment Success",
+                    "Payment Completed",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -62,7 +62,7 @@ fun PaymentSuccessScreen(
                     if (scenario.source == "QR") {
                         "This QR table order has been settled by cashier. Receipt printing will be wired after printer SDK integration."
                     } else {
-                        "Receipt: auto print will be wired after printer SDK integration"
+                        "This active table order has been settled. Receipt printing will be wired after printer SDK integration."
                     }
                 )
             }

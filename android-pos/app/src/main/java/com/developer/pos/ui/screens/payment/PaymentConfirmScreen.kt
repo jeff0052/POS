@@ -46,7 +46,7 @@ fun PaymentConfirmScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = if (scenario.source == "QR") "Cashier Settlement" else "Payment Confirm",
+                text = if (scenario.source == "QR") "Cashier Settlement" else "Order Review and Settlement",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -76,7 +76,7 @@ fun PaymentConfirmScreen(
                     if (scenario.source == "QR") {
                         "Customer already submitted this table order. Cashier confirms discounts and collects payment at the register."
                     } else {
-                        "Counter order created by staff. Continue with standard POS payment collection."
+                        "Staff-created active table order. Review discounts and move this order into cashier settlement."
                     }
                 )
                 Text(
@@ -155,7 +155,7 @@ fun PaymentConfirmScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = uiState.cartItems.isNotEmpty() || scenario.source == "QR"
         ) {
-            Text(if (scenario.source == "QR") "Collect Payment at Cashier" else "Create Order and Start Payment")
+            Text(if (scenario.source == "QR") "Collect Payment at Cashier" else "Start Cashier Settlement")
         }
     }
 }

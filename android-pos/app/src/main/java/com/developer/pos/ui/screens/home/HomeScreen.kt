@@ -32,7 +32,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Store Home",
+            text = "Restaurant POS",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
@@ -55,8 +55,8 @@ fun HomeScreen(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("QR Table Orders")
                 Spacer(modifier = Modifier.height(6.dp))
-                Text("3 tables waiting for cashier settlement")
-                Text("T2 · T7 · T13 synced from table code ordering")
+                Text("3 tables in Pending Settlement")
+                Text("T2 · T7 · T13 synced from QR Ordering")
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -64,7 +64,7 @@ fun HomeScreen(
             onClick = onStartCashier,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Start Cashier")
+            Text("Open POS Ordering")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(
@@ -77,7 +77,7 @@ fun HomeScreen(
                 onClick = onOpenSettlement,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Settlement")
+                Text("Cashier Settlement")
             }
         }
         OutlinedButton(

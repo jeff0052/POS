@@ -44,7 +44,7 @@ fun PaymentProcessingScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 CircularProgressIndicator()
-                Text("Processing Payment", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Processing Cashier Settlement", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("Order No: ${uiState.currentOrderNo}")
                 Text("Payment Method: ${uiState.selectedPaymentMethod}")
                 Text("Amount: CNY %.2f".format(uiState.payableAmountCents / 100.0))

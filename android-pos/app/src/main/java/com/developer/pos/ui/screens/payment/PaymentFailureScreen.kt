@@ -35,17 +35,17 @@ fun PaymentFailureScreen(
     ) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Payment Failed", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Cashier Settlement Failed", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("Order No: ${uiState.currentOrderNo}")
-                Text("Please retry after payment SDK integration or network recovery.")
+                Text("Please retry cashier settlement after payment SDK integration or network recovery.")
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onRetry, modifier = Modifier.weight(1f)) {
-                Text("Retry")
+                Text("Retry Settlement")
             }
             OutlinedButton(onClick = onBackToCashier, modifier = Modifier.weight(1f)) {
-                Text("Back")
+                Text("Back to POS Ordering")
             }
         }
     }

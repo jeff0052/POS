@@ -32,14 +32,14 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Restaurant POS Settings", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onBack) { Text("Back") }
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Store", style = MaterialTheme.typography.titleMedium)
-                Text("Developer POS Demo Store")
+                Text("Restaurant", style = MaterialTheme.typography.titleMedium)
+                Text("Developer POS Demo Restaurant")
                 Text("Cashier: Amy")
                 Text("Version: 1.0.0")
             }

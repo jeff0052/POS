@@ -23,7 +23,7 @@ data class PaymentScenario(
             promotionDiscountCents = 0L,
             payableAmountCents = payableAmountCents,
             giftItems = emptyList(),
-            headline = "Counter checkout"
+            headline = "Active table order ready for cashier settlement"
         )
 
         fun qrDemo(): PaymentScenario = PaymentScenario(
@@ -36,7 +36,7 @@ data class PaymentScenario(
             promotionDiscountCents = 200L,
             payableAmountCents = 9250L,
             giftItems = listOf("Peach Soda"),
-            headline = "QR table settlement"
+            headline = "QR table order ready for cashier settlement"
         )
     }
 }

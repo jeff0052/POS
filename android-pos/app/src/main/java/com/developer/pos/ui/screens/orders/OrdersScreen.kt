@@ -42,7 +42,7 @@ fun OrdersScreen(
         OrderListItem("QR202603240019", "T2", "QR", "CNY 92.50", "PENDING_SETTLEMENT", "UNPAID", "18:42"),
         OrderListItem("QR202603240021", "T7", "QR", "CNY 71.00", "PENDING_SETTLEMENT", "UNPAID", "18:47"),
         OrderListItem("POS202603200001", "T4", "POS", "CNY 28.00", "PAID", "SDK_PAY", "09:21"),
-        OrderListItem("POS202603200002", "T8", "POS", "CNY 12.00", "PENDING", "CASH", "09:34"),
+        OrderListItem("POS202603200002", "T8", "POS", "CNY 12.00", "DRAFT", "CASH", "09:34"),
         OrderListItem("POS202603200003", "T1", "POS", "CNY 35.00", "REFUNDED", "SDK_PAY", "10:08")
     ).filter { keyword.value.isBlank() || it.orderNo.contains(keyword.value, ignoreCase = true) }
 
@@ -55,7 +55,7 @@ fun OrdersScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Orders", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Active Orders", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onBack) { Text("Back") }
         }
         Spacer(modifier = Modifier.height(16.dp))

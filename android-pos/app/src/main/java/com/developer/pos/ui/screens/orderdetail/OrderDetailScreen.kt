@@ -34,7 +34,7 @@ fun OrderDetailScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Order Detail", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Active Table Order", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onBack) { Text("Back") }
         }
 
@@ -47,7 +47,7 @@ fun OrderDetailScreen(
                 Text("Status: PENDING_SETTLEMENT")
                 Text("Payment: UNPAID")
                 Text("Member: Lina Chen / Gold")
-                Text("Cashier Handoff: Ready for settlement")
+                Text("Cashier Settlement: Pending Settlement")
             }
         }
 
@@ -67,7 +67,7 @@ fun OrderDetailScreen(
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onProceedToPayment, modifier = Modifier.weight(1f)) {
-                Text("Checkout")
+                Text("Open Cashier Settlement")
             }
             OutlinedButton(onClick = onRefund, modifier = Modifier.weight(1f)) {
                 Text("Refund")

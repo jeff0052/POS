@@ -32,19 +32,19 @@ fun SettlementScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Settlement", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Cashier Settlement Summary", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onBack) { Text("Back") }
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Today's Revenue", style = MaterialTheme.typography.titleMedium)
+                Text("Today's Cashier Settlement", style = MaterialTheme.typography.titleMedium)
                 Text("CNY 12,680.00", style = MaterialTheme.typography.headlineMedium)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Orders: 128")
+                Text("Settled Orders: 128")
                 Text("Refund Amount: CNY 320.00")
-                Text("Cash: CNY 2,100.00")
-                Text("SDK Pay: CNY 10,580.00")
+                Text("Cashier Cash: CNY 2,100.00")
+                Text("Cashier Digital Pay: CNY 10,580.00")
             }
         }
 
@@ -52,7 +52,7 @@ fun SettlementScreen(
             onClick = { },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Close Shift")
+            Text("Close Cashier Shift")
         }
     }
 }

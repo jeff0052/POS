@@ -45,7 +45,7 @@ fun CashierScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Cashier",
+                text = "POS Ordering",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -148,7 +148,7 @@ fun CashierScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = uiState.cartItems.isNotEmpty()
         ) {
-            Text("Proceed to Payment")
+            Text("Review Current Order")
         }
     }
 }
