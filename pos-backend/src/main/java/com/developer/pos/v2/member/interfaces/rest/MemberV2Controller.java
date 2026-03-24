@@ -64,4 +64,11 @@ public class MemberV2Controller implements V2Api {
     ) {
         return ApiResponse.success(memberApplicationService.bindActiveOrder(memberId, request.activeOrderId()));
     }
+
+    @PostMapping("/unbind-active-order")
+    public ApiResponse<BindMemberResultDto> unbindActiveOrder(
+            @Valid @RequestBody BindMemberActiveOrderRequest request
+    ) {
+        return ApiResponse.success(memberApplicationService.unbindActiveOrder(request.activeOrderId()));
+    }
 }

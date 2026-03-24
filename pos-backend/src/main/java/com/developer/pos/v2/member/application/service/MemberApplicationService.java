@@ -159,4 +159,27 @@ public class MemberApplicationService implements UseCase {
                 payableAmountCents
         );
     }
+
+    @Transactional
+    public BindMemberResultDto unbindActiveOrder(String activeOrderId) {
+        ActiveTableOrderEntity activeOrder = activeTableOrderRepository.findByActiveOrderId(activeOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("Active order not found: " + activeOrderId));
+
+        activeOrder.setMemberId(null);
+        activeOrder.setMemberDiscountCents(0);
+        long payableAmountCents = Math.max(
+                0,
+                activeOrder.getOriginalAmountCents() - activeOrder.getPromotionDiscountCents()
+        );
+        activeOrder.setPayableAmountCents(payableAmountCents);
+        activeTableOrderRepository.save(activeOrder);
+
+        return new BindMemberResultDto(
+                null,
+                activeOrderId,
+                null,
+                0,
+                payableAmountCents
+        );
+    }
 }
