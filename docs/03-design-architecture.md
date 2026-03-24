@@ -41,6 +41,24 @@
 
 ## 3. Core Domain Architecture
 
+### 3.0 Core Managed Objects
+
+系统围绕 6 类核心对象展开：
+
+- `merchants`
+- `stores`
+- `orders`
+- `members`
+- `staff`
+- `skus`
+
+其中：
+
+- `orders` 是交易核心
+- `skus` 是商品核心
+
+其他域大多围绕订单生命周期与 SKU 定价能力服务。
+
 ### 3.1 Table Order Domain
 
 核心原则：
@@ -76,7 +94,37 @@
 - `member_price_rules`
 - `member_upgrade_rules`
 
-### 3.3 Promotion Domain
+### 3.3 SKU / Catalog Domain
+
+核心对象：
+
+- `product_categories`
+- `products`
+- `skus`
+- `sku_option_groups`
+- `sku_options`
+- `store_sku_availability`
+- `sku_price_rules`
+
+核心职责：
+
+- 菜品分类与展示
+- SKU 可售卖单元定义
+- 规格 / 口味 / 做法 / 加料等选项建模
+- 门店可售范围控制
+- SKU 价格与会员价基础
+- 套餐与组合售卖能力的基础承载
+
+关键原则：
+
+- 订单项保存 `sku_id`
+- 同时保存 `sku_name_snapshot`
+- 同时保存 `unit_price_snapshot`
+- 同时保存 `option_snapshot`
+
+这样商品改名、改价、改配置后，不会污染历史订单与报表。
+
+### 3.4 Promotion Domain
 
 核心对象：
 
@@ -93,7 +141,7 @@
 4. 满赠
 5. 最终结账价
 
-### 3.4 Settlement and Reporting Domain
+### 3.5 Settlement and Reporting Domain
 
 核心对象：
 
@@ -113,11 +161,13 @@ Customer QR H5
 
 Android POS
   -> Backend Order Service
+  -> SKU / Catalog Service
   -> CRM Service
   -> Promotion Service
   -> Settlement Service
 
 Merchant Admin
+  -> SKU / Catalog Service
   -> CRM Service
   -> Promotion Service
   -> Report Service
@@ -148,7 +198,18 @@ Backend
 - 余额
 - 等级与权益
 
-### 5.3 promotion
+### 5.3 sku / catalog
+
+负责：
+
+- 分类
+- 商品
+- SKU
+- 规格选项
+- 可售范围
+- 价格基础能力
+
+### 5.4 promotion
 
 负责：
 
@@ -158,7 +219,7 @@ Backend
 - 等级折扣
 - 规则命中
 
-### 5.4 settlement
+### 5.5 settlement
 
 负责：
 
@@ -167,7 +228,7 @@ Backend
 - 优惠明细沉淀
 - 清桌触发
 
-### 5.5 report
+### 5.6 report
 
 负责：
 
@@ -177,7 +238,7 @@ Backend
 - 会员消费
 - 充值报表
 
-### 5.6 gto
+### 5.7 gto
 
 负责：
 
@@ -192,7 +253,9 @@ Backend
 
 订单必须保存快照：
 
+- SKU 名称快照
 - 菜品价格快照
+- SKU 选项快照
 - 会员优惠快照
 - 促销命中快照
 - 结账结果快照

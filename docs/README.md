@@ -10,6 +10,28 @@
 - `04-ui-design-requirements.md`
 - `05-roadmap.md`
 - `06-terminology-and-state-model.md`
+- `07-product-development-methodology.md`
+- `08-technical-stack-and-selection-rationale.md`
+- `09-system-landscape.md`
+- `10-ai-restaurant-system-vision.md`
+- `11-platform-admin-requirements.md`
+- `12-platform-admin-information-architecture.md`
+- `13-platform-admin-ui-design-requirements.md`
+- `14-platform-admin-wireframe-requirements.md`
+- `15-service-oriented-architecture-principle.md`
+- `16-backend-domain-breakdown.md`
+- `17-backend-module-refactor-plan.md`
+- `18-v2-rebuild-plan.md`
+- `19-v2-backend-module-package-structure.md`
+- `20-v2-database-migration-baseline.md`
+- `21-v2-api-contract-baseline.md`
+- `22-ai-ready-product-and-api-design-principle.md`
+- `23-ai-ready-domain-checklist.md`
+- `24-v2-crm-api-contract.md`
+- `25-delivery-integration-architecture.md`
+- `26-v2-acceptance-document.md`
+- `27-feature-completion-checklist.md`
+- `28-v2-day-1-progress-note.md`
 
 建议阅读顺序：
 
@@ -19,3 +41,25 @@
 4. `04-ui-design-requirements.md`
 5. `05-roadmap.md`
 6. `06-terminology-and-state-model.md`
+7. `07-product-development-methodology.md`
+8. `08-technical-stack-and-selection-rationale.md`
+9. `09-system-landscape.md`
+10. `10-ai-restaurant-system-vision.md`
+11. `11-platform-admin-requirements.md`
+12. `12-platform-admin-information-architecture.md`
+13. `13-platform-admin-ui-design-requirements.md`
+14. `14-platform-admin-wireframe-requirements.md`
+15. `15-service-oriented-architecture-principle.md`
+16. `16-backend-domain-breakdown.md`
+17. `17-backend-module-refactor-plan.md`
+18. `18-v2-rebuild-plan.md`
+19. `19-v2-backend-module-package-structure.md`
+20. `20-v2-database-migration-baseline.md`
+21. `21-v2-api-contract-baseline.md`
+22. `22-ai-ready-product-and-api-design-principle.md`
+23. `23-ai-ready-domain-checklist.md`
+24. `24-v2-crm-api-contract.md`
+25. `25-delivery-integration-architecture.md`
+26. `26-v2-acceptance-document.md`
+27. `27-feature-completion-checklist.md`
+28. `28-v2-day-1-progress-note.md`
