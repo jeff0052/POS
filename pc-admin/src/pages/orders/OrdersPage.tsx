@@ -5,6 +5,23 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import type { Order } from "../../types";
 import { OrderDetailDrawer } from "./components/OrderDetailDrawer";
 
+function getOrderStatusMeta(status: Order["status"]) {
+  switch (status) {
+    case "DRAFT":
+      return { label: "Draft", color: "default" };
+    case "SUBMITTED":
+      return { label: "Sent to Kitchen", color: "processing" };
+    case "PENDING_SETTLEMENT":
+      return { label: "Pending Settlement", color: "gold" };
+    case "PAID":
+      return { label: "Paid", color: "green" };
+    case "REFUNDED":
+      return { label: "Refunded", color: "red" };
+    default:
+      return { label: status, color: "default" };
+  }
+}
+
 const columns = [
   { title: "Order No", dataIndex: "orderNo", key: "orderNo" },
   { title: "Table", dataIndex: "tableCode", key: "tableCode" },
@@ -20,9 +37,8 @@ const columns = [
     dataIndex: "status",
     key: "status",
     render: (value: string) => {
-      const color =
-        value === "PAID" ? "green" : value === "PENDING_SETTLEMENT" ? "blue" : value === "REFUNDED" ? "red" : "gold";
-      return <Tag color={color}>{value}</Tag>;
+      const meta = getOrderStatusMeta(value as Order["status"]);
+      return <Tag color={meta.color}>{meta.label}</Tag>;
     }
   },
   { title: "Member", dataIndex: "memberName", key: "memberName" },
@@ -70,7 +86,8 @@ export function OrdersPage() {
             allowClear
             onChange={(value) => setSelectedStatus(value)}
             options={[
-              { label: "Pending", value: "PENDING" },
+              { label: "Draft", value: "DRAFT" },
+              { label: "Sent to Kitchen", value: "SUBMITTED" },
               { label: "Pending Settlement", value: "PENDING_SETTLEMENT" },
               { label: "Paid", value: "PAID" },
               { label: "Refunded", value: "REFUNDED" }

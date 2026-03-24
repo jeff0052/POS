@@ -222,6 +222,13 @@ input {
   transform: translateY(-1px);
 }
 
+.cta-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+}
+
 .icon-button {
   width: 40px;
   height: 40px;
@@ -317,6 +324,14 @@ input {
   border-radius: 999px;
   background: #1c2436;
   margin-top: 10px;
+}
+
+.stage-support-copy {
+  margin: 10px 0 0;
+  max-width: 540px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .utility-group {
@@ -1133,6 +1148,12 @@ input {
   box-shadow: var(--shadow-soft);
 }
 
+.order-stage-pill {
+  background: #eef4ff;
+  color: #2e62d4;
+  border-color: #d5e2ff;
+}
+
 .guest-strip {
   display: flex;
   gap: 10px;
@@ -1336,6 +1357,13 @@ input {
 
 .accent-card {
   background: linear-gradient(180deg, #f8fbff, #edf4ff);
+}
+
+.payment-guard-copy {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .feature-card {

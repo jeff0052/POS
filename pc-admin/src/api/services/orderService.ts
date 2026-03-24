@@ -12,7 +12,7 @@ interface OrderListResponse {
     memberDiscountCents?: number;
     promotionDiscountCents?: number;
     payableAmountCents?: number;
-    orderStatus: "PENDING" | "PAID" | "REFUNDED" | "PENDING_SETTLEMENT";
+    orderStatus: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
     paymentMethod?: "CASH" | "SDK_PAY" | "UNPAID";
     createdAt: number | string;
     tableCode?: string;

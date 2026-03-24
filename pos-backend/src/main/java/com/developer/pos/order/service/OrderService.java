@@ -212,7 +212,7 @@ public class OrderService {
                 created.setStoreCode(request.storeCode());
                 created.setStoreName("Riverside Branch");
                 created.setTableCode(request.tableCode());
-                created.setSettlementStatus("DRAFT");
+                created.setSettlementStatus(request.settlementStatus() == null ? "DRAFT" : request.settlementStatus());
                 created.setOriginalAmountCents(amounts.originalAmountCents());
                 created.setMemberDiscountCents(amounts.memberDiscountCents());
                 created.setPromotionDiscountCents(amounts.promotionDiscountCents());
@@ -225,7 +225,7 @@ public class OrderService {
         OrderAmounts amounts = calculateAmounts(items);
 
         entity.setItemsJson(writeItems(items));
-        entity.setSettlementStatus(items.isEmpty() ? "DRAFT" : entity.getSettlementStatus());
+        entity.setSettlementStatus(items.isEmpty() ? "DRAFT" : (request.settlementStatus() == null ? entity.getSettlementStatus() : request.settlementStatus()));
         entity.setOriginalAmountCents(amounts.originalAmountCents());
         entity.setMemberDiscountCents(amounts.memberDiscountCents());
         entity.setPromotionDiscountCents(amounts.promotionDiscountCents());
@@ -234,7 +234,7 @@ public class OrderService {
 
         orderRepository.findByOrderNo(entity.getOrderNo()).ifPresent(order -> {
             order.setPaidAmountCents(amounts.payableAmountCents());
-            order.setOrderStatus("DRAFT");
+            order.setOrderStatus(entity.getSettlementStatus());
             order.setPaymentStatus("UNPAID");
             orderRepository.save(order);
         });

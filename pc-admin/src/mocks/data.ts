@@ -95,7 +95,7 @@ export const mockOrders: Order[] = [
     id: 2,
     orderNo: "POS202603200002",
     amount: "CNY 12.00",
-    status: "PENDING",
+    status: "DRAFT",
     payment: "CASH",
     time: "2026-03-20 09:34",
     cashier: "Tom",

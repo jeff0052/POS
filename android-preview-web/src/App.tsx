@@ -42,7 +42,7 @@ type TableCard = {
   course: string;
   accent: string;
   source?: "POS" | "QR";
-  settlementState?: "PENDING_SETTLEMENT" | "IN_SERVICE" | "READY" | "SETTLED";
+  settlementState?: OrderStage;
   memberName?: string;
 };
 
@@ -65,7 +65,7 @@ type QrCurrentOrderResponse = {
   orderNo: string;
   queueNo: string;
   tableCode: string;
-  settlementStatus: "PENDING_SETTLEMENT" | "IN_SERVICE" | "READY" | "SETTLED";
+  settlementStatus: OrderStage;
   memberName: string | null;
   memberTier?: string | null;
   originalAmountCents?: number;
@@ -89,30 +89,30 @@ const categories: Category[] = [
 ];
 
 const tables: TableCard[] = [
-  { id: 1, status: "occupied", guests: 2, area: "Window", total: 48, course: "Starters served", accent: "sky" },
+  { id: 1, status: "occupied", guests: 2, area: "Window", total: 48, course: "Sent to kitchen", accent: "sky" },
   { id: 2, status: "occupied", guests: 4, area: "Main hall", total: 92.5, course: "QR order waiting for cashier", accent: "peach", source: "QR", settlementState: "PENDING_SETTLEMENT", memberName: "Lina Chen" },
   { id: 3, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
   { id: 4, status: "reserved", guests: 2, area: "Patio", total: 0, course: "19:00 hold", accent: "lilac" },
-  { id: 5, status: "occupied", guests: 6, area: "Private booth", total: 168, course: "Wine pairing", accent: "gold" },
+  { id: 5, status: "occupied", guests: 6, area: "Private booth", total: 168, course: "Sent to kitchen", accent: "gold" },
   { id: 6, status: "available", guests: 0, area: "Window", total: 0, course: "Ready", accent: "mint" },
-  { id: 7, status: "occupied", guests: 3, area: "Chef counter", total: 71, course: "QR guest sent add-on items", accent: "rose", source: "QR", settlementState: "PENDING_SETTLEMENT" },
+  { id: 7, status: "occupied", guests: 3, area: "Chef counter", total: 71, course: "QR order waiting for cashier", accent: "rose", source: "QR", settlementState: "PENDING_SETTLEMENT" },
   { id: 8, status: "reserved", guests: 5, area: "Main hall", total: 0, course: "19:30 hold", accent: "lilac" },
-  { id: 9, status: "occupied", guests: 4, area: "Main hall", total: 88, course: "Review bill", accent: "sky" },
+  { id: 9, status: "occupied", guests: 4, area: "Main hall", total: 88, course: "Pending settlement", accent: "sky" },
   { id: 10, status: "available", guests: 0, area: "Patio", total: 0, course: "Ready", accent: "mint" },
-  { id: 11, status: "occupied", guests: 2, area: "Window", total: 46, course: "Coffee service", accent: "peach" },
+  { id: 11, status: "occupied", guests: 2, area: "Window", total: 46, course: "Sent to kitchen", accent: "peach" },
   { id: 12, status: "available", guests: 0, area: "Patio", total: 0, course: "Ready", accent: "mint" },
-  { id: 13, status: "occupied", guests: 5, area: "Main hall", total: 124, course: "Shared plates", accent: "gold", source: "QR", settlementState: "READY", memberName: "Gold Member" },
+  { id: 13, status: "occupied", guests: 5, area: "Main hall", total: 124, course: "Sent to kitchen", accent: "gold", source: "QR", settlementState: "SUBMITTED", memberName: "Gold Member" },
   { id: 14, status: "reserved", guests: 2, area: "Chef counter", total: 0, course: "20:00 hold", accent: "lilac" },
   { id: 15, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
-  { id: 16, status: "occupied", guests: 4, area: "Private booth", total: 136, course: "Main course", accent: "rose" },
+  { id: 16, status: "occupied", guests: 4, area: "Private booth", total: 136, course: "Sent to kitchen", accent: "rose" },
   { id: 17, status: "available", guests: 0, area: "Window", total: 0, course: "Ready", accent: "mint" },
   { id: 18, status: "reserved", guests: 2, area: "Window", total: 0, course: "19:30 hold", accent: "lilac" },
-  { id: 19, status: "occupied", guests: 3, area: "Patio", total: 63, course: "Second round drinks", accent: "peach" },
+  { id: 19, status: "occupied", guests: 3, area: "Patio", total: 63, course: "Sent to kitchen", accent: "peach" },
   { id: 20, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
-  { id: 21, status: "occupied", guests: 4, area: "Main hall", total: 104, course: "Desserts", accent: "sky" },
+  { id: 21, status: "occupied", guests: 4, area: "Main hall", total: 104, course: "Sent to kitchen", accent: "sky" },
   { id: 22, status: "reserved", guests: 6, area: "Private booth", total: 0, course: "20:15 hold", accent: "lilac" },
-  { id: 23, status: "occupied", guests: 2, area: "Chef counter", total: 58, course: "Check requested", accent: "rose" },
-  { id: 24, status: "occupied", guests: 4, area: "Indoor", total: 78.5, course: "Review bill", accent: "gold" }
+  { id: 23, status: "occupied", guests: 2, area: "Chef counter", total: 58, course: "Pending settlement", accent: "rose" },
+  { id: 24, status: "occupied", guests: 4, area: "Indoor", total: 78.5, course: "Pending settlement", accent: "gold" }
 ];
 
 const reservations: Reservation[] = [
@@ -245,7 +245,7 @@ function getInitialOrderStage(table: TableCard): OrderStage {
     return "DRAFT";
   }
 
-  if (table.course.toLowerCase().includes("review bill") || table.course.toLowerCase().includes("check requested")) {
+  if (table.course.toLowerCase().includes("pending settlement")) {
     return "PENDING_SETTLEMENT";
   }
 
@@ -265,6 +265,25 @@ function getStageLabel(stage: OrderStage) {
     default:
       return stage;
   }
+}
+
+function getStageSupportText(stage: OrderStage) {
+  switch (stage) {
+    case "DRAFT":
+      return "Items are still being edited for this active table order.";
+    case "SUBMITTED":
+      return "This table order has been sent to kitchen and can still receive add-on items.";
+    case "PENDING_SETTLEMENT":
+      return "Kitchen flow is complete. Cashier should confirm discounts and collect payment.";
+    case "SETTLED":
+      return "This order is closed. The table can be cleaned and reopened.";
+    default:
+      return "";
+  }
+}
+
+function canCollectPayment(stage: OrderStage) {
+  return stage === "PENDING_SETTLEMENT";
 }
 
 function mergeOrderItems(existing: OrderItem[], incoming: OrderItem[]) {
@@ -288,6 +307,34 @@ function mergeOrderItems(existing: OrderItem[], incoming: OrderItem[]) {
   }
 
   return Array.from(merged.values());
+}
+
+function createQrPayloadFromDraft(
+  tableCode: string,
+  items: OrderItem[],
+  settlementStatus: OrderStage = "DRAFT"
+): QrCurrentOrderResponse {
+  const payloadItems = items.map((entry) => ({
+    productName: entry.name,
+    quantity: entry.quantity,
+    unitPriceCents: Math.round(entry.price * 100),
+    memberPriceCents: entry.memberPrice ? Math.round(entry.memberPrice * 100) : null
+  }));
+  const originalAmountCents = Math.round(getDraftOrderTotal(items) * 100);
+
+  return {
+    orderNo: `POS-DRAFT-${tableCode}`,
+    queueNo: `POS-${tableCode}`,
+    tableCode,
+    settlementStatus,
+    memberName: null,
+    memberTier: null,
+    originalAmountCents,
+    memberDiscountCents: 0,
+    promotionDiscountCents: 0,
+    payableAmountCents: originalAmountCents,
+    items: payloadItems
+  };
 }
 
 function loadStoredDraftOrders() {
@@ -356,13 +403,15 @@ function App() {
   const targetTable = tableState.find((table) => table.id === targetTableId) ?? tableState[0];
   const selectedTableCode = `T${selectedTable.id}`;
   const selectedQrOrder = qrOrders[selectedTableCode];
-  const selectedOrderStage = selectedQrOrder
-    ? selectedQrOrder.settlementStatus === "PENDING_SETTLEMENT"
-      ? "PENDING_SETTLEMENT"
-      : selectedQrOrder.settlementStatus === "SETTLED"
-        ? "SETTLED"
-        : "SUBMITTED"
-    : (tableOrderStages[selectedTable.id] ?? "DRAFT");
+  const selectedOrderStage =
+    tableOrderStages[selectedTable.id] ??
+    (selectedQrOrder
+      ? selectedQrOrder.settlementStatus === "PENDING_SETTLEMENT"
+        ? "PENDING_SETTLEMENT"
+        : selectedQrOrder.settlementStatus === "SETTLED"
+          ? "SETTLED"
+          : "SUBMITTED"
+      : "DRAFT");
   const menuByName = useMemo(
     () => new Map(menu.map((item) => [item.name, item])),
     []
@@ -619,6 +668,7 @@ function App() {
         body: JSON.stringify({
           storeCode: "1001",
           tableCode,
+          settlementStatus: nextQrOrder.settlementStatus,
           items: nextQrOrder.items
         })
       });
@@ -768,28 +818,7 @@ function App() {
           : table
       )
     );
-    void persistQrOrderItems(
-      {
-        orderNo: `POS-DRAFT-${selectedTableCode}`,
-        queueNo: `POS-${selectedTableCode}`,
-        tableCode: selectedTableCode,
-        settlementStatus: "PENDING_SETTLEMENT",
-        memberName: null,
-        memberTier: null,
-        originalAmountCents: Math.round(getDraftOrderTotal(previewNextItems) * 100),
-        memberDiscountCents: 0,
-        promotionDiscountCents: 0,
-        payableAmountCents: Math.round(getDraftOrderTotal(previewNextItems) * 100),
-        items: previewNextItems.map((entry) => ({
-          productName: entry.name,
-          quantity: entry.quantity,
-          unitPriceCents: Math.round(entry.price * 100),
-          memberPriceCents: entry.memberPrice ? Math.round(entry.memberPrice * 100) : null
-        }))
-      },
-      selectedTableCode,
-      selectedTable.id
-    );
+    void persistQrOrderItems(createQrPayloadFromDraft(selectedTableCode, previewNextItems, "DRAFT"), selectedTableCode, selectedTable.id);
   };
 
   const updateQuantity = (id: number, delta: number) => {
@@ -880,28 +909,7 @@ function App() {
       return;
     }
 
-    void persistQrOrderItems(
-      {
-        orderNo: `POS-DRAFT-${selectedTableCode}`,
-        queueNo: `POS-${selectedTableCode}`,
-        tableCode: selectedTableCode,
-        settlementStatus: "PENDING_SETTLEMENT",
-        memberName: null,
-        memberTier: null,
-        originalAmountCents: Math.round(getDraftOrderTotal(previewNextItems) * 100),
-        memberDiscountCents: 0,
-        promotionDiscountCents: 0,
-        payableAmountCents: Math.round(getDraftOrderTotal(previewNextItems) * 100),
-        items: previewNextItems.map((entry) => ({
-          productName: entry.name,
-          quantity: entry.quantity,
-          unitPriceCents: Math.round(entry.price * 100),
-          memberPriceCents: entry.memberPrice ? Math.round(entry.memberPrice * 100) : null
-        }))
-      },
-      selectedTableCode,
-      selectedTable.id
-    );
+    void persistQrOrderItems(createQrPayloadFromDraft(selectedTableCode, previewNextItems, "DRAFT"), selectedTableCode, selectedTable.id);
   };
 
   const chooseTable = (table: TableCard) => {
@@ -932,6 +940,14 @@ function App() {
             : table
       )
     );
+    const currentDraftItems = tableDraftOrders[selectedTable.id] ?? [];
+    if (currentDraftItems.length > 0) {
+      void persistQrOrderItems(
+        createQrPayloadFromDraft(selectedTableCode, currentDraftItems, "SUBMITTED"),
+        selectedTableCode,
+        selectedTable.id
+      );
+    }
     setView("review");
   };
 
@@ -954,6 +970,14 @@ function App() {
             : table
         )
       );
+      const currentDraftItems = tableDraftOrders[selectedTable.id] ?? [];
+      if (currentDraftItems.length > 0) {
+        void persistQrOrderItems(
+          createQrPayloadFromDraft(selectedTableCode, currentDraftItems, "PENDING_SETTLEMENT"),
+          selectedTableCode,
+          selectedTable.id
+        );
+      }
     }
 
     setView("payment");
@@ -991,7 +1015,7 @@ function App() {
       );
       setTableOrderStages((current) => ({
         ...current,
-        [selectedTable.id]: "SETTLED"
+        [selectedTable.id]: "DRAFT"
       }));
     } else {
       setTableDraftOrders((current) => ({
@@ -1000,7 +1024,7 @@ function App() {
       }));
       setTableOrderStages((current) => ({
         ...current,
-        [selectedTable.id]: "SETTLED"
+        [selectedTable.id]: "DRAFT"
       }));
       setTableState((current) =>
         current.map((table) =>
@@ -1264,16 +1288,19 @@ function App() {
                           <div key={index} className="floorplan-island">
                             <div className="floorplan-grid">
                               {group.map((table) => {
+                                const tableStage = tableOrderStages[table.id] ?? getInitialOrderStage(table);
                                 const tone =
                                   table.status === "available"
                                     ? "available"
                                     : table.status === "reserved"
                                       ? "reserved"
-                                      : table.total >= 100
-                                        ? "attention"
-                                        : table.total >= 60
-                                          ? "billing"
-                                          : "occupied";
+                                      : tableStage === "PENDING_SETTLEMENT"
+                                        ? "billing"
+                                        : tableStage === "SETTLED"
+                                          ? "neutral"
+                                          : table.total >= 100
+                                            ? "attention"
+                                            : "occupied";
 
                                 return (
                                   <button
@@ -1290,9 +1317,7 @@ function App() {
                                         ? "Available"
                                         : table.status === "reserved"
                                           ? "Reserved"
-                                          : table.total > 0
-                                            ? formatMoney(table.total)
-                                            : "Open"}
+                                          : `${getStageLabel(tableStage)} · ${table.total > 0 ? formatMoney(table.total) : "Open"}`}
                                     </span>
                                   </button>
                                 );
@@ -1404,6 +1429,7 @@ function App() {
                     </div>
                     <h2>Ordering</h2>
                     <div className="heading-underline" />
+                    <p className="stage-support-copy">{getStageSupportText(selectedOrderStage)}</p>
                   </div>
                   <div className="utility-group">
                     <button className="minor-pill order-stage-pill">{getStageLabel(selectedOrderStage)}</button>
@@ -1548,12 +1574,26 @@ function App() {
                     <span className="sort-icon" />
                     <span>Apply discount</span>
                   </button>
-                  <button className="sort-row" onClick={sendToKitchen}>
-                    <span className="sort-icon" />
-                    <span>Send to kitchen</span>
-                  </button>
+                  {selectedOrderStage === "DRAFT" ? (
+                    <button className="sort-row" onClick={sendToKitchen}>
+                      <span className="sort-icon" />
+                      <span>Send to kitchen</span>
+                    </button>
+                  ) : null}
+                  {selectedOrderStage === "SUBMITTED" ? (
+                    <button className="sort-row" onClick={moveToSettlement}>
+                      <span className="sort-icon" />
+                      <span>Move to settlement</span>
+                    </button>
+                  ) : null}
+                  {selectedOrderStage === "PENDING_SETTLEMENT" ? (
+                    <button className="sort-row" onClick={() => setView("payment")}>
+                      <span className="sort-icon" />
+                      <span>Open cashier settlement</span>
+                    </button>
+                  ) : null}
                   <button className="cta-button" onClick={() => setView("review")}>
-                    Review current order
+                    {selectedOrderStage === "PENDING_SETTLEMENT" ? "Review settlement order" : "Review current order"}
                   </button>
                 </div>
               </aside>
@@ -1570,6 +1610,7 @@ function App() {
                       <strong>T{selectedTable.id}</strong>
                     </div>
                     <h2>Order review</h2>
+                    <p className="stage-support-copy">{getStageSupportText(selectedOrderStage)}</p>
                   </div>
                   <button className="minor-pill" onClick={() => setView("ordering")}>
                     Continue ordering
@@ -1657,18 +1698,27 @@ function App() {
                     <span className="sort-icon" />
                     <span>Member recharge</span>
                   </button>
-                  <button className="sort-row" onClick={sendToKitchen}>
-                    <span className="sort-icon" />
-                    <span>Send to kitchen</span>
-                  </button>
+                  {selectedOrderStage === "DRAFT" ? (
+                    <button className="sort-row" onClick={sendToKitchen}>
+                      <span className="sort-icon" />
+                      <span>Send to kitchen</span>
+                    </button>
+                  ) : null}
                   <button className="sort-row" onClick={() => setView("split")}>
                     <span className="sort-icon" />
                     <span>Split bill</span>
                   </button>
-                  <button className="sort-row" onClick={moveToSettlement}>
-                    <span className="sort-icon" />
-                    <span>Move to settlement</span>
-                  </button>
+                  {selectedOrderStage !== "PENDING_SETTLEMENT" ? (
+                    <button className="sort-row" onClick={moveToSettlement}>
+                      <span className="sort-icon" />
+                      <span>Move to settlement</span>
+                    </button>
+                  ) : null}
+                  {selectedOrderStage === "PENDING_SETTLEMENT" ? (
+                    <button className="cta-button" onClick={() => setView("payment")}>
+                      Open cashier settlement
+                    </button>
+                  ) : null}
                 </div>
               </aside>
             </div>
@@ -1742,6 +1792,7 @@ function App() {
                       <strong>T{selectedTable.id}</strong>
                     </div>
                     <h2>Cashier settlement</h2>
+                    <p className="stage-support-copy">{getStageSupportText(selectedOrderStage)}</p>
                   </div>
                   <button className="minor-pill" onClick={() => setView("review")}>
                     Back to review
@@ -1858,9 +1909,18 @@ function App() {
                     Complete cashier settlement to close the active table order and release the
                     table back into service.
                   </p>
-                  <button className="cta-button" onClick={() => void completeSettlement()}>
+                  <button
+                    className="cta-button"
+                    disabled={!canCollectPayment(selectedOrderStage)}
+                    onClick={() => void completeSettlement()}
+                  >
                     Collect payment
                   </button>
+                  {!canCollectPayment(selectedOrderStage) ? (
+                    <p className="payment-guard-copy">
+                      Move this order to <strong>Pending settlement</strong> before collecting payment.
+                    </p>
+                  ) : null}
                 </div>
               </aside>
             </div>
@@ -1883,7 +1943,7 @@ function App() {
                 <div className="success-metrics">
                   <article className="status-card tone-mint">
                     <span>Amount paid</span>
-                    <strong>{formatMoney(total)}</strong>
+                    <strong>{formatMoney(displayedTotal)}</strong>
                   </article>
                   <article className="status-card tone-sky">
                     <span>Method</span>
