@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,30 +64,70 @@ public class OrderService {
     }
 
     public QrOrderSubmitResponse submitQrOrder(QrOrderSubmitRequest request) {
-        List<QrOrderItemRequest> items = request.items() == null ? List.of() : request.items();
+        List<QrOrderItemRequest> requestItems = request.items() == null ? List.of() : request.items();
+        LocalDateTime createdAt = LocalDateTime.now();
+        QrTableOrderEntity activeOrder = qrTableOrderRepository
+            .findTopByStoreCodeAndTableCodeAndSettlementStatusNotOrderByCreatedAtDesc(
+                request.storeCode(),
+                request.tableCode(),
+                "SETTLED"
+            )
+            .orElse(null);
 
-        long originalAmountCents = items.stream()
-            .mapToLong(item -> safe(item.unitPriceCents()) * safe(item.quantity()))
-            .sum();
+        if (activeOrder != null) {
+            List<QrOrderItemRequest> mergedItems = mergeItems(readItems(activeOrder.getItemsJson()), requestItems);
+            OrderAmounts amounts = calculateAmounts(mergedItems);
+            activeOrder.setItemsJson(writeItems(mergedItems));
+            activeOrder.setSettlementStatus("PENDING_SETTLEMENT");
+            activeOrder.setMemberName(Boolean.TRUE.equals(request.memberBound()) ? request.memberName() : activeOrder.getMemberName());
+            activeOrder.setMemberTier(Boolean.TRUE.equals(request.memberBound()) ? request.memberTier() : activeOrder.getMemberTier());
+            activeOrder.setOriginalAmountCents(amounts.originalAmountCents());
+            activeOrder.setMemberDiscountCents(amounts.memberDiscountCents());
+            activeOrder.setPromotionDiscountCents(amounts.promotionDiscountCents());
+            activeOrder.setPayableAmountCents(amounts.payableAmountCents());
+            qrTableOrderRepository.save(activeOrder);
 
-        long memberDiscountCents = Boolean.TRUE.equals(request.memberBound())
-            ? items.stream().mapToLong(item -> {
-                long unitPrice = safe(item.unitPriceCents());
-                long memberPrice = item.memberPriceCents() == null ? unitPrice : item.memberPriceCents();
-                return Math.max(0L, unitPrice - memberPrice) * safe(item.quantity());
-            }).sum()
-            : 0L;
+            orderRepository.findByOrderNo(activeOrder.getOrderNo()).ifPresent(order -> {
+                order.setPaidAmountCents(amounts.payableAmountCents());
+                order.setOrderStatus("PENDING_SETTLEMENT");
+                order.setPaymentStatus("UNPAID");
+                orderRepository.save(order);
+            });
 
-        long promotionDiscountCents = originalAmountCents >= 6000 ? 800L : 0L;
-        long payableAmountCents = Math.max(0L, originalAmountCents - memberDiscountCents - promotionDiscountCents);
+            return new QrOrderSubmitResponse(
+                activeOrder.getOrderNo(),
+                activeOrder.getQueueNo(),
+                request.storeCode(),
+                request.storeName(),
+                request.tableCode(),
+                "QR",
+                activeOrder.getSettlementStatus(),
+                activeOrder.getMemberName(),
+                activeOrder.getMemberTier(),
+                amounts.originalAmountCents(),
+                amounts.memberDiscountCents(),
+                amounts.promotionDiscountCents(),
+                amounts.payableAmountCents()
+            );
+        }
 
+        OrderAmounts amounts = calculateAmounts(requestItems);
         String sequence = String.format("%03d", QR_SEQUENCE.incrementAndGet());
         String orderNo = "QR" + System.currentTimeMillis();
         String queueNo = "QR-" + request.tableCode() + "-" + sequence;
-        LocalDateTime createdAt = LocalDateTime.now();
 
-        persistOrderSummary(orderNo, payableAmountCents, createdAt);
-        persistQrTableOrder(request, items, orderNo, queueNo, originalAmountCents, memberDiscountCents, promotionDiscountCents, payableAmountCents, createdAt);
+        persistOrderSummary(orderNo, amounts.payableAmountCents(), createdAt);
+        persistQrTableOrder(
+            request,
+            requestItems,
+            orderNo,
+            queueNo,
+            amounts.originalAmountCents(),
+            amounts.memberDiscountCents(),
+            amounts.promotionDiscountCents(),
+            amounts.payableAmountCents(),
+            createdAt
+        );
 
         return new QrOrderSubmitResponse(
             orderNo,
@@ -98,10 +139,10 @@ public class OrderService {
             "PENDING_SETTLEMENT",
             Boolean.TRUE.equals(request.memberBound()) ? request.memberName() : null,
             Boolean.TRUE.equals(request.memberBound()) ? request.memberTier() : null,
-            originalAmountCents,
-            memberDiscountCents,
-            promotionDiscountCents,
-            payableAmountCents
+            amounts.originalAmountCents(),
+            amounts.memberDiscountCents(),
+            amounts.promotionDiscountCents(),
+            amounts.payableAmountCents()
         );
     }
 
@@ -147,38 +188,54 @@ public class OrderService {
     }
 
     public QrCurrentOrderResponse updateCurrentQrOrder(QrOrderUpdateRequest request) {
-        QrTableOrderEntity entity = qrTableOrderRepository
-            .findTopByStoreCodeAndTableCodeOrderByCreatedAtDesc(request.storeCode(), request.tableCode())
-            .orElseThrow(() -> new IllegalArgumentException("QR order not found for table"));
-
         List<QrOrderItemRequest> items = request.items() == null
             ? List.of()
             : request.items().stream().filter(item -> item.quantity() != null && item.quantity() > 0).toList();
 
-        long originalAmountCents = items.stream()
-            .mapToLong(item -> safe(item.unitPriceCents()) * safe(item.quantity()))
-            .sum();
+        QrTableOrderEntity entity = qrTableOrderRepository
+            .findTopByStoreCodeAndTableCodeAndSettlementStatusNotOrderByCreatedAtDesc(
+                request.storeCode(),
+                request.tableCode(),
+                "SETTLED"
+            )
+            .orElseGet(() -> {
+                String sequence = String.format("%03d", QR_SEQUENCE.incrementAndGet());
+                String orderNo = "POS" + System.currentTimeMillis();
+                String queueNo = "POS-" + request.tableCode() + "-" + sequence;
+                LocalDateTime createdAt = LocalDateTime.now();
+                OrderAmounts amounts = calculateAmounts(items);
+                persistOrderSummary(orderNo, amounts.payableAmountCents(), createdAt);
 
-        long memberDiscountCents = items.stream()
-            .mapToLong(item -> {
-                long unitPrice = safe(item.unitPriceCents());
-                long memberPrice = item.memberPriceCents() == null ? unitPrice : item.memberPriceCents();
-                return Math.max(0L, unitPrice - memberPrice) * safe(item.quantity());
-            })
-            .sum();
+                QrTableOrderEntity created = new QrTableOrderEntity();
+                created.setOrderNo(orderNo);
+                created.setQueueNo(queueNo);
+                created.setStoreCode(request.storeCode());
+                created.setStoreName("Riverside Branch");
+                created.setTableCode(request.tableCode());
+                created.setSettlementStatus("DRAFT");
+                created.setOriginalAmountCents(amounts.originalAmountCents());
+                created.setMemberDiscountCents(amounts.memberDiscountCents());
+                created.setPromotionDiscountCents(amounts.promotionDiscountCents());
+                created.setPayableAmountCents(amounts.payableAmountCents());
+                created.setItemsJson(writeItems(items));
+                created.setCreatedAt(createdAt);
+                return qrTableOrderRepository.save(created);
+            });
 
-        long promotionDiscountCents = originalAmountCents >= 6000 ? 800L : 0L;
-        long payableAmountCents = Math.max(0L, originalAmountCents - memberDiscountCents - promotionDiscountCents);
+        OrderAmounts amounts = calculateAmounts(items);
 
         entity.setItemsJson(writeItems(items));
-        entity.setOriginalAmountCents(originalAmountCents);
-        entity.setMemberDiscountCents(memberDiscountCents);
-        entity.setPromotionDiscountCents(promotionDiscountCents);
-        entity.setPayableAmountCents(payableAmountCents);
+        entity.setSettlementStatus(items.isEmpty() ? "DRAFT" : entity.getSettlementStatus());
+        entity.setOriginalAmountCents(amounts.originalAmountCents());
+        entity.setMemberDiscountCents(amounts.memberDiscountCents());
+        entity.setPromotionDiscountCents(amounts.promotionDiscountCents());
+        entity.setPayableAmountCents(amounts.payableAmountCents());
         qrTableOrderRepository.save(entity);
 
         orderRepository.findByOrderNo(entity.getOrderNo()).ifPresent(order -> {
-            order.setPaidAmountCents(payableAmountCents);
+            order.setPaidAmountCents(amounts.payableAmountCents());
+            order.setOrderStatus("DRAFT");
+            order.setPaymentStatus("UNPAID");
             orderRepository.save(order);
         });
 
@@ -197,6 +254,15 @@ public class OrderService {
             entity.getPayableAmountCents(),
             readItems(entity.getItemsJson())
         );
+    }
+
+    public void clearCurrentQrOrder(String storeCode, String tableCode) {
+        qrTableOrderRepository
+            .findTopByStoreCodeAndTableCodeAndSettlementStatusNotOrderByCreatedAtDesc(storeCode, tableCode, "SETTLED")
+            .ifPresent(entity -> {
+                qrTableOrderRepository.delete(entity);
+                orderRepository.findByOrderNo(entity.getOrderNo()).ifPresent(orderRepository::delete);
+            });
     }
 
     private OrderDto toPosDto(OrderEntity entity) {
@@ -299,6 +365,53 @@ public class OrderService {
         qrTableOrderRepository.save(entity);
     }
 
+    private OrderAmounts calculateAmounts(List<QrOrderItemRequest> items) {
+        long originalAmountCents = items.stream()
+            .mapToLong(item -> safe(item.unitPriceCents()) * safe(item.quantity()))
+            .sum();
+
+        long memberDiscountCents = items.stream()
+            .mapToLong(item -> {
+                long unitPrice = safe(item.unitPriceCents());
+                long memberPrice = item.memberPriceCents() == null ? unitPrice : item.memberPriceCents();
+                return Math.max(0L, unitPrice - memberPrice) * safe(item.quantity());
+            })
+            .sum();
+
+        long promotionDiscountCents = originalAmountCents >= 6000 ? 800L : 0L;
+        long payableAmountCents = Math.max(0L, originalAmountCents - memberDiscountCents - promotionDiscountCents);
+        return new OrderAmounts(originalAmountCents, memberDiscountCents, promotionDiscountCents, payableAmountCents);
+    }
+
+    private List<QrOrderItemRequest> mergeItems(List<QrOrderItemRequest> existing, List<QrOrderItemRequest> incoming) {
+        List<QrOrderItemRequest> merged = new ArrayList<>(existing);
+
+        for (QrOrderItemRequest next : incoming) {
+            int matchIndex = -1;
+            for (int i = 0; i < merged.size(); i++) {
+                if (merged.get(i).productName().equals(next.productName())) {
+                    matchIndex = i;
+                    break;
+                }
+            }
+
+            if (matchIndex >= 0) {
+                QrOrderItemRequest current = merged.get(matchIndex);
+                merged.set(matchIndex, new QrOrderItemRequest(
+                    current.productId(),
+                    current.productName(),
+                    current.quantity() + next.quantity(),
+                    current.unitPriceCents(),
+                    current.memberPriceCents() != null ? current.memberPriceCents() : next.memberPriceCents()
+                ));
+            } else {
+                merged.add(next);
+            }
+        }
+
+        return merged;
+    }
+
     private String writeItems(List<QrOrderItemRequest> items) {
         try {
             return objectMapper.writeValueAsString(items);
@@ -329,5 +442,13 @@ public class OrderService {
     }
 
     private record TimedOrder(OrderDto order, LocalDateTime createdAt) {
+    }
+
+    private record OrderAmounts(
+        long originalAmountCents,
+        long memberDiscountCents,
+        long promotionDiscountCents,
+        long payableAmountCents
+    ) {
     }
 }
