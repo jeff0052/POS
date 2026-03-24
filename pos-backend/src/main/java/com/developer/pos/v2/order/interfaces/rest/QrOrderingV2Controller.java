@@ -1,6 +1,8 @@
 package com.developer.pos.v2.order.interfaces.rest;
 
 import com.developer.pos.common.response.ApiResponse;
+import com.developer.pos.v2.catalog.application.dto.QrMenuDto;
+import com.developer.pos.v2.catalog.application.service.QrMenuApplicationService;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
 import com.developer.pos.v2.order.application.command.SubmitQrOrderingCommand;
 import com.developer.pos.v2.order.application.dto.QrOrderingContextDto;
@@ -19,10 +21,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v2/qr-ordering")
 public class QrOrderingV2Controller implements V2Api {
 
+    private final QrMenuApplicationService qrMenuApplicationService;
     private final ActiveTableOrderApplicationService activeTableOrderApplicationService;
 
-    public QrOrderingV2Controller(ActiveTableOrderApplicationService activeTableOrderApplicationService) {
+    public QrOrderingV2Controller(
+            QrMenuApplicationService qrMenuApplicationService,
+            ActiveTableOrderApplicationService activeTableOrderApplicationService
+    ) {
+        this.qrMenuApplicationService = qrMenuApplicationService;
         this.activeTableOrderApplicationService = activeTableOrderApplicationService;
+    }
+
+    @GetMapping("/menu")
+    public ApiResponse<QrMenuDto> getMenu(@RequestParam String storeCode) {
+        return ApiResponse.success(qrMenuApplicationService.getMenu(storeCode));
     }
 
     @GetMapping("/context")
