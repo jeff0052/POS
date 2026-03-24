@@ -78,8 +78,36 @@ public class MemberApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Active order not found: " + activeOrderId));
 
         activeOrder.setMemberId(member.getId());
+        long memberDiscountCents = calculateMemberDiscount(activeOrder.getOriginalAmountCents(), member.getTierCode());
+        activeOrder.setMemberDiscountCents(memberDiscountCents);
+        long payableAmountCents = Math.max(
+                0,
+                activeOrder.getOriginalAmountCents() - memberDiscountCents - activeOrder.getPromotionDiscountCents()
+        );
+        activeOrder.setPayableAmountCents(payableAmountCents);
         activeTableOrderRepository.save(activeOrder);
 
-        return new BindMemberResultDto(member.getId(), activeOrderId, member.getTierCode());
+        return new BindMemberResultDto(
+                member.getId(),
+                activeOrderId,
+                member.getTierCode(),
+                memberDiscountCents,
+                payableAmountCents
+        );
+    }
+
+    private long calculateMemberDiscount(long originalAmountCents, String tierCode) {
+        if (originalAmountCents <= 0 || tierCode == null || tierCode.isBlank()) {
+            return 0;
+        }
+
+        int discountBasisPoints = switch (tierCode.trim().toUpperCase()) {
+            case "GOLD" -> 1000;
+            case "SILVER" -> 500;
+            case "VIP" -> 1500;
+            default -> 0;
+        };
+
+        return (originalAmountCents * discountBasisPoints) / 10_000;
     }
 }
