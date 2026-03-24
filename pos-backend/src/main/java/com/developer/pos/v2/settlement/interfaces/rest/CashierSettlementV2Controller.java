@@ -4,9 +4,11 @@ import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
 import com.developer.pos.v2.settlement.application.command.CollectCashierSettlementCommand;
 import com.developer.pos.v2.settlement.application.dto.CashierSettlementResultDto;
+import com.developer.pos.v2.settlement.application.dto.SettlementPreviewDto;
 import com.developer.pos.v2.settlement.application.service.CashierSettlementApplicationService;
 import com.developer.pos.v2.settlement.interfaces.rest.request.CollectCashierSettlementRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v2/cashier-settlement")
+@RequestMapping("/api/v2")
 public class CashierSettlementV2Controller implements V2Api {
 
     private final CashierSettlementApplicationService cashierSettlementApplicationService;
@@ -23,7 +25,12 @@ public class CashierSettlementV2Controller implements V2Api {
         this.cashierSettlementApplicationService = cashierSettlementApplicationService;
     }
 
-    @PostMapping("/{activeOrderId}/collect")
+    @GetMapping("/active-table-orders/{activeOrderId}/settlement-preview")
+    public ApiResponse<SettlementPreviewDto> getSettlementPreview(@PathVariable String activeOrderId) {
+        return ApiResponse.success(cashierSettlementApplicationService.getSettlementPreview(activeOrderId));
+    }
+
+    @PostMapping("/cashier-settlement/{activeOrderId}/collect")
     public ApiResponse<CashierSettlementResultDto> collect(
             @PathVariable String activeOrderId,
             @Valid @RequestBody CollectCashierSettlementRequest request
