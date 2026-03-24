@@ -15,6 +15,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.stereotype.Service;
@@ -41,9 +42,22 @@ public class OrderService {
     public OrderListResponse list() {
         List<OrderDto> items = orderRepository.findTop50ByStoreIdOrderByCreatedAtDesc(1001L)
             .stream()
-            .map(this::toDto)
+            .map(this::toPosDto)
+            .map(dto -> new TimedOrder(dto, parseTime(dto.createdAt())))
             .toList();
-        return new OrderListResponse(items, items.size());
+
+        List<TimedOrder> qrItems = qrTableOrderRepository.findTop50ByOrderByCreatedAtDesc()
+            .stream()
+            .map(this::toQrDto)
+            .map(dto -> new TimedOrder(dto, parseTime(dto.createdAt())))
+            .toList();
+
+        List<OrderDto> merged = java.util.stream.Stream.concat(items.stream(), qrItems.stream())
+            .sorted(Comparator.comparing(TimedOrder::createdAt, Comparator.nullsLast(Comparator.reverseOrder())))
+            .map(TimedOrder::order)
+            .limit(50)
+            .toList();
+        return new OrderListResponse(merged, merged.size());
     }
 
     public QrOrderSubmitResponse submitQrOrder(QrOrderSubmitRequest request) {
@@ -110,7 +124,7 @@ public class OrderService {
             .orElse(null);
     }
 
-    private OrderDto toDto(OrderEntity entity) {
+    private OrderDto toPosDto(OrderEntity entity) {
         return new OrderDto(
             entity.getId(),
             entity.getOrderNo(),
@@ -130,6 +144,33 @@ public class OrderService {
             200L,
             entity.getPaidAmountCents() == null ? 0L : entity.getPaidAmountCents(),
             List.of("Peach Soda")
+        );
+    }
+
+    private OrderDto toQrDto(QrTableOrderEntity entity) {
+        return new OrderDto(
+            entity.getId(),
+            entity.getOrderNo(),
+            entity.getPayableAmountCents(),
+            entity.getSettlementStatus(),
+            "UNPAID",
+            entity.getCreatedAt() == null ? "" : entity.getCreatedAt().toString(),
+            "QR guest",
+            "NOT_PRINTED",
+            readItems(entity.getItemsJson()).stream().map(item -> new OrderItemDto(
+                item.productName(),
+                item.quantity(),
+                safe(item.memberPriceCents()) > 0 ? item.memberPriceCents() * safe(item.quantity()) : item.unitPriceCents() * safe(item.quantity())
+            )).toList(),
+            entity.getTableCode(),
+            "QR",
+            entity.getMemberName(),
+            entity.getMemberTier(),
+            entity.getOriginalAmountCents(),
+            entity.getMemberDiscountCents(),
+            entity.getPromotionDiscountCents(),
+            entity.getPayableAmountCents(),
+            List.of()
         );
     }
 
@@ -202,5 +243,16 @@ public class OrderService {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Unable to read QR order items", exception);
         }
+    }
+
+    private LocalDateTime parseTime(String createdAt) {
+        try {
+            return createdAt == null || createdAt.isBlank() ? null : LocalDateTime.parse(createdAt);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private record TimedOrder(OrderDto order, LocalDateTime createdAt) {
     }
 }

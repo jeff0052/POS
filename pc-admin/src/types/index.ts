@@ -39,8 +39,8 @@ export interface Order {
   id: number;
   orderNo: string;
   amount: string;
-  status: "PENDING" | "PAID" | "REFUNDED";
-  payment: "CASH" | "SDK_PAY";
+  status: "PENDING" | "PAID" | "REFUNDED" | "PENDING_SETTLEMENT";
+  payment: "CASH" | "SDK_PAY" | "UNPAID";
   time: string;
   cashier: string;
   printStatus: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";

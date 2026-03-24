@@ -8,13 +8,22 @@ import { OrderDetailDrawer } from "./components/OrderDetailDrawer";
 const columns = [
   { title: "Order No", dataIndex: "orderNo", key: "orderNo" },
   { title: "Table", dataIndex: "tableCode", key: "tableCode" },
-  { title: "Source", dataIndex: "orderType", key: "orderType" },
+  {
+    title: "Source",
+    dataIndex: "orderType",
+    key: "orderType",
+    render: (value: string) => <Tag color={value === "QR" ? "geekblue" : "default"}>{value ?? "POS"}</Tag>
+  },
   { title: "Amount", dataIndex: "amount", key: "amount" },
   {
     title: "Status",
     dataIndex: "status",
     key: "status",
-    render: (value: string) => <Tag color={value === "PAID" ? "green" : "gold"}>{value}</Tag>
+    render: (value: string) => {
+      const color =
+        value === "PAID" ? "green" : value === "PENDING_SETTLEMENT" ? "blue" : value === "REFUNDED" ? "red" : "gold";
+      return <Tag color={color}>{value}</Tag>;
+    }
   },
   { title: "Member", dataIndex: "memberName", key: "memberName" },
   { title: "Payment", dataIndex: "payment", key: "payment" },
@@ -62,6 +71,7 @@ export function OrdersPage() {
             onChange={(value) => setSelectedStatus(value)}
             options={[
               { label: "Pending", value: "PENDING" },
+              { label: "Pending Settlement", value: "PENDING_SETTLEMENT" },
               { label: "Paid", value: "PAID" },
               { label: "Refunded", value: "REFUNDED" }
             ]}

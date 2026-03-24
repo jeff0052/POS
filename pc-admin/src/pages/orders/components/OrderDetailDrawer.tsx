@@ -23,7 +23,9 @@ export function OrderDetailDrawer({
             <Descriptions.Item label="Promotion Discount">{order.promotionDiscount ?? "-"}</Descriptions.Item>
             <Descriptions.Item label="Payable">{order.payableAmount ?? order.amount}</Descriptions.Item>
             <Descriptions.Item label="Status">
-              <Tag color={order.status === "PAID" ? "green" : "gold"}>{order.status}</Tag>
+              <Tag color={order.status === "PAID" ? "green" : order.status === "PENDING_SETTLEMENT" ? "blue" : "gold"}>
+                {order.status}
+              </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Payment">{order.payment}</Descriptions.Item>
             <Descriptions.Item label="Cashier">{order.cashier}</Descriptions.Item>
