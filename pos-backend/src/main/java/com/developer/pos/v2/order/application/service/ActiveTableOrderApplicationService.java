@@ -2,6 +2,8 @@ package com.developer.pos.v2.order.application.service;
 
 import com.developer.pos.v2.catalog.domain.model.SkuRef;
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.member.domain.policy.MemberDiscountPolicy;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.order.application.command.ReplaceActiveTableOrderItemsCommand;
 import com.developer.pos.v2.order.application.command.SubmitQrOrderingCommand;
 import com.developer.pos.v2.order.application.dto.ActiveTableOrderDto;
@@ -36,17 +38,20 @@ public class ActiveTableOrderApplicationService implements UseCase {
     private final JpaStoreRepository storeRepository;
     private final JpaStoreLookupRepository storeLookupRepository;
     private final JpaStoreTableRepository storeTableRepository;
+    private final JpaMemberRepository memberRepository;
 
     public ActiveTableOrderApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
             JpaStoreRepository storeRepository,
             JpaStoreLookupRepository storeLookupRepository,
-            JpaStoreTableRepository storeTableRepository
+            JpaStoreTableRepository storeTableRepository,
+            JpaMemberRepository memberRepository
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.storeRepository = storeRepository;
         this.storeLookupRepository = storeLookupRepository;
         this.storeTableRepository = storeTableRepository;
+        this.memberRepository = memberRepository;
     }
 
     @Transactional(readOnly = true)
@@ -118,9 +123,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .sum();
 
         entity.setOriginalAmountCents(originalAmount);
-        entity.setMemberDiscountCents(0);
+        long memberDiscount = resolveMemberDiscount(entity.getMemberId(), originalAmount);
+        entity.setMemberDiscountCents(memberDiscount);
         entity.setPromotionDiscountCents(0);
-        entity.setPayableAmountCents(originalAmount);
+        entity.setPayableAmountCents(Math.max(0, originalAmount - memberDiscount));
 
         ActiveTableOrderEntity saved = activeTableOrderRepository.save(entity);
         table.setTableStatus("ORDERING");
@@ -161,9 +167,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .sum();
 
         entity.setOriginalAmountCents(originalAmount);
-        entity.setMemberDiscountCents(0);
+        long memberDiscount = resolveMemberDiscount(entity.getMemberId(), originalAmount);
+        entity.setMemberDiscountCents(memberDiscount);
         entity.setPromotionDiscountCents(0);
-        entity.setPayableAmountCents(originalAmount);
+        entity.setPayableAmountCents(Math.max(0, originalAmount - memberDiscount));
 
         ActiveTableOrderEntity saved = activeTableOrderRepository.save(entity);
         table.setTableStatus("ORDERING");
@@ -306,6 +313,16 @@ public class ActiveTableOrderApplicationService implements UseCase {
         }
 
         return merged;
+    }
+
+    private long resolveMemberDiscount(Long memberId, long originalAmountCents) {
+        if (memberId == null) {
+            return 0;
+        }
+
+        return memberRepository.findById(memberId)
+                .map(member -> MemberDiscountPolicy.calculate(originalAmountCents, member.getTierCode()))
+                .orElse(0L);
     }
 
     private ActiveTableOrderDto toDto(ActiveTableOrderEntity entity) {
