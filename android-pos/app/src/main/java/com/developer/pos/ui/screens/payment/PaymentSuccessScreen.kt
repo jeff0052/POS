@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.developer.pos.ui.model.PaymentScenarioStore
 import com.developer.pos.ui.viewmodel.CashierViewModel
 
 @Composable
@@ -23,6 +24,8 @@ fun PaymentSuccessScreen(
     onFinish: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scenario = PaymentScenarioStore.current
+    val payableAmountCents = if (scenario.payableAmountCents > 0L) scenario.payableAmountCents else uiState.payableAmountCents
 
     Column(
         modifier = Modifier
@@ -37,7 +40,20 @@ fun PaymentSuccessScreen(
             ) {
                 Text("Payment Success", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("Order No: ${uiState.currentOrderNo}")
-                Text("Amount: CNY %.2f".format(uiState.payableAmountCents / 100.0))
+                Text("Source: ${scenario.source}${scenario.tableCode?.let { " · $it" } ?: ""}")
+                Text("Amount: CNY %.2f".format(payableAmountCents / 100.0))
+                Text(
+                    if (scenario.memberTier != null) {
+                        "Member: ${scenario.memberName} / ${scenario.memberTier}"
+                    } else {
+                        "Member: ${scenario.memberName ?: "Guest"}"
+                    }
+                )
+                Text("Member Discount: -CNY %.2f".format(scenario.memberDiscountCents / 100.0))
+                Text("Promotion Discount: -CNY %.2f".format(scenario.promotionDiscountCents / 100.0))
+                if (scenario.giftItems.isNotEmpty()) {
+                    Text("Gift Items: ${scenario.giftItems.joinToString()}")
+                }
                 Text("Receipt: auto print will be wired after printer SDK integration")
             }
         }

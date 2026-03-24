@@ -13,6 +13,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.developer.pos.ui.model.PaymentScenarioStore
 import com.developer.pos.ui.viewmodel.CashierViewModel
 
 @Composable
@@ -29,6 +32,8 @@ fun PaymentConfirmScreen(
     onStartPayment: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scenario = PaymentScenarioStore.current
+    val payableAmountCents = if (scenario.payableAmountCents > 0L) scenario.payableAmountCents else uiState.payableAmountCents
 
     Column(
         modifier = Modifier
@@ -52,22 +57,58 @@ fun PaymentConfirmScreen(
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Order Summary", style = MaterialTheme.typography.titleMedium)
-                uiState.cartItems.forEach { item ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("${item.product.name} x ${item.quantity}")
-                        Text("CNY %.2f".format(item.lineAmountCents / 100.0))
+                Text("Settlement Context", style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(scenario.source) },
+                        colors = AssistChipDefaults.assistChipColors()
+                    )
+                    scenario.tableCode?.let {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(it) }
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Text(scenario.headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = "Total: CNY %.2f".format(uiState.payableAmountCents / 100.0),
+                    text = if (scenario.memberTier != null) {
+                        "Member: ${scenario.memberName} / ${scenario.memberTier}"
+                    } else {
+                        "Member: ${scenario.memberName ?: "Guest"}"
+                    }
+                )
+                Text("Original Amount: CNY %.2f".format(scenario.originalAmountCents / 100.0))
+                Text("Member Discount: -CNY %.2f".format(scenario.memberDiscountCents / 100.0))
+                Text("Promotion Discount: -CNY %.2f".format(scenario.promotionDiscountCents / 100.0))
+                if (scenario.giftItems.isNotEmpty()) {
+                    Text("Gift Items: ${scenario.giftItems.joinToString()}")
+                }
+                Text(
+                    text = "Payable: CNY %.2f".format(payableAmountCents / 100.0),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Order Summary", style = MaterialTheme.typography.titleMedium)
+                if (uiState.cartItems.isEmpty()) {
+                    Text("QR order basket already synced from table code.")
+                } else {
+                    uiState.cartItems.forEach { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("${item.product.name} x ${item.quantity}")
+                            Text("CNY %.2f".format(item.lineAmountCents / 100.0))
+                        }
+                    }
+                }
             }
         }
 
@@ -102,9 +143,9 @@ fun PaymentConfirmScreen(
                 onStartPayment()
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = uiState.cartItems.isNotEmpty()
+            enabled = uiState.cartItems.isNotEmpty() || scenario.source == "QR"
         ) {
-            Text("Create Order and Start Payment")
+            Text(if (scenario.source == "QR") "Collect QR Settlement" else "Create Order and Start Payment")
         }
     }
 }

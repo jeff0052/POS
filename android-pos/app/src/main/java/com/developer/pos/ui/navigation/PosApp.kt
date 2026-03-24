@@ -5,6 +5,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.developer.pos.ui.model.PaymentScenario
+import com.developer.pos.ui.model.PaymentScenarioStore
 import com.developer.pos.ui.screens.cashier.CashierScreen
 import com.developer.pos.ui.screens.home.HomeScreen
 import com.developer.pos.ui.screens.login.LoginScreen
@@ -50,7 +52,10 @@ fun PosApp() {
             CashierScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onProceedToPayment = { navController.navigate(Routes.PaymentConfirm.route) }
+                onProceedToPayment = {
+                    PaymentScenarioStore.current = PaymentScenario.fromPos(viewModel.uiState.value.payableAmountCents)
+                    navController.navigate(Routes.PaymentConfirm.route)
+                }
             )
         }
         composable(Routes.PaymentConfirm.route) {
@@ -83,6 +88,7 @@ fun PosApp() {
                 viewModel = viewModel,
                 onFinish = {
                     viewModel.completeMockPayment()
+                    PaymentScenarioStore.current = PaymentScenario.fromPos(0L)
                     navController.navigate(Routes.Home.route) {
                         popUpTo(Routes.Home.route) { inclusive = true }
                     }
@@ -107,7 +113,10 @@ fun PosApp() {
             OrderDetailScreen(
                 onBack = { navController.popBackStack() },
                 onRefund = { navController.navigate(Routes.Refund.route) },
-                onProceedToPayment = { navController.navigate(Routes.PaymentConfirm.route) }
+                onProceedToPayment = {
+                    PaymentScenarioStore.current = PaymentScenario.qrDemo()
+                    navController.navigate(Routes.PaymentConfirm.route)
+                }
             )
         }
         composable(Routes.Refund.route) {
