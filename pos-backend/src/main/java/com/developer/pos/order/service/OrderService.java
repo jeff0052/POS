@@ -35,7 +35,16 @@ public class OrderService {
             entity.getCreatedAt() == null ? "" : entity.getCreatedAt().toString(),
             "-",
             entity.getPrintStatus(),
-            List.of()
+            List.of(),
+            "T2",
+            "POS",
+            "Lina Chen",
+            "Gold",
+            3200L,
+            200L,
+            200L,
+            entity.getPaidAmountCents() == null ? 0L : entity.getPaidAmountCents(),
+            List.of("Peach Soda")
         );
     }
 }

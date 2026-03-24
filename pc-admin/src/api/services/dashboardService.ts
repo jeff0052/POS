@@ -1,18 +1,27 @@
 import { apiGet } from "../client";
 import { USE_MOCK_API } from "../config";
 import * as mockApi from "../mockApi";
-import type { DashboardSummary, Order } from "../../types";
+import type { DashboardSummary, Order, SalesReportSummary } from "../../types";
 
 interface OrderListResponse {
   list: Array<{
     id: number;
     orderNo: string;
     paidAmountCents: number;
+    originalAmountCents?: number;
+    memberDiscountCents?: number;
+    promotionDiscountCents?: number;
+    payableAmountCents?: number;
     orderStatus: "PENDING" | "PAID" | "REFUNDED";
     paymentMethod?: "CASH" | "SDK_PAY";
     createdAt: number | string;
     cashier?: string;
     printStatus?: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
+    tableCode?: string;
+    orderType?: "POS" | "QR";
+    memberName?: string;
+    memberTier?: string;
+    giftItems?: string[];
   }>;
   total: number;
 }
@@ -53,8 +62,41 @@ export async function getRecentOrders(): Promise<Order[]> {
     time: String(item.createdAt),
     cashier: item.cashier ?? "-",
     printStatus: item.printStatus ?? "NOT_PRINTED",
-    items: []
+    items: [],
+    tableCode: item.tableCode,
+    orderType: item.orderType,
+    memberName: item.memberName,
+    memberTier: item.memberTier,
+    originalAmount: item.originalAmountCents ? centsToText(item.originalAmountCents) : undefined,
+    memberDiscount: item.memberDiscountCents ? centsToText(item.memberDiscountCents) : undefined,
+    promotionDiscount: item.promotionDiscountCents ? centsToText(item.promotionDiscountCents) : undefined,
+    payableAmount: item.payableAmountCents ? centsToText(item.payableAmountCents) : undefined,
+    giftItems: item.giftItems ?? []
   }));
+}
+
+export async function getSalesReportSummary(): Promise<SalesReportSummary> {
+  if (USE_MOCK_API) {
+    return mockApi.getSalesReportSummary();
+  }
+
+  const summary = await apiGet<{
+    totalSalesCents: number;
+    totalDiscountCents: number;
+    memberSalesCents: number;
+    rechargeSalesCents: number;
+    tableTurnoverRate: number;
+    pendingGtoBatches: number;
+  }>("/reports/sales-summary");
+
+  return {
+    sales: centsToText(summary.totalSalesCents),
+    discounts: centsToText(summary.totalDiscountCents),
+    memberSales: centsToText(summary.memberSalesCents),
+    rechargeSales: centsToText(summary.rechargeSalesCents),
+    tableTurnover: String(summary.tableTurnoverRate),
+    pendingGtoBatches: String(summary.pendingGtoBatches)
+  };
 }
 
 function centsToText(value: number) {

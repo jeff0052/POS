@@ -29,6 +29,10 @@ export interface OrderItem {
   productName: string;
   quantity: number;
   amount: string;
+  originalAmount?: string;
+  memberBenefit?: string;
+  promotionBenefit?: string;
+  gift?: boolean;
 }
 
 export interface Order {
@@ -41,6 +45,15 @@ export interface Order {
   cashier: string;
   printStatus: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
   items: OrderItem[];
+  tableCode?: string;
+  orderType?: "POS" | "QR";
+  memberName?: string;
+  memberTier?: string;
+  originalAmount?: string;
+  memberDiscount?: string;
+  promotionDiscount?: string;
+  giftItems?: string[];
+  payableAmount?: string;
 }
 
 export interface DashboardSummary {
@@ -48,6 +61,74 @@ export interface DashboardSummary {
   orders: string;
   refunds: string;
   cashiers: string;
+}
+
+export interface Member {
+  id: number;
+  name: string;
+  phone: string;
+  tierName: string;
+  points: number;
+  balance: string;
+  totalSpent: string;
+  totalRecharge: string;
+  status: "ACTIVE" | "INACTIVE";
+}
+
+export interface MemberTier {
+  id: number;
+  name: string;
+  upgradeRule: string;
+  benefits: string[];
+}
+
+export interface RechargeRecord {
+  id: number;
+  memberName: string;
+  memberPhone: string;
+  amount: string;
+  bonusAmount: string;
+  status: "SUCCESS" | "PENDING";
+  time: string;
+}
+
+export interface PointsRecord {
+  id: number;
+  memberName: string;
+  changeType: "EARN" | "REDEEM" | "REFUND" | "ADJUST";
+  points: number;
+  source: string;
+  time: string;
+}
+
+export interface PromotionRule {
+  id: number;
+  name: string;
+  type: "FULL_REDUCTION" | "GIFT" | "MEMBER_PRICE" | "TIER_DISCOUNT" | "RECHARGE_BONUS";
+  status: "ACTIVE" | "INACTIVE";
+  ruleSummary: string;
+  priority: number;
+}
+
+export interface GtoBatch {
+  id: number;
+  batchNo: string;
+  businessDate: string;
+  storeName: string;
+  tradeCount: number;
+  netSales: string;
+  discountAmount: string;
+  syncStatus: "PENDING" | "SUCCESS" | "FAILED";
+  exportTime: string;
+}
+
+export interface SalesReportSummary {
+  sales: string;
+  discounts: string;
+  memberSales: string;
+  rechargeSales: string;
+  tableTurnover: string;
+  pendingGtoBatches: string;
 }
 
 export interface RefundRecord {

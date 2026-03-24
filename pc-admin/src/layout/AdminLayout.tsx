@@ -2,11 +2,13 @@ import {
   AppstoreOutlined,
   BarChartOutlined,
   DatabaseOutlined,
+  GiftOutlined,
   LogoutOutlined,
   OrderedListOutlined,
   RollbackOutlined,
   ShopOutlined
 } from "@ant-design/icons";
+import { TeamOutlined, SyncOutlined } from "@ant-design/icons";
 import { Button, Layout, Menu, Typography } from "antd";
 import type { MenuProps } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -20,7 +22,10 @@ const items: MenuProps["items"] = [
   { key: "/categories", icon: <DatabaseOutlined />, label: "Categories" },
   { key: "/orders", icon: <OrderedListOutlined />, label: "Orders" },
   { key: "/refunds", icon: <RollbackOutlined />, label: "Refunds" },
-  { key: "/reports", icon: <BarChartOutlined />, label: "Reports" }
+  { key: "/crm", icon: <TeamOutlined />, label: "CRM" },
+  { key: "/promotions", icon: <GiftOutlined />, label: "Promotions" },
+  { key: "/reports", icon: <BarChartOutlined />, label: "Reports" },
+  { key: "/gto-sync", icon: <SyncOutlined />, label: "GTO Sync" }
 ];
 
 export function AdminLayout() {

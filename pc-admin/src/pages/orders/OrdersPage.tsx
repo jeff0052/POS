@@ -7,6 +7,8 @@ import { OrderDetailDrawer } from "./components/OrderDetailDrawer";
 
 const columns = [
   { title: "Order No", dataIndex: "orderNo", key: "orderNo" },
+  { title: "Table", dataIndex: "tableCode", key: "tableCode" },
+  { title: "Source", dataIndex: "orderType", key: "orderType" },
   { title: "Amount", dataIndex: "amount", key: "amount" },
   {
     title: "Status",
@@ -14,6 +16,7 @@ const columns = [
     key: "status",
     render: (value: string) => <Tag color={value === "PAID" ? "green" : "gold"}>{value}</Tag>
   },
+  { title: "Member", dataIndex: "memberName", key: "memberName" },
   { title: "Payment", dataIndex: "payment", key: "payment" },
   { title: "Time", dataIndex: "time", key: "time" }
 ];

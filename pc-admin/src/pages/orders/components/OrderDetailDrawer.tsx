@@ -15,12 +15,21 @@ export function OrderDetailDrawer({
       {order ? (
         <>
           <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="Table">{order.tableCode ?? "-"}</Descriptions.Item>
+            <Descriptions.Item label="Order Type">{order.orderType ?? "-"}</Descriptions.Item>
             <Descriptions.Item label="Amount">{order.amount}</Descriptions.Item>
+            <Descriptions.Item label="Original Amount">{order.originalAmount ?? "-"}</Descriptions.Item>
+            <Descriptions.Item label="Member Discount">{order.memberDiscount ?? "-"}</Descriptions.Item>
+            <Descriptions.Item label="Promotion Discount">{order.promotionDiscount ?? "-"}</Descriptions.Item>
+            <Descriptions.Item label="Payable">{order.payableAmount ?? order.amount}</Descriptions.Item>
             <Descriptions.Item label="Status">
               <Tag color={order.status === "PAID" ? "green" : "gold"}>{order.status}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="Payment">{order.payment}</Descriptions.Item>
             <Descriptions.Item label="Cashier">{order.cashier}</Descriptions.Item>
+            <Descriptions.Item label="Member">
+              {order.memberName ? `${order.memberName} / ${order.memberTier ?? "-"}` : "-"}
+            </Descriptions.Item>
             <Descriptions.Item label="Print Status">{order.printStatus}</Descriptions.Item>
             <Descriptions.Item label="Time">{order.time}</Descriptions.Item>
           </Descriptions>
@@ -33,8 +42,11 @@ export function OrderDetailDrawer({
             <Descriptions.Item label="Payment Method">{order.payment}</Descriptions.Item>
             <Descriptions.Item label="Current Status">{order.status}</Descriptions.Item>
             <Descriptions.Item label="Print Status">{order.printStatus}</Descriptions.Item>
+            <Descriptions.Item label="Gift Items">
+              {order.giftItems?.length ? order.giftItems.join(", ") : "-"}
+            </Descriptions.Item>
             <Descriptions.Item label="Trace Note">
-              Payment success and print result are tracked independently.
+              Payment, member settlement, promotion hit records, and print result are tracked independently.
             </Descriptions.Item>
           </Descriptions>
           <Divider />
@@ -51,7 +63,14 @@ export function OrderDetailDrawer({
               <List.Item>
                 <List.Item.Meta
                   title={`${item.productName} x ${item.quantity}`}
-                  description={item.amount}
+                  description={[
+                    item.amount,
+                    item.memberBenefit,
+                    item.promotionBenefit,
+                    item.gift ? "Gift item" : undefined
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 />
               </List.Item>
             )}

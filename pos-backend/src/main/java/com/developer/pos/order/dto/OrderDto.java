@@ -11,6 +11,15 @@ public record OrderDto(
     String createdAt,
     String cashier,
     String printStatus,
-    List<OrderItemDto> items
+    List<OrderItemDto> items,
+    String tableCode,
+    String orderType,
+    String memberName,
+    String memberTier,
+    Long originalAmountCents,
+    Long memberDiscountCents,
+    Long promotionDiscountCents,
+    Long payableAmountCents,
+    List<String> giftItems
 ) {
 }

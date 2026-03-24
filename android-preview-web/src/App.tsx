@@ -199,7 +199,16 @@ function App() {
   const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const tax = subtotal * 0.09;
   const service = subtotal * 0.06;
-  const total = subtotal + tax + service;
+  const memberDiscount = subtotal * 0.08;
+  const promotionDiscount = subtotal >= 40 ? 6 : 0;
+  const grossTotal = subtotal + tax + service;
+  const total = grossTotal - memberDiscount - promotionDiscount;
+  const memberProfile = {
+    name: "Lina Chen",
+    tier: "Gold Member",
+    points: 2860,
+    balance: 320
+  };
 
   const splitGuests = selectedTable.guests || 4;
   const perGuest = total / splitGuests;
@@ -378,38 +387,79 @@ function App() {
             <div className="floorplan-layout">
               <section className="floorplan-shell">
                 <div className="floorplan-board">
-                  <div className="floorplan-grid">
-                    {tables.map((table) => {
-                      const tone =
-                        table.status === "available"
-                          ? "available"
-                          : table.status === "reserved"
-                            ? "reserved"
-                            : table.total >= 100
-                              ? "attention"
-                              : table.total >= 60
-                                ? "billing"
-                                : "occupied";
+                  <div className="floorplan-meta">
+                    <div className="floorplan-legend">
+                      <span className="legend-chip legend-available">Available</span>
+                      <span className="legend-chip legend-occupied">Occupied</span>
+                      <span className="legend-chip legend-reserved">Reserved</span>
+                      <span className="legend-chip legend-billing">Billing</span>
+                      <span className="legend-chip legend-attention">Action needed</span>
+                    </div>
+                    <div className="floorplan-summary">
+                      <strong>{tables.length} tables</strong>
+                      <span>{tables.filter((table) => table.status === "occupied").length} active now</span>
+                    </div>
+                  </div>
 
-                      return (
-                        <button
-                          key={table.id}
-                          className={`floor-table floor-table-${tone} ${selectedTable.id === table.id ? "floor-selected" : ""}`}
-                          onClick={() => chooseTable(table)}
-                        >
-                          <strong>T{table.id}</strong>
-                          <span>
-                            {table.status === "available"
-                              ? "Available"
-                              : table.status === "reserved"
-                                ? "Reserved"
-                                : table.total > 0
-                                  ? formatMoney(table.total)
-                                  : "Open"}
-                          </span>
-                        </button>
-                      );
-                    })}
+                  <div className="floorplan-map">
+                    <aside className="floorplan-service-strip">
+                      <div className="service-node">
+                        <span>Host</span>
+                        <strong>Front</strong>
+                      </div>
+                      <div className="service-node">
+                        <span>Pickup</span>
+                        <strong>Pass</strong>
+                      </div>
+                      <div className="service-node">
+                        <span>Cashier</span>
+                        <strong>POS</strong>
+                      </div>
+                    </aside>
+
+                    <div className="floorplan-islands">
+                      {[tables.slice(0, 8), tables.slice(8, 16), tables.slice(16, 24)].map(
+                        (group, index) => (
+                          <div key={index} className="floorplan-island">
+                            <div className="floorplan-grid">
+                              {group.map((table) => {
+                                const tone =
+                                  table.status === "available"
+                                    ? "available"
+                                    : table.status === "reserved"
+                                      ? "reserved"
+                                      : table.total >= 100
+                                        ? "attention"
+                                        : table.total >= 60
+                                          ? "billing"
+                                          : "occupied";
+
+                                return (
+                                  <button
+                                    key={table.id}
+                                    className={`floor-table floor-table-${tone} ${
+                                      selectedTable.id === table.id ? "floor-selected" : ""
+                                    }`}
+                                    onClick={() => chooseTable(table)}
+                                  >
+                                    <strong>T{table.id}</strong>
+                                    <span>
+                                      {table.status === "available"
+                                        ? "Available"
+                                        : table.status === "reserved"
+                                          ? "Reserved"
+                                          : table.total > 0
+                                            ? formatMoney(table.total)
+                                            : "Open"}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               </section>
@@ -574,6 +624,27 @@ function App() {
               </section>
 
               <aside className="sidebar-panel ordering-sidebar">
+                <div className="ordering-panel-card member-card">
+                  <div className="ordering-panel-head">
+                    <div>
+                      <p className="sidebar-title">Member</p>
+                      <h2>{memberProfile.name}</h2>
+                    </div>
+                    <span className="cart-pill">{memberProfile.tier}</span>
+                  </div>
+
+                  <div className="member-metrics">
+                    <div className="member-metric">
+                      <span>Points</span>
+                      <strong>{memberProfile.points}</strong>
+                    </div>
+                    <div className="member-metric">
+                      <span>Balance</span>
+                      <strong>{formatMoney(memberProfile.balance)}</strong>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="ordering-panel-card">
                   <div className="ordering-panel-head">
                     <div>
@@ -614,8 +685,16 @@ function App() {
                     <span>Service</span>
                     <strong>{formatMoney(service)}</strong>
                   </div>
+                  <div className="amount-row discount-row">
+                    <span>Member benefit</span>
+                    <strong>-{formatMoney(memberDiscount)}</strong>
+                  </div>
+                  <div className="amount-row discount-row">
+                    <span>Promotion hit</span>
+                    <strong>-{formatMoney(promotionDiscount)}</strong>
+                  </div>
                   <div className="amount-row total">
-                    <span>Total</span>
+                    <span>Payable</span>
                     <strong>{formatMoney(total)}</strong>
                   </div>
                 </div>
@@ -658,6 +737,7 @@ function App() {
                   <span>{selectedTable.guests || 4} guests</span>
                   <span>{selectedTable.area}</span>
                   <span>Server Maya</span>
+                  <span>{memberProfile.name}</span>
                 </div>
 
                 <div className="order-card-list">
@@ -698,14 +778,26 @@ function App() {
                     <span>Service</span>
                     <strong>{formatMoney(service)}</strong>
                   </div>
+                  <div className="amount-row discount-row">
+                    <span>Member discount</span>
+                    <strong>-{formatMoney(memberDiscount)}</strong>
+                  </div>
+                  <div className="amount-row discount-row">
+                    <span>Full reduction</span>
+                    <strong>-{formatMoney(promotionDiscount)}</strong>
+                  </div>
                   <div className="amount-row total">
-                    <span>Total</span>
+                    <span>Payable</span>
                     <strong>{formatMoney(total)}</strong>
                   </div>
                 </div>
 
                 <div className="payment-card">
                   <p className="sidebar-title">Actions</p>
+                  <button className="sort-row">
+                    <span className="sort-icon" />
+                    <span>Member recharge</span>
+                  </button>
                   <button className="sort-row">
                     <span className="sort-icon" />
                     <span>Send to kitchen</span>
@@ -808,6 +900,25 @@ function App() {
                   </div>
                 </div>
 
+                <div className="payment-card settlement-breakdown">
+                  <div className="amount-row">
+                    <span>Original amount</span>
+                    <strong>{formatMoney(grossTotal)}</strong>
+                  </div>
+                  <div className="amount-row discount-row">
+                    <span>Member benefit</span>
+                    <strong>-{formatMoney(memberDiscount)}</strong>
+                  </div>
+                  <div className="amount-row discount-row">
+                    <span>Promotion benefit</span>
+                    <strong>-{formatMoney(promotionDiscount)}</strong>
+                  </div>
+                  <div className="amount-row">
+                    <span>Gift item</span>
+                    <strong>Peach Soda</strong>
+                  </div>
+                </div>
+
                 <div className="order-card-list compact-list">
                   {orderItems.map((item) => (
                     <article key={item.id} className="order-row-card compact-row">
@@ -842,6 +953,14 @@ function App() {
                   <div className="amount-row">
                     <span>Service</span>
                     <strong>{formatMoney(service)}</strong>
+                  </div>
+                  <div className="amount-row discount-row">
+                    <span>Member benefit</span>
+                    <strong>-{formatMoney(memberDiscount)}</strong>
+                  </div>
+                  <div className="amount-row discount-row">
+                    <span>Promotion benefit</span>
+                    <strong>-{formatMoney(promotionDiscount)}</strong>
                   </div>
                   <div className="amount-row total">
                     <span>Total due</span>

@@ -8,9 +8,18 @@ interface OrderListResponse {
     id: number;
     orderNo: string;
     paidAmountCents: number;
+    originalAmountCents?: number;
+    memberDiscountCents?: number;
+    promotionDiscountCents?: number;
+    payableAmountCents?: number;
     orderStatus: "PENDING" | "PAID" | "REFUNDED";
     paymentMethod?: "CASH" | "SDK_PAY";
     createdAt: number | string;
+    tableCode?: string;
+    orderType?: "POS" | "QR";
+    memberName?: string;
+    memberTier?: string;
+    giftItems?: string[];
   }>;
 }
 
@@ -29,6 +38,17 @@ export async function getOrders(): Promise<Order[]> {
     time: String(item.createdAt),
     cashier: "-",
     printStatus: "NOT_PRINTED",
-    items: []
+    items: [],
+    tableCode: item.tableCode,
+    orderType: item.orderType,
+    memberName: item.memberName,
+    memberTier: item.memberTier,
+    originalAmount: item.originalAmountCents ? `CNY ${(item.originalAmountCents / 100).toFixed(2)}` : undefined,
+    memberDiscount: item.memberDiscountCents ? `CNY ${(item.memberDiscountCents / 100).toFixed(2)}` : undefined,
+    promotionDiscount: item.promotionDiscountCents
+      ? `CNY ${(item.promotionDiscountCents / 100).toFixed(2)}`
+      : undefined,
+    payableAmount: item.payableAmountCents ? `CNY ${(item.payableAmountCents / 100).toFixed(2)}` : undefined,
+    giftItems: item.giftItems ?? []
   }));
 }
