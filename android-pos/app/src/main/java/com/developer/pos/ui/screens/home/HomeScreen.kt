@@ -51,6 +51,14 @@ fun HomeScreen(
                 Text("Printer SDK: Not connected")
             }
         }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("QR Table Orders")
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("3 tables waiting for cashier settlement")
+                Text("T2 · T7 · T13 synced from table code ordering")
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = onStartCashier,

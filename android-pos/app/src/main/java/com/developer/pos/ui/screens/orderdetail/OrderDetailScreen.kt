@@ -21,7 +21,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun OrderDetailScreen(
     onBack: () -> Unit,
-    onRefund: () -> Unit
+    onRefund: () -> Unit,
+    onProceedToPayment: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -39,26 +40,34 @@ fun OrderDetailScreen(
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Order No: POS202603200001")
-                Text("Amount: CNY 28.00")
-                Text("Status: PAID")
-                Text("Payment: SDK_PAY")
-                Text("Print: PRINT_SUCCESS")
-                Text("Cashier: Amy")
+                Text("Order No: QR202603240019")
+                Text("Table: T2")
+                Text("Source: QR table order")
+                Text("Amount: CNY 92.50")
+                Text("Status: PENDING_SETTLEMENT")
+                Text("Payment: UNPAID")
+                Text("Member: Lina Chen / Gold")
+                Text("Cashier Handoff: Ready for settlement")
             }
         }
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Items", style = MaterialTheme.typography.titleMedium)
-                Text("Fried Rice x 1  |  CNY 18.00")
-                Text("Coke x 2  |  CNY 10.00")
+                Text("Black Pepper Beef x 1  |  CNY 31.00")
+                Text("Peach Soda x 2  |  CNY 20.00")
+                Text("Signature Fried Rice x 1  |  CNY 16.00")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Original Amount: CNY 100.50")
+                Text("Member Discount: -CNY 6.00")
+                Text("Promotion Discount: -CNY 2.00")
+                Text("Payable: CNY 92.50", fontWeight = FontWeight.SemiBold)
             }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { }, modifier = Modifier.weight(1f)) {
-                Text("Reprint")
+            Button(onClick = onProceedToPayment, modifier = Modifier.weight(1f)) {
+                Text("Checkout")
             }
             OutlinedButton(onClick = onRefund, modifier = Modifier.weight(1f)) {
                 Text("Refund")

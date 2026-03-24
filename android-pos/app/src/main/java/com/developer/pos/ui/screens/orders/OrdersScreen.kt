@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.dp
 
 private data class OrderListItem(
     val orderNo: String,
+    val tableCode: String,
+    val source: String,
     val amount: String,
     val status: String,
     val payment: String,
@@ -37,9 +39,11 @@ fun OrdersScreen(
 ) {
     val keyword = remember { mutableStateOf("") }
     val orders = listOf(
-        OrderListItem("POS202603200001", "CNY 28.00", "PAID", "SDK_PAY", "09:21"),
-        OrderListItem("POS202603200002", "CNY 12.00", "PENDING", "CASH", "09:34"),
-        OrderListItem("POS202603200003", "CNY 35.00", "REFUNDED", "SDK_PAY", "10:08")
+        OrderListItem("QR202603240019", "T2", "QR", "CNY 92.50", "PENDING_SETTLEMENT", "UNPAID", "18:42"),
+        OrderListItem("QR202603240021", "T7", "QR", "CNY 71.00", "PENDING_SETTLEMENT", "UNPAID", "18:47"),
+        OrderListItem("POS202603200001", "T4", "POS", "CNY 28.00", "PAID", "SDK_PAY", "09:21"),
+        OrderListItem("POS202603200002", "T8", "POS", "CNY 12.00", "PENDING", "CASH", "09:34"),
+        OrderListItem("POS202603200003", "T1", "POS", "CNY 35.00", "REFUNDED", "SDK_PAY", "10:08")
     ).filter { keyword.value.isBlank() || it.orderNo.contains(keyword.value, ignoreCase = true) }
 
     Column(
@@ -71,6 +75,8 @@ fun OrdersScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(item.orderNo, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(6.dp))
+                        Text("Table: ${item.tableCode}")
+                        Text("Source: ${item.source}")
                         Text("Amount: ${item.amount}")
                         Text("Status: ${item.status}")
                         Text("Payment: ${item.payment}")

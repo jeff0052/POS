@@ -106,7 +106,8 @@ fun PosApp() {
         composable(Routes.OrderDetail.route) {
             OrderDetailScreen(
                 onBack = { navController.popBackStack() },
-                onRefund = { navController.navigate(Routes.Refund.route) }
+                onRefund = { navController.navigate(Routes.Refund.route) },
+                onProceedToPayment = { navController.navigate(Routes.PaymentConfirm.route) }
             )
         }
         composable(Routes.Refund.route) {

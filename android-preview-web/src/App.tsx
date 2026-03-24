@@ -38,6 +38,9 @@ type TableCard = {
   total: number;
   course: string;
   accent: string;
+  source?: "POS" | "QR";
+  settlementState?: "PENDING_SETTLEMENT" | "IN_SERVICE" | "READY";
+  memberName?: string;
 };
 
 type Reservation = {
@@ -62,18 +65,18 @@ const categories: Category[] = [
 
 const tables: TableCard[] = [
   { id: 1, status: "occupied", guests: 2, area: "Window", total: 48, course: "Starters served", accent: "sky" },
-  { id: 2, status: "occupied", guests: 4, area: "Main hall", total: 92.5, course: "Mains fired", accent: "peach" },
+  { id: 2, status: "occupied", guests: 4, area: "Main hall", total: 92.5, course: "QR order waiting for cashier", accent: "peach", source: "QR", settlementState: "PENDING_SETTLEMENT", memberName: "Lina Chen" },
   { id: 3, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
   { id: 4, status: "reserved", guests: 2, area: "Patio", total: 0, course: "19:00 hold", accent: "lilac" },
   { id: 5, status: "occupied", guests: 6, area: "Private booth", total: 168, course: "Wine pairing", accent: "gold" },
   { id: 6, status: "available", guests: 0, area: "Window", total: 0, course: "Ready", accent: "mint" },
-  { id: 7, status: "occupied", guests: 3, area: "Chef counter", total: 71, course: "Desserts", accent: "rose" },
+  { id: 7, status: "occupied", guests: 3, area: "Chef counter", total: 71, course: "QR guest sent add-on items", accent: "rose", source: "QR", settlementState: "PENDING_SETTLEMENT" },
   { id: 8, status: "reserved", guests: 5, area: "Main hall", total: 0, course: "19:30 hold", accent: "lilac" },
   { id: 9, status: "occupied", guests: 4, area: "Main hall", total: 88, course: "Review bill", accent: "sky" },
   { id: 10, status: "available", guests: 0, area: "Patio", total: 0, course: "Ready", accent: "mint" },
   { id: 11, status: "occupied", guests: 2, area: "Window", total: 46, course: "Coffee service", accent: "peach" },
   { id: 12, status: "available", guests: 0, area: "Patio", total: 0, course: "Ready", accent: "mint" },
-  { id: 13, status: "occupied", guests: 5, area: "Main hall", total: 124, course: "Shared plates", accent: "gold" },
+  { id: 13, status: "occupied", guests: 5, area: "Main hall", total: 124, course: "Shared plates", accent: "gold", source: "QR", settlementState: "READY", memberName: "Gold Member" },
   { id: 14, status: "reserved", guests: 2, area: "Chef counter", total: 0, course: "20:00 hold", accent: "lilac" },
   { id: 15, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
   { id: 16, status: "occupied", guests: 4, area: "Private booth", total: 136, course: "Main course", accent: "rose" },
@@ -212,6 +215,7 @@ function App() {
 
   const splitGuests = selectedTable.guests || 4;
   const perGuest = total / splitGuests;
+  const qrPendingTables = tables.filter((table) => table.source === "QR" && table.status === "occupied");
 
   const addItem = (item: MenuItem) => {
     setOrderItems((current) => {
@@ -238,7 +242,7 @@ function App() {
 
   const chooseTable = (table: TableCard) => {
     setSelectedTable(table);
-    setView(table.status === "occupied" ? "ordering" : "review");
+    setView(table.status === "occupied" && table.source === "QR" ? "review" : table.status === "occupied" ? "ordering" : "review");
   };
 
   const statusSummary = [
@@ -401,6 +405,20 @@ function App() {
                     </div>
                   </div>
 
+                  <div className="qr-order-strip">
+                    <div>
+                      <p className="table-tag">QR pending settlement</p>
+                      <h3>{qrPendingTables.length} tables synced from table code orders</h3>
+                    </div>
+                    <div className="qr-order-chips">
+                      {qrPendingTables.slice(0, 4).map((table) => (
+                        <button key={table.id} className="qr-order-chip" onClick={() => chooseTable(table)}>
+                          T{table.id}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="floorplan-map">
                     <aside className="floorplan-service-strip">
                       <div className="service-node">
@@ -442,6 +460,7 @@ function App() {
                                     }`}
                                     onClick={() => chooseTable(table)}
                                   >
+                                    {table.source === "QR" ? <span className="floor-source-badge">QR</span> : null}
                                     <strong>T{table.id}</strong>
                                     <span>
                                       {table.status === "available"
@@ -736,9 +755,24 @@ function App() {
                 <div className="guest-strip">
                   <span>{selectedTable.guests || 4} guests</span>
                   <span>{selectedTable.area}</span>
-                  <span>Server Maya</span>
-                  <span>{memberProfile.name}</span>
+                  <span>{selectedTable.source === "QR" ? "QR table order" : "Server Maya"}</span>
+                  <span>{selectedTable.memberName ?? memberProfile.name}</span>
                 </div>
+
+                {selectedTable.source === "QR" ? (
+                  <div className="qr-checkout-banner">
+                    <div>
+                      <p className="table-tag">QR settlement handoff</p>
+                      <h3>Customer has already placed items from the table code</h3>
+                      <p className="reservation-meta">
+                        Review the synced basket, confirm discounts, then collect payment from staff POS.
+                      </p>
+                    </div>
+                    <span className="reservation-badge badge-waiting">
+                      {selectedTable.settlementState ?? "PENDING_SETTLEMENT"}
+                    </span>
+                  </div>
+                ) : null}
 
                 <div className="order-card-list">
                   {orderItems.map((item) => (
@@ -894,11 +928,25 @@ function App() {
                     <p className="sidebar-title">Ready to charge</p>
                     <h3>{formatMoney(total)}</h3>
                     <p className="accent-copy">
-                      The bill is confirmed and the terminal is paired. Tap to charge or hand the
-                      countertop reader to the guest.
+                      {selectedTable.source === "QR"
+                        ? "A QR table order is ready for cashier settlement. Confirm the synced discounts and collect at the counter or table."
+                        : "The bill is confirmed and the terminal is paired. Tap to charge or hand the countertop reader to the guest."}
                     </p>
                   </div>
                 </div>
+
+                {selectedTable.source === "QR" ? (
+                  <div className="qr-checkout-banner qr-checkout-banner-light">
+                    <div>
+                      <p className="table-tag">Source</p>
+                      <h3>Table code order · T{selectedTable.id}</h3>
+                      <p className="reservation-meta">
+                        {selectedTable.memberName ?? "Guest"} · {selectedTable.settlementState ?? "PENDING_SETTLEMENT"}
+                      </p>
+                    </div>
+                    <span className="reservation-badge badge-checked-in">SYNCED</span>
+                  </div>
+                ) : null}
 
                 <div className="payment-card settlement-breakdown">
                   <div className="amount-row">
