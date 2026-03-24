@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface JpaMemberRepository extends JpaRepository<MemberEntity, Long> {
 
@@ -19,4 +20,6 @@ public interface JpaMemberRepository extends JpaRepository<MemberEntity, Long> {
             order by m.id asc
             """)
     List<MemberEntity> searchActiveMembers(String keyword);
+
+    Optional<MemberEntity> findByPhone(String phone);
 }

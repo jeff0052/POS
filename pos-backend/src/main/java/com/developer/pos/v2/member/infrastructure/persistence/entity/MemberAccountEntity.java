@@ -2,6 +2,8 @@ package com.developer.pos.v2.member.infrastructure.persistence.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -10,6 +12,7 @@ import jakarta.persistence.Table;
 public class MemberAccountEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "member_id", nullable = false)
@@ -27,7 +30,27 @@ public class MemberAccountEntity {
     @Column(name = "lifetime_recharge_cents", nullable = false)
     private long lifetimeRechargeCents;
 
-    protected MemberAccountEntity() {
+    public MemberAccountEntity() {
+    }
+
+    public void setMemberId(Long memberId) {
+        this.memberId = memberId;
+    }
+
+    public void setPointsBalance(long pointsBalance) {
+        this.pointsBalance = pointsBalance;
+    }
+
+    public void setCashBalanceCents(long cashBalanceCents) {
+        this.cashBalanceCents = cashBalanceCents;
+    }
+
+    public void setLifetimeSpendCents(long lifetimeSpendCents) {
+        this.lifetimeSpendCents = lifetimeSpendCents;
+    }
+
+    public void setLifetimeRechargeCents(long lifetimeRechargeCents) {
+        this.lifetimeRechargeCents = lifetimeRechargeCents;
     }
 
     public Long getId() {

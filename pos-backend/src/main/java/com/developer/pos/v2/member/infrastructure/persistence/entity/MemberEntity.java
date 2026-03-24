@@ -2,6 +2,8 @@ package com.developer.pos.v2.member.infrastructure.persistence.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -10,6 +12,7 @@ import jakarta.persistence.Table;
 public class MemberEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "merchant_id", nullable = false)
@@ -30,7 +33,31 @@ public class MemberEntity {
     @Column(name = "member_status", nullable = false)
     private String memberStatus;
 
-    protected MemberEntity() {
+    public MemberEntity() {
+    }
+
+    public void setMerchantId(Long merchantId) {
+        this.merchantId = merchantId;
+    }
+
+    public void setMemberNo(String memberNo) {
+        this.memberNo = memberNo;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public void setTierCode(String tierCode) {
+        this.tierCode = tierCode;
+    }
+
+    public void setMemberStatus(String memberStatus) {
+        this.memberStatus = memberStatus;
     }
 
     public Long getId() {
