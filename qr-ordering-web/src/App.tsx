@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 
 type Category = "Popular" | "Meals" | "Snacks" | "Drinks" | "Desserts";
 
+type CategoryMeta = {
+  id: Category;
+  label: string;
+  icon: string;
+};
+
 type MenuItem = {
   id: number;
   name: string;
@@ -10,6 +16,9 @@ type MenuItem = {
   memberPrice?: number;
   description: string;
   spicy?: boolean;
+  sales?: number;
+  likes?: number;
+  image: string;
 };
 
 type CartItem = MenuItem & {
@@ -61,20 +70,104 @@ type QrCurrentOrderResponse = {
 };
 
 const menu: MenuItem[] = [
-  { id: 1, name: "Signature Fried Rice", category: "Meals", price: 18, memberPrice: 16, description: "Wok fried rice with egg and scallion" },
-  { id: 2, name: "Black Pepper Beef", category: "Meals", price: 34, memberPrice: 31, description: "Tender beef with pepper glaze", spicy: true },
-  { id: 3, name: "Crispy Chicken Bites", category: "Snacks", price: 16, description: "Golden fried chicken with dip" },
-  { id: 4, name: "Peach Soda", category: "Drinks", price: 12, memberPrice: 10, description: "Sparkling house soda" },
-  { id: 5, name: "Milk Tea", category: "Drinks", price: 14, memberPrice: 12, description: "Classic brown sugar milk tea" },
-  { id: 6, name: "Mango Pudding", category: "Desserts", price: 15, description: "Fresh mango with cream" },
-  { id: 7, name: "Chef Combo", category: "Popular", price: 46, memberPrice: 42, description: "Meal set with drink and side" },
-  { id: 8, name: "Truffle Fries", category: "Snacks", price: 19, description: "Crispy fries with truffle seasoning" }
+  {
+    id: 1,
+    name: "招牌炒饭",
+    category: "Meals",
+    price: 18,
+    memberPrice: 16,
+    description: "现炒蛋香粒粒分明",
+    sales: 385,
+    likes: 721,
+    image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    id: 2,
+    name: "黑椒牛肉饭",
+    category: "Meals",
+    price: 34,
+    memberPrice: 31,
+    description: "现煎牛肉配黑椒酱汁",
+    spicy: true,
+    sales: 265,
+    likes: 713,
+    image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    id: 3,
+    name: "酥脆鸡块",
+    category: "Snacks",
+    price: 16,
+    description: "外酥里嫩搭配蘸酱",
+    sales: 186,
+    likes: 488,
+    image: "https://images.unsplash.com/photo-1562967916-eb82221dfb92?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    id: 4,
+    name: "白桃气泡饮",
+    category: "Drinks",
+    price: 12,
+    memberPrice: 10,
+    description: "轻甜爽口店内热卖",
+    sales: 482,
+    likes: 999,
+    image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    id: 5,
+    name: "黑糖奶茶",
+    category: "Drinks",
+    price: 14,
+    memberPrice: 12,
+    description: "经典奶香与黑糖风味",
+    sales: 356,
+    likes: 875,
+    image: "https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    id: 6,
+    name: "芒果布丁",
+    category: "Desserts",
+    price: 15,
+    description: "清爽收尾甜品",
+    sales: 144,
+    likes: 402,
+    image: "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    id: 7,
+    name: "主厨套餐",
+    category: "Popular",
+    price: 46,
+    memberPrice: 42,
+    description: "主食+小食+饮品组合",
+    sales: 517,
+    likes: 1104,
+    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    id: 8,
+    name: "松露薯条",
+    category: "Snacks",
+    price: 19,
+    description: "薯条香脆带松露风味",
+    sales: 199,
+    likes: 530,
+    image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=600&q=80"
+  }
 ];
 
-const categories: Category[] = ["Popular", "Meals", "Snacks", "Drinks", "Desserts"];
+const categories: CategoryMeta[] = [
+  { id: "Popular", label: "新品", icon: "🟢" },
+  { id: "Meals", label: "热销饭类", icon: "🍱" },
+  { id: "Snacks", label: "现炸小食", icon: "🍟" },
+  { id: "Drinks", label: "饮品甜水", icon: "🥤" },
+  { id: "Desserts", label: "甜点轻食", icon: "🧁" }
+];
 
 function money(value: number) {
-  return new Intl.NumberFormat("en-SG", {
+  return new Intl.NumberFormat("zh-CN", {
     style: "currency",
     currency: "CNY",
     minimumFractionDigits: 2
@@ -240,29 +333,31 @@ export default function App() {
       <div className="app-shell">
         <div className="mobile-shell success-shell">
           <div className="success-orb">✓</div>
-          <p className="eyebrow">{submitResult.storeName} · Table {submitResult.tableCode}</p>
-          <h1>Order submitted</h1>
+          <p className="eyebrow">
+            {submitResult.storeName} · 桌号 {submitResult.tableCode}
+          </p>
+          <h1>下单成功</h1>
           <p className="hero-copy">
-            Your order has been sent to the cashier queue. Store staff will confirm items and settle at the table or counter.
+            菜品已经发送到前台收银队列，门店员工会确认订单并在结账时完成收款。
           </p>
 
           <div className="success-cards">
             <article className="metric-card">
-              <span>Queue No</span>
+              <span>取号队列</span>
               <strong>{submitResult.queueNo}</strong>
             </article>
             <article className="metric-card">
-              <span>Payable</span>
+              <span>待收金额</span>
               <strong>{money(submitResult.payableAmountCents / 100)}</strong>
             </article>
             <article className="metric-card">
-              <span>Member</span>
-              <strong>{submitResult.memberTier ? `${submitResult.memberTier} Member` : "Guest"}</strong>
+              <span>会员身份</span>
+              <strong>{submitResult.memberTier ? `${submitResult.memberTier} 会员` : "散客"}</strong>
             </article>
           </div>
 
           <button className="primary-button" onClick={() => setSubmitResult(null)}>
-            Back to menu
+            返回继续点单
           </button>
         </div>
       </div>
@@ -274,96 +369,97 @@ export default function App() {
       <div className="mobile-shell">
         <header className="hero">
           <div className="hero-top">
-            <div>
-              <p className="eyebrow">Scanned table code</p>
+            <button className="icon-lite">×</button>
+            <div className="hero-title-block">
+              <p className="eyebrow">首页</p>
               <h1>{storeName}</h1>
+              <p className="hero-copy">桌号 {tableCode} · 扫码点餐 · 下单后前台结账</p>
             </div>
-            <span className="table-chip">{tableCode}</span>
-          </div>
-          <p className="hero-copy">
-            Dine-in QR ordering. Your order will be synced to the restaurant POS and settled at checkout.
-          </p>
-
-          <div className="hero-pills">
-            <span>Store {storeCode}</span>
-            <span>Dining · QR Order</span>
-            <span>{memberBound ? "Member linked" : "Guest order"}</span>
+            <button className="icon-lite">⋯</button>
           </div>
         </header>
 
         <section className="member-banner">
           <div>
-            <p className="eyebrow">CRM Member</p>
-            <h2>{memberBound ? "Lina Chen · Gold" : "Bind membership"}</h2>
-            <p>{memberBound ? "Points 2,860 · Balance CNY 320.00 · Member pricing enabled" : "Link a phone number to unlock member price, points and recharge balance."}</p>
+            <p className="eyebrow">会员权益</p>
+            <h2>{memberBound ? "Lina Chen · Gold" : "绑定会员"}</h2>
+            <p>{memberBound ? "积分 2860 · 储值 ¥320.00 · 已享会员价" : "绑定手机号后可享会员价、积分累计和储值余额。"}</p>
           </div>
           <button className="soft-button" onClick={() => setMemberBound((current) => !current)}>
-            {memberBound ? "Switch to Guest" : "Bind Member"}
+            {memberBound ? "切换散客" : "绑定会员"}
           </button>
         </section>
 
         {currentOrder ? (
           <section className="current-order-banner">
             <div>
-              <p className="eyebrow">Current table order</p>
+              <p className="eyebrow">当前桌台订单</p>
               <h2>{currentOrder.queueNo}</h2>
               <p>
-                {currentOrder.items.length} items · Pending settlement · Payable {money(currentOrder.payableAmountCents / 100)}
+                {currentOrder.items.length} 件商品 · 待前台结账 · 待收 {money(currentOrder.payableAmountCents / 100)}
               </p>
             </div>
-            <span className="table-order-state">Open</span>
+            <span className="table-order-state">进行中</span>
           </section>
         ) : null}
-
-        <section className="category-row">
-          {categories.map((category) => (
-            <button
-              key={category}
-              className={`category-pill ${activeCategory === category ? "category-pill-active" : ""}`}
-              onClick={() => setActiveCategory(category)}
-            >
-              {category}
-            </button>
-          ))}
-        </section>
 
         <section className="search-row">
           <input
             aria-label="Search menu"
-            placeholder="Search dishes"
+            placeholder="搜索菜品"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
           />
         </section>
 
-        <section className="menu-list">
-          {visibleMenu.map((item) => (
-            <article key={item.id} className="menu-card">
-              <div className="menu-copy">
-                <div className="menu-title-row">
-                  <h3>{item.name}</h3>
-                  {item.spicy ? <span className="flag">Spicy</span> : null}
-                </div>
-                <p>{item.description}</p>
-                <div className="price-row">
-                  <strong>{money(memberBound && item.memberPrice ? item.memberPrice : item.price)}</strong>
-                  {memberBound && item.memberPrice ? <span>{money(item.price)}</span> : null}
-                </div>
-              </div>
-              <button className="add-button" onClick={() => addItem(item)}>
-                Add
+        <section className="menu-shell">
+          <aside className="category-rail">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                className={`category-rail-item ${activeCategory === category.id ? "category-rail-item-active" : ""}`}
+                onClick={() => setActiveCategory(category.id)}
+              >
+                <span className="category-rail-icon">{category.icon}</span>
+                <span className="category-rail-label">{category.label}</span>
               </button>
-            </article>
-          ))}
+            ))}
+          </aside>
+
+          <section className="menu-feed">
+            {visibleMenu.map((item) => (
+              <article key={item.id} className="menu-feed-card">
+                <img className="menu-feed-image" src={item.image} alt={item.name} />
+                <div className="menu-feed-copy">
+                  <div className="menu-title-row">
+                    <h3>{item.name}</h3>
+                    {item.spicy ? <span className="flag">辣</span> : null}
+                  </div>
+                  <p>{item.description}</p>
+                  <div className="menu-meta">
+                    <span>月售{item.sales ?? 0}</span>
+                    <span>点赞{item.likes ?? 0}</span>
+                  </div>
+                  <div className="price-row">
+                    <strong>¥{(memberBound && item.memberPrice ? item.memberPrice : item.price).toFixed(0)}</strong>
+                    {memberBound && item.memberPrice ? <span>¥{item.price.toFixed(0)}</span> : null}
+                  </div>
+                </div>
+                <button className="floating-add-button" onClick={() => addItem(item)}>
+                  +
+                </button>
+              </article>
+            ))}
+          </section>
         </section>
 
         <section className="cart-panel">
           <div className="section-head">
             <div>
-              <p className="eyebrow">Current table order</p>
-              <h2>Cart</h2>
+              <p className="eyebrow">当前已选</p>
+              <h2>购物车</h2>
             </div>
-            <span className="cart-count">{cart.length} items</span>
+            <span className="cart-count">{cart.length} 件商品</span>
           </div>
 
           <div className="cart-list">
@@ -373,7 +469,7 @@ export default function App() {
                   <strong>{item.name}</strong>
                   <p>
                     {money(memberBound && item.memberPrice ? item.memberPrice : item.price)} each
-                    {memberBound && item.memberPrice ? " · member price" : ""}
+                    {memberBound && item.memberPrice ? " · 会员价" : ""}
                   </p>
                 </div>
                 <div className="qty-group">
@@ -387,29 +483,38 @@ export default function App() {
 
           <div className="summary-card">
             <div className="summary-row">
-              <span>Original subtotal</span>
+              <span>商品小计</span>
               <strong>{money(subtotal)}</strong>
             </div>
             <div className="summary-row discount">
-              <span>Member benefit</span>
+              <span>会员优惠</span>
               <strong>-{money(memberDiscount)}</strong>
             </div>
             <div className="summary-row discount">
-              <span>Promotion hit</span>
+              <span>活动优惠</span>
               <strong>-{money(promotionDiscount)}</strong>
             </div>
             <div className="summary-row total">
-              <span>Payable at cashier</span>
+              <span>前台待收</span>
               <strong>{money(payable)}</strong>
             </div>
-            <p className="summary-note">This QR order will sync to the POS as a dine-in table order. Payment is completed at checkout.</p>
+            <p className="summary-note">扫码下单只提交订单，不在线支付。订单会同步到前台 POS，由 cashier 完成最终结账。</p>
           </div>
 
           {submitError ? <p className="submit-error">{submitError}</p> : null}
 
-          <button className="primary-button" onClick={submitOrder} disabled={cart.length === 0 || submitting}>
-            {submitting ? "Submitting..." : "Submit to cashier"}
-          </button>
+          <div className="floating-cart-bar">
+            <div className="floating-cart-left">
+              <span className="floating-cart-icon">🛒</span>
+              <div>
+                <strong>¥{payable.toFixed(1)}</strong>
+                <p>{cart.reduce((sum, item) => sum + item.quantity, 0)}件商品</p>
+              </div>
+            </div>
+            <button className="floating-cart-action" onClick={submitOrder} disabled={cart.length === 0 || submitting}>
+              {submitting ? "提交中" : "选好了"}
+            </button>
+          </div>
         </section>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type View =
   | "reservations"
@@ -23,6 +23,7 @@ type MenuItem = {
   category: string;
   price: number;
   image: string;
+  memberPrice?: number;
 };
 
 type OrderItem = MenuItem & {
@@ -39,7 +40,7 @@ type TableCard = {
   course: string;
   accent: string;
   source?: "POS" | "QR";
-  settlementState?: "PENDING_SETTLEMENT" | "IN_SERVICE" | "READY";
+  settlementState?: "PENDING_SETTLEMENT" | "IN_SERVICE" | "READY" | "SETTLED";
   memberName?: string;
 };
 
@@ -52,15 +53,37 @@ type Reservation = {
   area: string;
 };
 
+type ApiResponse<T> = {
+  code: number;
+  message: string;
+  data: T;
+};
+
+type QrCurrentOrderResponse = {
+  orderNo: string;
+  queueNo: string;
+  tableCode: string;
+  settlementStatus: "PENDING_SETTLEMENT" | "IN_SERVICE" | "READY" | "SETTLED";
+  memberName: string | null;
+  memberTier?: string | null;
+  originalAmountCents?: number;
+  memberDiscountCents?: number;
+  promotionDiscountCents?: number;
+  payableAmountCents: number;
+  items: Array<{
+    productName: string;
+    quantity: number;
+    unitPriceCents?: number;
+    memberPriceCents?: number | null;
+  }>;
+};
+
 const categories: Category[] = [
-  { id: "starters", name: "Starters", items: 7, color: "coral" },
-  { id: "mains", name: "Mains", items: 8, color: "amber" },
-  { id: "beer", name: "Beer & Wine", items: 12, color: "berry" },
-  { id: "discounts", name: "Discounts", items: 4, color: "green" },
-  { id: "drinks", name: "Drinks", items: 5, color: "blue" },
-  { id: "scan", name: "Scan", items: 1, color: "sand" },
-  { id: "salads", name: "Salads", items: 6, color: "red" },
-  { id: "desserts", name: "Desserts", items: 5, color: "pink" }
+  { id: "meals", name: "热销饭类", items: 3, color: "amber" },
+  { id: "snacks", name: "现炸小食", items: 2, color: "coral" },
+  { id: "drinks", name: "饮品甜水", items: 2, color: "blue" },
+  { id: "desserts", name: "甜点轻食", items: 1, color: "pink" },
+  { id: "popular", name: "主厨推荐", items: 1, color: "green" }
 ];
 
 const tables: TableCard[] = [
@@ -100,80 +123,85 @@ const reservations: Reservation[] = [
 const menu: MenuItem[] = [
   {
     id: 1,
-    name: "Ahi Tuna Salad",
-    category: "Salads",
-    price: 12.5,
+    name: "招牌炒饭",
+    category: "meals",
+    price: 18,
+    memberPrice: 16,
     image:
-      "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80"
   },
   {
     id: 2,
-    name: "Citrus Salad",
-    category: "Salads",
-    price: 8.5,
+    name: "黑椒牛肉饭",
+    category: "meals",
+    price: 34,
+    memberPrice: 31,
     image:
-      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80"
   },
   {
     id: 3,
-    name: "Cheesecake",
-    category: "Desserts",
-    price: 9.5,
+    name: "酥脆鸡块",
+    category: "snacks",
+    price: 16,
     image:
-      "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1562967916-eb82221dfb92?auto=format&fit=crop&w=900&q=80"
   },
   {
     id: 4,
-    name: "Chocolate Cake",
-    category: "Desserts",
-    price: 10.5,
+    name: "白桃气泡饮",
+    category: "drinks",
+    price: 12,
+    memberPrice: 10,
     image:
-      "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=80"
   },
   {
     id: 5,
-    name: "Flatbread",
-    category: "Starters",
-    price: 9.5,
+    name: "黑糖奶茶",
+    category: "drinks",
+    price: 14,
+    memberPrice: 12,
     image:
-      "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=900&q=80"
   },
   {
     id: 6,
-    name: "Roasted Vegetables",
-    category: "Starters",
-    price: 11,
+    name: "芒果布丁",
+    category: "desserts",
+    price: 15,
     image:
-      "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=900&q=80"
   },
   {
     id: 7,
-    name: "Miso Sea Bass",
-    category: "Mains",
-    price: 24,
+    name: "主厨套餐",
+    category: "popular",
+    price: 46,
+    memberPrice: 42,
     image:
-      "https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80"
   },
   {
     id: 8,
-    name: "Yuzu Spritz",
-    category: "Drinks",
-    price: 7.5,
+    name: "松露薯条",
+    category: "snacks",
+    price: 19,
     image:
-      "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=900&q=80"
+      "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=900&q=80"
   }
 ];
 
 const initialOrder: OrderItem[] = [
-  { ...menu[0], quantity: 1, note: "No onion" },
+  { ...menu[0], quantity: 1, note: "少葱" },
   { ...menu[4], quantity: 2 },
-  { ...menu[7], quantity: 2, note: "Less ice" }
+  { ...menu[3], quantity: 2, note: "少冰" }
 ];
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("zh-CN", {
     style: "currency",
-    currency: "EUR"
+    currency: "CNY"
   }).format(value);
 }
 
@@ -181,9 +209,22 @@ function App() {
   const [view, setView] = useState<View>("tables");
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
-  const [selectedTable, setSelectedTable] = useState<TableCard>(tables[5]);
-  const [targetTable, setTargetTable] = useState<TableCard>(tables[0]);
+  const [tableState, setTableState] = useState<TableCard[]>(tables);
+  const [selectedTableId, setSelectedTableId] = useState<number>(6);
+  const [targetTableId, setTargetTableId] = useState<number>(1);
   const [orderItems, setOrderItems] = useState<OrderItem[]>(initialOrder);
+  const [qrOrders, setQrOrders] = useState<Record<string, QrCurrentOrderResponse>>({});
+  const [recentQrAlert, setRecentQrAlert] = useState<QrCurrentOrderResponse | null>(null);
+  const seenQrOrderNos = useRef<Set<string>>(new Set());
+
+  const selectedTable = tableState.find((table) => table.id === selectedTableId) ?? tableState[0];
+  const targetTable = tableState.find((table) => table.id === targetTableId) ?? tableState[0];
+  const selectedTableCode = `T${selectedTable.id}`;
+  const selectedQrOrder = qrOrders[selectedTableCode];
+  const menuByName = useMemo(
+    () => new Map(menu.map((item) => [item.name, item])),
+    []
+  );
 
   const visibleMenu = useMemo(() => {
     return menu.filter((item) => {
@@ -214,8 +255,119 @@ function App() {
   };
 
   const splitGuests = selectedTable.guests || 4;
-  const perGuest = total / splitGuests;
-  const qrPendingTables = tables.filter((table) => table.source === "QR" && table.status === "occupied");
+  const qrPendingTables = tableState.filter((table) => table.source === "QR" && table.status === "occupied");
+
+  useEffect(() => {
+    const qrTableCodes = tables.map((table) => `T${table.id}`);
+    let active = true;
+
+    const syncQrTables = async () => {
+      try {
+        const results = await Promise.all(
+          qrTableCodes.map(async (tableCode) => {
+            const response = await fetch(
+              `/api/v1/orders/qr-current?storeCode=1001&tableCode=${encodeURIComponent(tableCode)}`
+            );
+
+            if (!response.ok) {
+              return null;
+            }
+
+            const payload = (await response.json()) as ApiResponse<QrCurrentOrderResponse | null>;
+            return payload.code === 0 ? payload.data : null;
+          })
+        );
+
+        if (!active) {
+          return;
+        }
+
+        const nextQrOrders = Object.fromEntries(
+          results.filter((entry): entry is QrCurrentOrderResponse => Boolean(entry)).map((entry) => [entry.tableCode, entry])
+        );
+        setQrOrders(nextQrOrders);
+
+        const newIncomingOrder = Object.values(nextQrOrders).find((entry) => !seenQrOrderNos.current.has(entry.orderNo));
+        if (newIncomingOrder) {
+          setRecentQrAlert(newIncomingOrder);
+        }
+
+        Object.values(nextQrOrders).forEach((entry) => {
+          seenQrOrderNos.current.add(entry.orderNo);
+        });
+
+        setTableState((current) =>
+          current.map((table) => {
+            const match = nextQrOrders[`T${table.id}`];
+            if (!match) {
+              return table.source === "QR"
+                ? {
+                    ...tables.find((baseTable) => baseTable.id === table.id)!,
+                    source: undefined,
+                    settlementState: undefined,
+                    memberName: undefined
+                  }
+                : table;
+            }
+
+            return {
+              ...table,
+              status: "occupied",
+              source: "QR",
+              settlementState: match.settlementStatus,
+              memberName: match.memberName ?? undefined,
+              total: Number((match.payableAmountCents / 100).toFixed(2)),
+              course: `${match.items.length} items waiting for cashier`
+            };
+          })
+        );
+      } catch {
+        // Keep preview stable if backend is not available momentarily.
+      }
+    };
+
+    void syncQrTables();
+    const interval = window.setInterval(syncQrTables, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const displayedOrderItems = selectedQrOrder
+    ? selectedQrOrder.items.map((item, index) => {
+        const source = menuByName.get(item.productName);
+        const unitPrice =
+          (item.memberPriceCents ?? item.unitPriceCents ?? Math.round((selectedQrOrder.payableAmountCents / Math.max(selectedQrOrder.items.length, 1)))) / 100;
+
+        return {
+          id: source?.id ?? 9000 + index,
+          name: item.productName,
+          category: source?.category ?? "qr",
+          price: unitPrice,
+          memberPrice: item.memberPriceCents ? item.memberPriceCents / 100 : source?.memberPrice,
+          image: source?.image ?? "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+          quantity: item.quantity,
+          note: "桌码点单"
+        } satisfies OrderItem;
+      })
+    : orderItems;
+
+  const displayedSubtotal = selectedQrOrder
+    ? (selectedQrOrder.originalAmountCents ?? selectedQrOrder.payableAmountCents) / 100
+    : subtotal;
+  const displayedMemberDiscount = selectedQrOrder
+    ? (selectedQrOrder.memberDiscountCents ?? 0) / 100
+    : memberDiscount;
+  const displayedPromotionDiscount = selectedQrOrder
+    ? (selectedQrOrder.promotionDiscountCents ?? 0) / 100
+    : promotionDiscount;
+  const displayedTax = selectedQrOrder ? 0 : tax;
+  const displayedService = selectedQrOrder ? 0 : service;
+  const displayedGrossTotal = selectedQrOrder ? displayedSubtotal : grossTotal;
+  const displayedTotal = selectedQrOrder ? selectedQrOrder.payableAmountCents / 100 : total;
+  const perGuest = displayedTotal / splitGuests;
 
   const addItem = (item: MenuItem) => {
     setOrderItems((current) => {
@@ -231,6 +383,70 @@ function App() {
   };
 
   const updateQuantity = (id: number, delta: number) => {
+    if (selectedQrOrder) {
+      const nextItems = displayedOrderItems
+        .map((entry) =>
+          entry.id === id ? { ...entry, quantity: Math.max(0, entry.quantity + delta) } : entry
+        )
+        .filter((entry) => entry.quantity > 0);
+
+      const nextQrOrder: QrCurrentOrderResponse = {
+        ...selectedQrOrder,
+        items: nextItems.map((item) => ({
+          productName: item.name,
+          quantity: item.quantity,
+          unitPriceCents: Math.round(item.price * 100),
+          memberPriceCents: item.memberPrice ? Math.round(item.memberPrice * 100) : null
+        }))
+      };
+
+      const originalAmountCents = nextQrOrder.items.reduce(
+        (sum, item) => sum + (item.unitPriceCents ?? 0) * item.quantity,
+        0
+      );
+      const memberDiscountCents = nextQrOrder.items.reduce((sum, item) => {
+        const unitPrice = item.unitPriceCents ?? 0;
+        const memberPrice = item.memberPriceCents ?? unitPrice;
+        return sum + Math.max(0, unitPrice - memberPrice) * item.quantity;
+      }, 0);
+      const promotionDiscountCents = originalAmountCents >= 6000 ? 800 : 0;
+
+      nextQrOrder.originalAmountCents = originalAmountCents;
+      nextQrOrder.memberDiscountCents = memberDiscountCents;
+      nextQrOrder.promotionDiscountCents = promotionDiscountCents;
+      nextQrOrder.payableAmountCents = Math.max(0, originalAmountCents - memberDiscountCents - promotionDiscountCents);
+
+      setQrOrders((current) => ({
+        ...current,
+        [selectedTableCode]: nextQrOrder
+      }));
+      setTableState((current) =>
+        current.map((table) =>
+          table.id === selectedTable.id
+            ? {
+                ...table,
+                total: Number((nextQrOrder.payableAmountCents / 100).toFixed(2)),
+                course: `${nextQrOrder.items.length} items waiting for cashier`
+              }
+            : table
+        )
+      );
+
+      void fetch("/api/v1/orders/qr-current", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          storeCode: "1001",
+          tableCode: selectedTableCode,
+          items: nextQrOrder.items
+        })
+      });
+
+      return;
+    }
+
     setOrderItems((current) =>
       current
         .map((entry) =>
@@ -241,14 +457,49 @@ function App() {
   };
 
   const chooseTable = (table: TableCard) => {
-    setSelectedTable(table);
+    setSelectedTableId(table.id);
     setView(table.status === "occupied" && table.source === "QR" ? "review" : table.status === "occupied" ? "ordering" : "review");
   };
 
+  const completeSettlement = async () => {
+    if (selectedQrOrder) {
+      await fetch("/api/v1/orders/qr-settle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          storeCode: "1001",
+          tableCode: selectedTableCode
+        })
+      });
+
+      setQrOrders((current) => {
+        const next = { ...current };
+        delete next[selectedTableCode];
+        return next;
+      });
+      setTableState((current) =>
+        current.map((table) =>
+          table.id === selectedTable.id
+            ? {
+                ...tables.find((baseTable) => baseTable.id === table.id)!,
+                source: undefined,
+                settlementState: undefined,
+                memberName: undefined
+              }
+            : table
+        )
+      );
+    }
+
+    setView("success");
+  };
+
   const statusSummary = [
-    { label: "Occupied", value: tables.filter((table) => table.status === "occupied").length, tone: "sky" },
-    { label: "Reserved", value: tables.filter((table) => table.status === "reserved").length, tone: "rose" },
-    { label: "Available", value: tables.filter((table) => table.status === "available").length, tone: "mint" }
+    { label: "Occupied", value: tableState.filter((table) => table.status === "occupied").length, tone: "sky" },
+    { label: "Reserved", value: tableState.filter((table) => table.status === "reserved").length, tone: "rose" },
+    { label: "Available", value: tableState.filter((table) => table.status === "available").length, tone: "mint" }
   ];
 
   const reservationSummary = [
@@ -257,8 +508,7 @@ function App() {
     { label: "Upcoming", value: reservations.filter((entry) => entry.status === "upcoming").length, tone: "lilac" }
   ];
 
-  const availableTables = tables.filter((table) => table.status === "available");
-  const getTable = (id: number) => tables.find((table) => table.id === id)!;
+  const availableTables = tableState.filter((table) => table.status === "available");
 
   const windowTitle =
     view === "reservations"
@@ -282,8 +532,54 @@ function App() {
       <main className="preview-stage">
         <section className="pos-window">
           <header className="window-header">
+            <div className="header-spacer" />
             <strong>{windowTitle}</strong>
+            <div className="header-actions">
+              <button
+                className="persistent-nav-button persistent-nav-button-secondary"
+                onClick={() =>
+                  window.open(
+                    `http://localhost:4177/?storeName=Riverside%20Branch&storeCode=1001&table=${encodeURIComponent(selectedTableCode)}`,
+                    "_blank"
+                  )
+                }
+              >
+                打开 {selectedTableCode} 扫码页
+              </button>
+            </div>
           </header>
+
+          {recentQrAlert ? (
+            <div className="incoming-qr-alert">
+              <div>
+                <p className="table-tag">New QR order pending settlement</p>
+                <h3>
+                  {recentQrAlert.tableCode} · {recentQrAlert.queueNo}
+                </h3>
+                <p>
+                  {recentQrAlert.items.length} items · {formatMoney(recentQrAlert.payableAmountCents / 100)} waiting for cashier
+                </p>
+              </div>
+              <div className="incoming-qr-actions">
+                <button
+                  className="minor-pill"
+                  onClick={() => {
+                    const tableId = Number(recentQrAlert.tableCode.replace("T", ""));
+                    if (!Number.isNaN(tableId)) {
+                      setSelectedTableId(tableId);
+                    }
+                    setView("review");
+                    setRecentQrAlert(null);
+                  }}
+                >
+                  Open order
+                </button>
+                <button className="minor-pill" onClick={() => setRecentQrAlert(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="persistent-nav persistent-nav-top">
             {[
@@ -400,8 +696,8 @@ function App() {
                       <span className="legend-chip legend-attention">Action needed</span>
                     </div>
                     <div className="floorplan-summary">
-                      <strong>{tables.length} tables</strong>
-                      <span>{tables.filter((table) => table.status === "occupied").length} active now</span>
+                      <strong>{tableState.length} tables</strong>
+                      <span>{tableState.filter((table) => table.status === "occupied").length} active now</span>
                     </div>
                   </div>
 
@@ -436,7 +732,7 @@ function App() {
                     </aside>
 
                     <div className="floorplan-islands">
-                      {[tables.slice(0, 8), tables.slice(8, 16), tables.slice(16, 24)].map(
+                      {[tableState.slice(0, 8), tableState.slice(8, 16), tableState.slice(16, 24)].map(
                         (group, index) => (
                           <div key={index} className="floorplan-island">
                             <div className="floorplan-grid">
@@ -505,7 +801,7 @@ function App() {
                   </div>
                   <div className="detail-row">
                     <span>Current check</span>
-                    <strong>{formatMoney(total)}</strong>
+                    <strong>{formatMoney(displayedTotal)}</strong>
                   </div>
                   <div className="detail-row">
                     <span>Reason</span>
@@ -520,7 +816,7 @@ function App() {
                       className={`table-card table-${table.accent} ${
                         targetTable.id === table.id ? "table-selected" : ""
                       }`}
-                      onClick={() => setTargetTable(table)}
+                      onClick={() => setTargetTableId(table.id)}
                     >
                       <div className="table-card-top">
                         <span>T{table.id}</span>
@@ -670,11 +966,11 @@ function App() {
                       <p className="sidebar-title">Current order</p>
                       <h2>Cart</h2>
                     </div>
-                    <span className="cart-pill">{orderItems.length} items</span>
+                    <span className="cart-pill">{displayedOrderItems.length} items</span>
                   </div>
 
                   <div className="ordering-cart-list">
-                    {orderItems.map((item) => (
+                    {displayedOrderItems.map((item) => (
                       <article key={item.id} className="ordering-cart-row">
                         <div>
                           <strong>{item.name}</strong>
@@ -694,27 +990,27 @@ function App() {
                   <p className="sidebar-title">Summary</p>
                   <div className="amount-row">
                     <span>Subtotal</span>
-                    <strong>{formatMoney(subtotal)}</strong>
+                    <strong>{formatMoney(displayedSubtotal)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Tax</span>
-                    <strong>{formatMoney(tax)}</strong>
+                    <strong>{formatMoney(displayedTax)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Service</span>
-                    <strong>{formatMoney(service)}</strong>
+                    <strong>{formatMoney(displayedService)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Member benefit</span>
-                    <strong>-{formatMoney(memberDiscount)}</strong>
+                    <strong>-{formatMoney(displayedMemberDiscount)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Promotion hit</span>
-                    <strong>-{formatMoney(promotionDiscount)}</strong>
+                    <strong>-{formatMoney(displayedPromotionDiscount)}</strong>
                   </div>
                   <div className="amount-row total">
                     <span>Payable</span>
-                    <strong>{formatMoney(total)}</strong>
+                    <strong>{formatMoney(displayedTotal)}</strong>
                   </div>
                 </div>
 
@@ -756,7 +1052,7 @@ function App() {
                   <span>{selectedTable.guests || 4} guests</span>
                   <span>{selectedTable.area}</span>
                   <span>{selectedTable.source === "QR" ? "QR table order" : "Server Maya"}</span>
-                  <span>{selectedTable.memberName ?? memberProfile.name}</span>
+                  <span>{selectedQrOrder?.memberName ?? selectedTable.memberName ?? memberProfile.name}</span>
                 </div>
 
                 {selectedTable.source === "QR" ? (
@@ -775,7 +1071,7 @@ function App() {
                 ) : null}
 
                 <div className="order-card-list">
-                  {orderItems.map((item) => (
+                  {displayedOrderItems.map((item) => (
                     <article key={item.id} className="order-row-card">
                       <img src={item.image} alt={item.name} />
                       <div className="order-row-main">
@@ -802,27 +1098,27 @@ function App() {
                   <p className="sidebar-title">Review summary</p>
                   <div className="amount-row">
                     <span>Subtotal</span>
-                    <strong>{formatMoney(subtotal)}</strong>
+                    <strong>{formatMoney(displayedSubtotal)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Tax</span>
-                    <strong>{formatMoney(tax)}</strong>
+                    <strong>{formatMoney(displayedTax)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Service</span>
-                    <strong>{formatMoney(service)}</strong>
+                    <strong>{formatMoney(displayedService)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Member discount</span>
-                    <strong>-{formatMoney(memberDiscount)}</strong>
+                    <strong>-{formatMoney(displayedMemberDiscount)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Full reduction</span>
-                    <strong>-{formatMoney(promotionDiscount)}</strong>
+                    <strong>-{formatMoney(displayedPromotionDiscount)}</strong>
                   </div>
                   <div className="amount-row total">
                     <span>Payable</span>
-                    <strong>{formatMoney(total)}</strong>
+                    <strong>{formatMoney(displayedTotal)}</strong>
                   </div>
                 </div>
 
@@ -873,7 +1169,7 @@ function App() {
                         <strong>{formatMoney(perGuest)}</strong>
                       </div>
                       <div className="split-tags">
-                        {orderItems.slice(index % 2, index % 2 === 0 ? 2 : 3).map((item) => (
+                        {displayedOrderItems.slice(index % 2, index % 2 === 0 ? 2 : 3).map((item) => (
                           <span key={`${item.id}-${index}`}>{item.name}</span>
                         ))}
                       </div>
@@ -926,7 +1222,7 @@ function App() {
                 <div className="payment-hero">
                   <div className="payment-card feature-card">
                     <p className="sidebar-title">Ready to charge</p>
-                    <h3>{formatMoney(total)}</h3>
+                    <h3>{formatMoney(displayedTotal)}</h3>
                     <p className="accent-copy">
                       {selectedTable.source === "QR"
                         ? "A QR table order is ready for cashier settlement. Confirm the synced discounts and collect at the counter or table."
@@ -951,15 +1247,15 @@ function App() {
                 <div className="payment-card settlement-breakdown">
                   <div className="amount-row">
                     <span>Original amount</span>
-                    <strong>{formatMoney(grossTotal)}</strong>
+                    <strong>{formatMoney(displayedGrossTotal)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Member benefit</span>
-                    <strong>-{formatMoney(memberDiscount)}</strong>
+                    <strong>-{formatMoney(displayedMemberDiscount)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Promotion benefit</span>
-                    <strong>-{formatMoney(promotionDiscount)}</strong>
+                    <strong>-{formatMoney(displayedPromotionDiscount)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Gift item</span>
@@ -968,7 +1264,7 @@ function App() {
                 </div>
 
                 <div className="order-card-list compact-list">
-                  {orderItems.map((item) => (
+                  {displayedOrderItems.map((item) => (
                     <article key={item.id} className="order-row-card compact-row">
                       <img src={item.image} alt={item.name} />
                       <div className="order-row-main">
@@ -992,27 +1288,27 @@ function App() {
                   <p className="sidebar-title">Payment summary</p>
                   <div className="amount-row">
                     <span>Subtotal</span>
-                    <strong>{formatMoney(subtotal)}</strong>
+                    <strong>{formatMoney(displayedSubtotal)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Tax</span>
-                    <strong>{formatMoney(tax)}</strong>
+                    <strong>{formatMoney(displayedTax)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Service</span>
-                    <strong>{formatMoney(service)}</strong>
+                    <strong>{formatMoney(displayedService)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Member benefit</span>
-                    <strong>-{formatMoney(memberDiscount)}</strong>
+                    <strong>-{formatMoney(displayedMemberDiscount)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Promotion benefit</span>
-                    <strong>-{formatMoney(promotionDiscount)}</strong>
+                    <strong>-{formatMoney(displayedPromotionDiscount)}</strong>
                   </div>
                   <div className="amount-row total">
                     <span>Total due</span>
-                    <strong>{formatMoney(total)}</strong>
+                    <strong>{formatMoney(displayedTotal)}</strong>
                   </div>
                 </div>
 
@@ -1028,12 +1324,12 @@ function App() {
 
                 <div className="payment-card accent-card">
                   <p className="sidebar-title">Ready to collect</p>
-                  <h3>{formatMoney(total)}</h3>
+                  <h3>{formatMoney(displayedTotal)}</h3>
                   <p className="accent-copy">
                     Card terminal is connected. Once collected, the table can be marked ready for
                     turnover from the floor panel.
                   </p>
-                  <button className="cta-button" onClick={() => setView("success")}>
+                  <button className="cta-button" onClick={() => void completeSettlement()}>
                     Collect payment
                   </button>
                 </div>

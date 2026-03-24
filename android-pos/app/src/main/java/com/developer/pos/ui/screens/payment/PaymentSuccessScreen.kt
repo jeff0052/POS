@@ -38,7 +38,11 @@ fun PaymentSuccessScreen(
                 modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Payment Success", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    if (scenario.source == "QR") "Cashier Settlement Complete" else "Payment Success",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
                 Text("Order No: ${uiState.currentOrderNo}")
                 Text("Source: ${scenario.source}${scenario.tableCode?.let { " · $it" } ?: ""}")
                 Text("Amount: CNY %.2f".format(payableAmountCents / 100.0))
@@ -54,7 +58,13 @@ fun PaymentSuccessScreen(
                 if (scenario.giftItems.isNotEmpty()) {
                     Text("Gift Items: ${scenario.giftItems.joinToString()}")
                 }
-                Text("Receipt: auto print will be wired after printer SDK integration")
+                Text(
+                    if (scenario.source == "QR") {
+                        "This QR table order has been settled by cashier. Receipt printing will be wired after printer SDK integration."
+                    } else {
+                        "Receipt: auto print will be wired after printer SDK integration"
+                    }
+                )
             }
         }
 

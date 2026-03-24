@@ -46,7 +46,7 @@ fun PaymentConfirmScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Payment Confirm",
+                text = if (scenario.source == "QR") "Cashier Settlement" else "Payment Confirm",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -72,6 +72,13 @@ fun PaymentConfirmScreen(
                     }
                 }
                 Text(scenario.headline, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (scenario.source == "QR") {
+                        "Customer already submitted this table order. Cashier confirms discounts and collects payment at the register."
+                    } else {
+                        "Counter order created by staff. Continue with standard POS payment collection."
+                    }
+                )
                 Text(
                     text = if (scenario.memberTier != null) {
                         "Member: ${scenario.memberName} / ${scenario.memberTier}"
@@ -114,7 +121,10 @@ fun PaymentConfirmScreen(
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Payment Method", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (scenario.source == "QR") "Cashier Payment Method" else "Payment Method",
+                    style = MaterialTheme.typography.titleMedium
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -145,7 +155,7 @@ fun PaymentConfirmScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = uiState.cartItems.isNotEmpty() || scenario.source == "QR"
         ) {
-            Text(if (scenario.source == "QR") "Collect QR Settlement" else "Create Order and Start Payment")
+            Text(if (scenario.source == "QR") "Collect Payment at Cashier" else "Create Order and Start Payment")
         }
     }
 }

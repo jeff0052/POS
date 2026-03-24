@@ -7,6 +7,8 @@ import com.developer.pos.order.dto.OrderListResponse;
 import com.developer.pos.order.dto.QrOrderItemRequest;
 import com.developer.pos.order.dto.QrOrderSubmitRequest;
 import com.developer.pos.order.dto.QrOrderSubmitResponse;
+import com.developer.pos.order.dto.QrOrderSettleRequest;
+import com.developer.pos.order.dto.QrOrderUpdateRequest;
 import com.developer.pos.order.entity.OrderEntity;
 import com.developer.pos.order.entity.QrTableOrderEntity;
 import com.developer.pos.order.repository.OrderRepository;
@@ -40,7 +42,7 @@ public class OrderService {
     }
 
     public OrderListResponse list() {
-        List<OrderDto> items = orderRepository.findTop50ByStoreIdOrderByCreatedAtDesc(1001L)
+        List<TimedOrder> items = orderRepository.findTop50ByStoreIdOrderByCreatedAtDesc(1001L)
             .stream()
             .map(this::toPosDto)
             .map(dto -> new TimedOrder(dto, parseTime(dto.createdAt())))
@@ -105,7 +107,7 @@ public class OrderService {
 
     public QrCurrentOrderResponse getCurrentQrOrder(String storeCode, String tableCode) {
         return qrTableOrderRepository
-            .findTopByStoreCodeAndTableCodeOrderByCreatedAtDesc(storeCode, tableCode)
+            .findTopByStoreCodeAndTableCodeAndSettlementStatusNotOrderByCreatedAtDesc(storeCode, tableCode, "SETTLED")
             .map(entity -> new QrCurrentOrderResponse(
                 entity.getOrderNo(),
                 entity.getQueueNo(),
@@ -122,6 +124,79 @@ public class OrderService {
                 readItems(entity.getItemsJson())
             ))
             .orElse(null);
+    }
+
+    public void settleCurrentQrOrder(QrOrderSettleRequest request) {
+        QrTableOrderEntity entity = qrTableOrderRepository
+            .findTopByStoreCodeAndTableCodeAndSettlementStatusNotOrderByCreatedAtDesc(
+                request.storeCode(),
+                request.tableCode(),
+                "SETTLED"
+            )
+            .orElseThrow(() -> new IllegalArgumentException("QR order not found for settlement"));
+
+        entity.setSettlementStatus("SETTLED");
+        qrTableOrderRepository.save(entity);
+
+        orderRepository.findByOrderNo(entity.getOrderNo()).ifPresent(order -> {
+            order.setOrderStatus("PAID");
+            order.setPaymentStatus("SDK_PAY");
+            order.setPaidAmountCents(entity.getPayableAmountCents());
+            orderRepository.save(order);
+        });
+    }
+
+    public QrCurrentOrderResponse updateCurrentQrOrder(QrOrderUpdateRequest request) {
+        QrTableOrderEntity entity = qrTableOrderRepository
+            .findTopByStoreCodeAndTableCodeOrderByCreatedAtDesc(request.storeCode(), request.tableCode())
+            .orElseThrow(() -> new IllegalArgumentException("QR order not found for table"));
+
+        List<QrOrderItemRequest> items = request.items() == null
+            ? List.of()
+            : request.items().stream().filter(item -> item.quantity() != null && item.quantity() > 0).toList();
+
+        long originalAmountCents = items.stream()
+            .mapToLong(item -> safe(item.unitPriceCents()) * safe(item.quantity()))
+            .sum();
+
+        long memberDiscountCents = items.stream()
+            .mapToLong(item -> {
+                long unitPrice = safe(item.unitPriceCents());
+                long memberPrice = item.memberPriceCents() == null ? unitPrice : item.memberPriceCents();
+                return Math.max(0L, unitPrice - memberPrice) * safe(item.quantity());
+            })
+            .sum();
+
+        long promotionDiscountCents = originalAmountCents >= 6000 ? 800L : 0L;
+        long payableAmountCents = Math.max(0L, originalAmountCents - memberDiscountCents - promotionDiscountCents);
+
+        entity.setItemsJson(writeItems(items));
+        entity.setOriginalAmountCents(originalAmountCents);
+        entity.setMemberDiscountCents(memberDiscountCents);
+        entity.setPromotionDiscountCents(promotionDiscountCents);
+        entity.setPayableAmountCents(payableAmountCents);
+        qrTableOrderRepository.save(entity);
+
+        orderRepository.findByOrderNo(entity.getOrderNo()).ifPresent(order -> {
+            order.setPaidAmountCents(payableAmountCents);
+            orderRepository.save(order);
+        });
+
+        return new QrCurrentOrderResponse(
+            entity.getOrderNo(),
+            entity.getQueueNo(),
+            entity.getStoreCode(),
+            entity.getStoreName(),
+            entity.getTableCode(),
+            entity.getSettlementStatus(),
+            entity.getMemberName(),
+            entity.getMemberTier(),
+            entity.getOriginalAmountCents(),
+            entity.getMemberDiscountCents(),
+            entity.getPromotionDiscountCents(),
+            entity.getPayableAmountCents(),
+            readItems(entity.getItemsJson())
+        );
     }
 
     private OrderDto toPosDto(OrderEntity entity) {
