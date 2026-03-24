@@ -8,6 +8,7 @@ public record QrOrderingContextDto(
         String tableCode,
         String tableName,
         String tableStatus,
-        ActiveTableOrderDto currentActiveOrder
+        ActiveTableOrderDto currentActiveOrder,
+        java.util.List<SubmittedOrderDto> submittedOrders
 ) {
 }

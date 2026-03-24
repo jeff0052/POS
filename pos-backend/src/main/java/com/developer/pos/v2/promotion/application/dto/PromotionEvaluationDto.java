@@ -1,5 +1,7 @@
 package com.developer.pos.v2.promotion.application.dto;
 
+import java.util.List;
+
 public record PromotionEvaluationDto(
         String activeOrderId,
         String matchedRuleCode,
@@ -7,6 +9,13 @@ public record PromotionEvaluationDto(
         long originalAmountCents,
         long memberDiscountCents,
         long promotionDiscountCents,
-        long payableAmountCents
+        long payableAmountCents,
+        List<GiftItemDto> giftItems
 ) {
+    public record GiftItemDto(
+            Long skuId,
+            String skuName,
+            int quantity
+    ) {
+    }
 }

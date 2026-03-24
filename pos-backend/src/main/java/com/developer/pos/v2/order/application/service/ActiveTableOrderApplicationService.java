@@ -10,6 +10,7 @@ import com.developer.pos.v2.order.application.dto.ActiveTableOrderDto;
 import com.developer.pos.v2.order.application.dto.OrderStageTransitionDto;
 import com.developer.pos.v2.order.application.dto.QrOrderingContextDto;
 import com.developer.pos.v2.order.application.dto.QrOrderingSubmitResultDto;
+import com.developer.pos.v2.order.application.dto.SubmittedOrderDto;
 import com.developer.pos.v2.order.application.query.GetActiveTableOrderQuery;
 import com.developer.pos.v2.order.domain.source.OrderSource;
 import com.developer.pos.v2.order.domain.status.ActiveOrderStatus;
@@ -17,7 +18,12 @@ import com.developer.pos.v2.order.domain.model.ActiveTableOrder;
 import com.developer.pos.v2.order.domain.model.ActiveTableOrderItem;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderItemEntity;
+import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
+import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderItemEntity;
+import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaActiveTableOrderRepository;
+import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderRepository;
+import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
@@ -30,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 @Service
 public class ActiveTableOrderApplicationService implements UseCase {
@@ -39,19 +46,25 @@ public class ActiveTableOrderApplicationService implements UseCase {
     private final JpaStoreLookupRepository storeLookupRepository;
     private final JpaStoreTableRepository storeTableRepository;
     private final JpaMemberRepository memberRepository;
+    private final JpaTableSessionRepository tableSessionRepository;
+    private final JpaSubmittedOrderRepository submittedOrderRepository;
 
     public ActiveTableOrderApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
             JpaStoreRepository storeRepository,
             JpaStoreLookupRepository storeLookupRepository,
             JpaStoreTableRepository storeTableRepository,
-            JpaMemberRepository memberRepository
+            JpaMemberRepository memberRepository,
+            JpaTableSessionRepository tableSessionRepository,
+            JpaSubmittedOrderRepository submittedOrderRepository
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.storeRepository = storeRepository;
         this.storeLookupRepository = storeLookupRepository;
         this.storeTableRepository = storeTableRepository;
         this.memberRepository = memberRepository;
+        this.tableSessionRepository = tableSessionRepository;
+        this.submittedOrderRepository = submittedOrderRepository;
     }
 
     @Transactional(readOnly = true)
@@ -73,6 +86,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .filter(entity -> entity.getStatus() != ActiveOrderStatus.SETTLED)
                 .map(this::toDto)
                 .orElse(null);
+        List<SubmittedOrderDto> submittedOrders = getSubmittedOrders(store.getId(), table.getId());
 
         return new QrOrderingContextDto(
                 store.getId(),
@@ -82,8 +96,19 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 table.getTableCode(),
                 table.getTableName(),
                 table.getTableStatus(),
-                currentActiveOrder
+                currentActiveOrder,
+                submittedOrders
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<SubmittedOrderDto> getSubmittedOrders(Long storeId, Long tableId) {
+        return tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
+                .map(session -> submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(session.getId(), "UNPAID")
+                        .stream()
+                        .map(this::toSubmittedDto)
+                        .toList())
+                .orElse(List.of());
     }
 
     @Transactional
@@ -127,7 +152,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         entity.setMemberDiscountCents(memberDiscount);
         entity.setPromotionDiscountCents(0);
         entity.setPayableAmountCents(Math.max(0, originalAmount - memberDiscount));
-
+        entity.setStatus(ActiveOrderStatus.DRAFT);
         ActiveTableOrderEntity saved = activeTableOrderRepository.save(entity);
         table.setTableStatus("ORDERING");
         storeTableRepository.save(table);
@@ -142,6 +167,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + command.tableCode()));
 
         ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableId(store.getId(), table.getId())
+                .filter(existing -> existing.getStatus() != ActiveOrderStatus.SETTLED)
                 .orElseGet(() -> createEntity(store, table, new ReplaceActiveTableOrderItemsCommand(
                         store.getId(),
                         table.getId(),
@@ -156,7 +182,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
             entity.setMemberId(command.memberId());
         }
         if (entity.getStatus() == null || entity.getStatus() == ActiveOrderStatus.SETTLED) {
-            entity.setStatus(ActiveOrderStatus.DRAFT);
+            entity.setStatus(ActiveOrderStatus.SUBMITTED);
         }
 
         List<ActiveTableOrderItemEntity> mergedItems = mergeQrItems(entity.getItems(), command.items());
@@ -171,10 +197,33 @@ public class ActiveTableOrderApplicationService implements UseCase {
         entity.setMemberDiscountCents(memberDiscount);
         entity.setPromotionDiscountCents(0);
         entity.setPayableAmountCents(Math.max(0, originalAmount - memberDiscount));
+        entity.setStatus(ActiveOrderStatus.SUBMITTED);
 
         ActiveTableOrderEntity saved = activeTableOrderRepository.save(entity);
-        table.setTableStatus("ORDERING");
+        table.setTableStatus("DINING");
         storeTableRepository.save(table);
+        persistSubmittedOrder(
+                store,
+                table,
+                OrderSource.QR,
+                entity.getMemberId(),
+                entity.getActiveOrderId(),
+                command.items().stream().map(item -> {
+                    ActiveTableOrderItemEntity next = new ActiveTableOrderItemEntity();
+                    next.setSkuId(item.skuId());
+                    next.setSkuCodeSnapshot(item.skuCode());
+                    next.setSkuNameSnapshot(item.skuName());
+                    next.setQuantity(item.quantity());
+                    next.setUnitPriceSnapshotCents(item.unitPriceCents());
+                    next.setItemRemark(item.remark());
+                    next.setLineTotalCents(item.unitPriceCents() * item.quantity());
+                    return next;
+                }).toList(),
+                originalAmount,
+                memberDiscount,
+                entity.getPromotionDiscountCents(),
+                Math.max(0, originalAmount - memberDiscount - entity.getPromotionDiscountCents())
+        );
 
         int totalItemCount = saved.getItems().stream()
                 .mapToInt(ActiveTableOrderItemEntity::getQuantity)
@@ -226,6 +275,21 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalStateException("Table missing for active order: " + saved.getId()));
         table.setTableStatus("DINING");
         storeTableRepository.save(table);
+        StoreEntity store = storeRepository.findById(saved.getStoreId())
+                .orElseThrow(() -> new IllegalStateException("Store missing for active order: " + saved.getId()));
+        persistSubmittedOrder(
+                store,
+                table,
+                saved.getOrderSource(),
+                saved.getMemberId(),
+                saved.getActiveOrderId(),
+                saved.getItems(),
+                saved.getOriginalAmountCents(),
+                saved.getMemberDiscountCents(),
+                saved.getPromotionDiscountCents(),
+                saved.getPayableAmountCents()
+        );
+        activeTableOrderRepository.delete(saved);
 
         return new OrderStageTransitionDto(saved.getActiveOrderId(), saved.getStatus().name());
     }
@@ -325,6 +389,68 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .orElse(0L);
     }
 
+    private TableSessionEntity findOrCreateOpenSession(StoreEntity store, StoreTableEntity table) {
+        return tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(store.getId(), table.getId(), "OPEN")
+                .orElseGet(() -> {
+                    TableSessionEntity session = new TableSessionEntity();
+                    session.setSessionId("TS" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+                    session.setMerchantId(store.getMerchantId());
+                    session.setStoreId(store.getId());
+                    session.setTableId(table.getId());
+                    session.setSessionStatus("OPEN");
+                    return tableSessionRepository.save(session);
+                });
+    }
+
+    private void persistSubmittedOrder(
+            StoreEntity store,
+            StoreTableEntity table,
+            OrderSource source,
+            Long memberId,
+            String sourceActiveOrderId,
+            List<ActiveTableOrderItemEntity> items,
+            long originalAmountCents,
+            long memberDiscountCents,
+            long promotionDiscountCents,
+            long payableAmountCents
+    ) {
+        if (items.isEmpty()) {
+            return;
+        }
+
+        TableSessionEntity session = findOrCreateOpenSession(store, table);
+        SubmittedOrderEntity submittedOrder = new SubmittedOrderEntity();
+        submittedOrder.setSubmittedOrderId("SO" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+        submittedOrder.setTableSessionId(session.getId());
+        submittedOrder.setMerchantId(store.getMerchantId());
+        submittedOrder.setStoreId(store.getId());
+        submittedOrder.setTableId(table.getId());
+        submittedOrder.setSourceOrderType(source.name());
+        submittedOrder.setSourceActiveOrderId(sourceActiveOrderId);
+        submittedOrder.setOrderNo("SO-" + table.getTableCode() + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 6));
+        submittedOrder.setFulfillmentStatus("SUBMITTED");
+        submittedOrder.setSettlementStatus("UNPAID");
+        submittedOrder.setMemberId(memberId);
+        submittedOrder.setOriginalAmountCents(originalAmountCents);
+        submittedOrder.setMemberDiscountCents(memberDiscountCents);
+        submittedOrder.setPromotionDiscountCents(promotionDiscountCents);
+        submittedOrder.setPayableAmountCents(payableAmountCents);
+        submittedOrder.replaceItems(items.stream().map(this::toSubmittedItem).toList());
+        submittedOrderRepository.save(submittedOrder);
+    }
+
+    private SubmittedOrderItemEntity toSubmittedItem(ActiveTableOrderItemEntity item) {
+        SubmittedOrderItemEntity next = new SubmittedOrderItemEntity();
+        next.setSkuId(item.getSkuId());
+        next.setSkuCodeSnapshot(item.getSkuCodeSnapshot());
+        next.setSkuNameSnapshot(item.getSkuNameSnapshot());
+        next.setQuantity(item.getQuantity());
+        next.setUnitPriceSnapshotCents(item.getUnitPriceSnapshotCents());
+        next.setItemRemark(item.getItemRemark());
+        next.setLineTotalCents(item.getLineTotalCents());
+        return next;
+    }
+
     private ActiveTableOrderDto toDto(ActiveTableOrderEntity entity) {
         StoreTableEntity table = storeTableRepository.findByIdAndStoreId(entity.getTableId(), entity.getStoreId())
                 .orElseThrow(() -> new IllegalStateException("Table missing for active order: " + entity.getId()));
@@ -358,6 +484,34 @@ public class ActiveTableOrderApplicationService implements UseCase {
                         entity.getPromotionDiscountCents(),
                         entity.getPayableAmountCents()
                 )
+        );
+    }
+
+    private SubmittedOrderDto toSubmittedDto(SubmittedOrderEntity entity) {
+        return new SubmittedOrderDto(
+                entity.getSubmittedOrderId(),
+                entity.getOrderNo(),
+                entity.getSourceOrderType(),
+                entity.getFulfillmentStatus(),
+                entity.getSettlementStatus(),
+                entity.getMemberId(),
+                new SubmittedOrderDto.PricingDto(
+                        entity.getOriginalAmountCents(),
+                        entity.getMemberDiscountCents(),
+                        entity.getPromotionDiscountCents(),
+                        entity.getPayableAmountCents()
+                ),
+                entity.getItems().stream()
+                        .map(item -> new SubmittedOrderDto.ItemDto(
+                                item.getSkuId(),
+                                item.getSkuCodeSnapshot(),
+                                item.getSkuNameSnapshot(),
+                                item.getQuantity(),
+                                item.getUnitPriceSnapshotCents(),
+                                item.getItemRemark(),
+                                item.getLineTotalCents()
+                        ))
+                        .toList()
         );
     }
 }

@@ -1,59 +1,24 @@
-package com.developer.pos.v2.promotion.infrastructure.persistence.entity;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+package com.developer.pos.v2.promotion.interfaces.rest.request;
 
 import java.time.OffsetDateTime;
 
-@Entity(name = "V2PromotionRuleEntity")
-@Table(name = "promotion_rules")
-public class PromotionRuleEntity {
+public class UpsertPromotionRuleRequest {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Column(name = "merchant_id", nullable = false)
     private Long merchantId;
-
-    @Column(name = "store_id", nullable = false)
     private Long storeId;
-
-    @Column(name = "rule_code", nullable = false)
     private String ruleCode;
-
-    @Column(name = "rule_name", nullable = false)
     private String ruleName;
-
-    @Column(name = "rule_type", nullable = false)
     private String ruleType;
-
-    @Column(name = "rule_status", nullable = false)
     private String ruleStatus;
-
-    @Column(name = "priority", nullable = false)
-    private int priority;
-
-    @Column(name = "starts_at")
+    private Integer priority;
     private OffsetDateTime startsAt;
-
-    @Column(name = "ends_at")
     private OffsetDateTime endsAt;
-
-    public PromotionRuleEntity() {
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
+    private String conditionType;
+    private Long thresholdAmountCents;
+    private String rewardType;
+    private Long discountAmountCents;
+    private Long giftSkuId;
+    private Integer giftQuantity;
 
     public Long getMerchantId() {
         return merchantId;
@@ -103,11 +68,11 @@ public class PromotionRuleEntity {
         this.ruleStatus = ruleStatus;
     }
 
-    public int getPriority() {
+    public Integer getPriority() {
         return priority;
     }
 
-    public void setPriority(int priority) {
+    public void setPriority(Integer priority) {
         this.priority = priority;
     }
 
@@ -125,5 +90,53 @@ public class PromotionRuleEntity {
 
     public void setEndsAt(OffsetDateTime endsAt) {
         this.endsAt = endsAt;
+    }
+
+    public String getConditionType() {
+        return conditionType;
+    }
+
+    public void setConditionType(String conditionType) {
+        this.conditionType = conditionType;
+    }
+
+    public Long getThresholdAmountCents() {
+        return thresholdAmountCents;
+    }
+
+    public void setThresholdAmountCents(Long thresholdAmountCents) {
+        this.thresholdAmountCents = thresholdAmountCents;
+    }
+
+    public String getRewardType() {
+        return rewardType;
+    }
+
+    public void setRewardType(String rewardType) {
+        this.rewardType = rewardType;
+    }
+
+    public Long getDiscountAmountCents() {
+        return discountAmountCents;
+    }
+
+    public void setDiscountAmountCents(Long discountAmountCents) {
+        this.discountAmountCents = discountAmountCents;
+    }
+
+    public Long getGiftSkuId() {
+        return giftSkuId;
+    }
+
+    public void setGiftSkuId(Long giftSkuId) {
+        this.giftSkuId = giftSkuId;
+    }
+
+    public Integer getGiftQuantity() {
+        return giftQuantity;
+    }
+
+    public void setGiftQuantity(Integer giftQuantity) {
+        this.giftQuantity = giftQuantity;
     }
 }

@@ -42,9 +42,9 @@ spring:
     activate:
       on-profile: v2mysql
   datasource:
-    url: jdbc:mysql://localhost:3306/pos_v2_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
-    username: root
-    password: root
+    url: ${V2_MYSQL_URL:jdbc:mysql://localhost:3306/pos_v2_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
+    username: ${V2_MYSQL_USERNAME:root}
+    password: ${V2_MYSQL_PASSWORD:root}
     driver-class-name: com.mysql.cj.jdbc.Driver
   flyway:
     enabled: true

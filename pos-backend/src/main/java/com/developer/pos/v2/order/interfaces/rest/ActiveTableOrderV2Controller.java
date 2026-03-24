@@ -5,6 +5,7 @@ import com.developer.pos.v2.common.interfaces.rest.V2Api;
 import com.developer.pos.v2.order.application.command.ReplaceActiveTableOrderItemsCommand;
 import com.developer.pos.v2.order.application.dto.ActiveTableOrderDto;
 import com.developer.pos.v2.order.application.dto.OrderStageTransitionDto;
+import com.developer.pos.v2.order.application.dto.SubmittedOrderDto;
 import com.developer.pos.v2.order.application.query.GetActiveTableOrderQuery;
 import com.developer.pos.v2.order.application.service.ActiveTableOrderApplicationService;
 import com.developer.pos.v2.order.interfaces.rest.request.ReplaceActiveTableOrderItemsRequest;
@@ -38,6 +39,14 @@ public class ActiveTableOrderV2Controller implements V2Api {
                         new GetActiveTableOrderQuery(storeId, tableId, "T" + tableId)
                 )
         );
+    }
+
+    @GetMapping("/submitted-orders")
+    public ApiResponse<java.util.List<SubmittedOrderDto>> getSubmittedOrders(
+            @PathVariable Long storeId,
+            @PathVariable Long tableId
+    ) {
+        return ApiResponse.success(activeTableOrderApplicationService.getSubmittedOrders(storeId, tableId));
     }
 
     @PutMapping("/items")

@@ -21,6 +21,8 @@ type Category = {
 
 type MenuItem = {
   id: number;
+  skuId: number;
+  skuCode: string;
   name: string;
   category: string;
   price: number;
@@ -31,6 +33,13 @@ type MenuItem = {
 type OrderItem = MenuItem & {
   quantity: number;
   note?: string;
+};
+
+type SubmittedRound = {
+  id: string;
+  sentAt: string;
+  items: OrderItem[];
+  total: number;
 };
 
 type TableCard = {
@@ -61,18 +70,105 @@ type ApiResponse<T> = {
   data: T;
 };
 
-type QrCurrentOrderResponse = {
+type ActiveTableOrderDto = {
+  activeOrderId: string;
   orderNo: string;
-  queueNo: string;
+  storeId: number;
+  tableId: number;
+  tableCode: string;
+  orderSource: "POS" | "QR";
+  status: OrderStage;
+  memberId: number | null;
+  items: Array<{
+    skuId: number;
+    skuCode: string;
+    skuName: string;
+    quantity: number;
+    unitPriceCents: number;
+    remark: string | null;
+    lineTotalCents: number;
+  }>;
+  pricing: {
+    originalAmountCents: number;
+    memberDiscountCents: number;
+    promotionDiscountCents: number;
+    payableAmountCents: number;
+  };
+};
+
+type TableContextResponse = {
+  storeId: number;
+  storeCode: string;
+  storeName: string;
+  tableId: number;
+  tableCode: string;
+  tableName: string;
+  tableStatus: string;
+  currentActiveOrder: ActiveTableOrderDto | null;
+};
+
+type SettlementPreviewResponse = {
+  activeOrderId: string;
+  status: OrderStage;
+  member: {
+    id: number;
+    name: string;
+    tier: string;
+  } | null;
+  pricing: {
+    originalAmountCents: number;
+    memberDiscountCents: number;
+    promotionDiscountCents: number;
+    payableAmountCents: number;
+  };
+  giftItems: Array<{
+    skuName: string;
+    quantity: number;
+  }>;
+};
+
+type SubmittedOrderResponse = {
+  submittedOrderId: string;
+  orderNo: string;
+  sourceOrderType: "POS" | "QR";
+  fulfillmentStatus: string;
+  settlementStatus: string;
+  memberId: number | null;
+  pricing: {
+    originalAmountCents: number;
+    memberDiscountCents: number;
+    promotionDiscountCents: number;
+    payableAmountCents: number;
+  };
+  items: Array<{
+    skuId: number;
+    skuCode: string;
+    skuName: string;
+    quantity: number;
+    unitPriceCents: number;
+    remark: string | null;
+    lineTotalCents: number;
+  }>;
+};
+
+type QrCurrentOrderResponse = {
+  activeOrderId: string;
+  orderNo: string;
+  storeId: number;
+  tableId: number;
   tableCode: string;
   settlementStatus: OrderStage;
+  memberId: number | null;
   memberName: string | null;
   memberTier?: string | null;
   originalAmountCents?: number;
   memberDiscountCents?: number;
   promotionDiscountCents?: number;
   payableAmountCents: number;
+  orderSource: "POS" | "QR";
   items: Array<{
+    skuId: number;
+    skuCode: string;
     productName: string;
     quantity: number;
     unitPriceCents?: number;
@@ -125,6 +221,8 @@ const reservations: Reservation[] = [
 const menu: MenuItem[] = [
   {
     id: 1,
+    skuId: 401,
+    skuCode: "fried-rice-default",
     name: "招牌炒饭",
     category: "meals",
     price: 18,
@@ -134,6 +232,8 @@ const menu: MenuItem[] = [
   },
   {
     id: 2,
+    skuId: 402,
+    skuCode: "black-pepper-beef-rice-default",
     name: "黑椒牛肉饭",
     category: "meals",
     price: 34,
@@ -143,6 +243,8 @@ const menu: MenuItem[] = [
   },
   {
     id: 3,
+    skuId: 403,
+    skuCode: "crispy-chicken-bites-default",
     name: "酥脆鸡块",
     category: "snacks",
     price: 16,
@@ -151,6 +253,8 @@ const menu: MenuItem[] = [
   },
   {
     id: 4,
+    skuId: 404,
+    skuCode: "white-peach-soda-default",
     name: "白桃气泡饮",
     category: "drinks",
     price: 12,
@@ -160,6 +264,8 @@ const menu: MenuItem[] = [
   },
   {
     id: 5,
+    skuId: 405,
+    skuCode: "brown-sugar-milk-tea-default",
     name: "黑糖奶茶",
     category: "drinks",
     price: 14,
@@ -169,6 +275,8 @@ const menu: MenuItem[] = [
   },
   {
     id: 6,
+    skuId: 406,
+    skuCode: "mango-pudding-default",
     name: "芒果布丁",
     category: "desserts",
     price: 15,
@@ -177,6 +285,8 @@ const menu: MenuItem[] = [
   },
   {
     id: 7,
+    skuId: 407,
+    skuCode: "chef-combo-default",
     name: "主厨套餐",
     category: "popular",
     price: 46,
@@ -186,6 +296,8 @@ const menu: MenuItem[] = [
   },
   {
     id: 8,
+    skuId: 408,
+    skuCode: "truffle-fries-default",
     name: "松露薯条",
     category: "snacks",
     price: 19,
@@ -222,6 +334,43 @@ const initialDraftOrders: Record<number, OrderItem[]> = {
 
 const DRAFT_ORDERS_STORAGE_KEY = "pos-preview-table-draft-orders-v1";
 const ORDER_STAGES_STORAGE_KEY = "pos-preview-table-order-stages-v1";
+const STORE_ID = 101;
+const QR_ORDERING_BASE_URL = import.meta.env.VITE_QR_ORDERING_URL_BASE ?? "http://localhost:4179";
+
+function toQrOrderResponse(
+  context: TableContextResponse,
+  preview?: SettlementPreviewResponse | null
+): QrCurrentOrderResponse | null {
+  if (!context.currentActiveOrder) {
+    return null;
+  }
+
+  return {
+    activeOrderId: context.currentActiveOrder.activeOrderId,
+    orderNo: context.currentActiveOrder.orderNo,
+    storeId: context.currentActiveOrder.storeId,
+    tableId: context.currentActiveOrder.tableId,
+    tableCode: context.currentActiveOrder.tableCode,
+    settlementStatus: context.currentActiveOrder.status,
+    memberId: context.currentActiveOrder.memberId,
+    memberName: preview?.member?.name ?? null,
+    memberTier: preview?.member?.tier ?? null,
+    originalAmountCents: preview?.pricing.originalAmountCents ?? context.currentActiveOrder.pricing.originalAmountCents,
+    memberDiscountCents: preview?.pricing.memberDiscountCents ?? context.currentActiveOrder.pricing.memberDiscountCents,
+    promotionDiscountCents:
+      preview?.pricing.promotionDiscountCents ?? context.currentActiveOrder.pricing.promotionDiscountCents,
+    payableAmountCents: preview?.pricing.payableAmountCents ?? context.currentActiveOrder.pricing.payableAmountCents,
+    orderSource: context.currentActiveOrder.orderSource,
+    items: context.currentActiveOrder.items.map((item) => ({
+      skuId: item.skuId,
+      skuCode: item.skuCode,
+      productName: item.skuName,
+      quantity: item.quantity,
+      unitPriceCents: item.unitPriceCents,
+      memberPriceCents: null
+    }))
+  };
+}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("zh-CN", {
@@ -259,7 +408,7 @@ function getStageLabel(stage: OrderStage) {
     case "SUBMITTED":
       return "Sent to kitchen";
     case "PENDING_SETTLEMENT":
-      return "Pending settlement";
+      return "Payment Pending";
     case "SETTLED":
       return "Settled";
     default:
@@ -272,9 +421,9 @@ function getStageSupportText(stage: OrderStage) {
     case "DRAFT":
       return "Items are still being edited for this active table order.";
     case "SUBMITTED":
-      return "This table order has been sent to kitchen and can still receive add-on items.";
+      return "Submitted items are locked for kitchen, and you can still add new draft items for the same table.";
     case "PENDING_SETTLEMENT":
-      return "Kitchen flow is complete. Cashier should confirm discounts and collect payment.";
+      return "Kitchen flow is complete. This order is now waiting for cashier payment collection.";
     case "SETTLED":
       return "This order is closed. The table can be cleaned and reopened.";
     default:
@@ -284,6 +433,50 @@ function getStageSupportText(stage: OrderStage) {
 
 function canCollectPayment(stage: OrderStage) {
   return stage === "PENDING_SETTLEMENT";
+}
+
+function deriveOrderStage({
+  table,
+  backendOrder,
+  submittedOrders,
+  paymentPreview,
+  draftItems
+}: {
+  table: TableCard;
+  backendOrder?: QrCurrentOrderResponse | null;
+  submittedOrders?: SubmittedOrderResponse[];
+  paymentPreview?: SettlementPreviewResponse | null;
+  draftItems?: OrderItem[];
+}): OrderStage {
+  if (paymentPreview || table.settlementState === "PENDING_SETTLEMENT") {
+    return "PENDING_SETTLEMENT";
+  }
+
+  if (backendOrder?.settlementStatus === "SETTLED" || table.settlementState === "SETTLED") {
+    return "SETTLED";
+  }
+
+  if (backendOrder?.settlementStatus === "PENDING_SETTLEMENT") {
+    return "PENDING_SETTLEMENT";
+  }
+
+  if (backendOrder?.settlementStatus === "SUBMITTED") {
+    return "SUBMITTED";
+  }
+
+  if ((submittedOrders?.length ?? 0) > 0) {
+    return "SUBMITTED";
+  }
+
+  if (backendOrder?.settlementStatus === "DRAFT") {
+    return "DRAFT";
+  }
+
+  if ((draftItems?.length ?? 0) > 0) {
+    return "DRAFT";
+  }
+
+  return "DRAFT";
 }
 
 function mergeOrderItems(existing: OrderItem[], incoming: OrderItem[]) {
@@ -312,9 +505,12 @@ function mergeOrderItems(existing: OrderItem[], incoming: OrderItem[]) {
 function createQrPayloadFromDraft(
   tableCode: string,
   items: OrderItem[],
-  settlementStatus: OrderStage = "DRAFT"
+  settlementStatus: OrderStage = "DRAFT",
+  orderSource: "POS" | "QR" = "POS"
 ): QrCurrentOrderResponse {
   const payloadItems = items.map((entry) => ({
+    skuId: entry.skuId,
+    skuCode: entry.skuCode,
     productName: entry.name,
     quantity: entry.quantity,
     unitPriceCents: Math.round(entry.price * 100),
@@ -323,10 +519,14 @@ function createQrPayloadFromDraft(
   const originalAmountCents = Math.round(getDraftOrderTotal(items) * 100);
 
   return {
+    activeOrderId: `draft-${tableCode}`,
     orderNo: `POS-DRAFT-${tableCode}`,
-    queueNo: `POS-${tableCode}`,
+    storeId: STORE_ID,
+    tableId: Number(tableCode.replace("T", "")),
     tableCode,
+    orderSource,
     settlementStatus,
+    memberId: null,
     memberName: null,
     memberTier: null,
     originalAmountCents,
@@ -384,6 +584,80 @@ function loadStoredOrderStages() {
   }
 }
 
+function mapSubmittedOrdersToRounds(
+  orders: SubmittedOrderResponse[],
+  menuByName: Map<string, MenuItem>
+): SubmittedRound[] {
+  return orders.map((order, index) => ({
+    id: `submitted-${order.submittedOrderId}`,
+    sentAt: `Submitted ${index + 1}`,
+    items: order.items.map((item, itemIndex) => {
+      const source = menuByName.get(item.skuName);
+      return {
+        id: source?.id ?? 9500 + itemIndex,
+        skuId: source?.skuId ?? item.skuId,
+        skuCode: source?.skuCode ?? item.skuCode,
+        name: item.skuName,
+        category: source?.category ?? "all",
+        price: item.unitPriceCents / 100,
+        memberPrice: source?.memberPrice,
+        image:
+          source?.image ??
+          "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+        quantity: item.quantity,
+        note: item.remark ?? "已送厨"
+      } satisfies OrderItem;
+    }),
+    total: Number((order.pricing.payableAmountCents / 100).toFixed(2))
+  }));
+}
+
+async function fetchTableContext(tableCode: string) {
+  const response = await fetch(
+    `/api/v2/qr-ordering/context?storeCode=1001&tableCode=${encodeURIComponent(tableCode)}`
+  );
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as ApiResponse<TableContextResponse>;
+  return payload.code === 0 ? payload.data : null;
+}
+
+async function fetchSettlementPreview(activeOrderId: string) {
+  const response = await fetch(`/api/v2/active-table-orders/${encodeURIComponent(activeOrderId)}/settlement-preview`);
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as ApiResponse<SettlementPreviewResponse>;
+  return payload.code === 0 ? payload.data : null;
+}
+
+async function fetchSubmittedOrders(storeId: number, tableId: number) {
+  const response = await fetch(`/api/v2/stores/${storeId}/tables/${tableId}/active-order/submitted-orders`);
+
+  if (!response.ok) {
+    return [] as SubmittedOrderResponse[];
+  }
+
+  const payload = (await response.json()) as ApiResponse<SubmittedOrderResponse[]>;
+  return payload.code === 0 ? payload.data : [];
+}
+
+async function fetchTablePaymentPreview(storeId: number, tableId: number) {
+  const response = await fetch(`/api/v2/stores/${storeId}/tables/${tableId}/payment/preview`);
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as ApiResponse<SettlementPreviewResponse>;
+  return payload.code === 0 ? payload.data : null;
+}
+
 function App() {
   const [view, setView] = useState<View>("tables");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -392,6 +666,8 @@ function App() {
   const [selectedTableId, setSelectedTableId] = useState<number>(6);
   const [targetTableId, setTargetTableId] = useState<number>(1);
   const [tableDraftOrders, setTableDraftOrders] = useState<Record<number, OrderItem[]>>(loadStoredDraftOrders);
+  const [submittedOrdersByTable, setSubmittedOrdersByTable] = useState<Record<number, SubmittedOrderResponse[]>>({});
+  const [tablePaymentPreviews, setTablePaymentPreviews] = useState<Record<number, SettlementPreviewResponse | null>>({});
   const [tableOrderStages, setTableOrderStages] = useState<Record<number, OrderStage>>(loadStoredOrderStages);
   const [qrOrders, setQrOrders] = useState<Record<string, QrCurrentOrderResponse>>({});
   const [recentQrAlert, setRecentQrAlert] = useState<QrCurrentOrderResponse | null>(null);
@@ -402,16 +678,25 @@ function App() {
   const selectedTable = tableState.find((table) => table.id === selectedTableId) ?? tableState[0];
   const targetTable = tableState.find((table) => table.id === targetTableId) ?? tableState[0];
   const selectedTableCode = `T${selectedTable.id}`;
-  const selectedQrOrder = qrOrders[selectedTableCode];
-  const selectedOrderStage =
-    tableOrderStages[selectedTable.id] ??
-    (selectedQrOrder
-      ? selectedQrOrder.settlementStatus === "PENDING_SETTLEMENT"
-        ? "PENDING_SETTLEMENT"
-        : selectedQrOrder.settlementStatus === "SETTLED"
-          ? "SETTLED"
-          : "SUBMITTED"
-      : "DRAFT");
+  const selectedBackendOrder = qrOrders[selectedTableCode];
+  const selectedQrOrder =
+    selectedBackendOrder?.orderSource === "QR" && selectedBackendOrder.settlementStatus !== "DRAFT"
+      ? selectedBackendOrder
+      : null;
+  const selectedPosDraftOrder =
+    selectedBackendOrder?.orderSource === "POS" && selectedBackendOrder.settlementStatus === "DRAFT"
+      ? selectedBackendOrder
+      : null;
+  const selectedSubmittedOrders = submittedOrdersByTable[selectedTable.id] ?? [];
+  const selectedTablePaymentPreview = tablePaymentPreviews[selectedTable.id] ?? null;
+  const currentDraftForStage = tableDraftOrders[selectedTable.id] ?? [];
+  const selectedOrderStage = deriveOrderStage({
+    table: selectedTable,
+    backendOrder: selectedBackendOrder,
+    submittedOrders: selectedSubmittedOrders,
+    paymentPreview: selectedTablePaymentPreview,
+    draftItems: currentDraftForStage
+  });
   const menuByName = useMemo(
     () => new Map(menu.map((item) => [item.name, item])),
     []
@@ -432,7 +717,32 @@ function App() {
   }, [activeCategory, search]);
 
   const draftOrderItems = tableDraftOrders[selectedTable.id] ?? [];
+  const submittedRounds = useMemo(
+    () => mapSubmittedOrdersToRounds(selectedSubmittedOrders, menuByName),
+    [menuByName, selectedSubmittedOrders]
+  );
+  const submittedOrderItems = selectedSubmittedOrders.flatMap((order) =>
+    order.items.map((item, index) => {
+      const source = menuByName.get(item.skuName);
+      return {
+        id: source?.id ?? 9800 + index,
+        skuId: source?.skuId ?? item.skuId,
+        skuCode: source?.skuCode ?? item.skuCode,
+        name: item.skuName,
+        category: source?.category ?? "all",
+        price: item.unitPriceCents / 100,
+        memberPrice: source?.memberPrice,
+        image:
+          source?.image ??
+          "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+        quantity: item.quantity,
+        note: item.remark ?? "已送厨"
+      } satisfies OrderItem;
+    })
+  );
+  const hasSubmittedRounds = selectedSubmittedOrders.length > 0;
   const subtotal = draftOrderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const submittedSubtotal = submittedOrderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const tax = subtotal * 0.09;
   const service = subtotal * 0.06;
   const memberDiscount = subtotal * 0.08;
@@ -455,108 +765,51 @@ function App() {
 
     const syncQrTables = async () => {
       try {
-        const results = await Promise.all(
-          qrTableCodes.map(async (tableCode) => {
-            const response = await fetch(
-              `/api/v1/orders/qr-current?storeCode=1001&tableCode=${encodeURIComponent(tableCode)}`
-            );
-
-            if (!response.ok) {
-              return null;
-            }
-
-            const payload = (await response.json()) as ApiResponse<QrCurrentOrderResponse | null>;
-            return payload.code === 0 ? payload.data : null;
-          })
-        );
+        const contexts = await Promise.all(qrTableCodes.map((tableCode) => fetchTableContext(tableCode)));
 
         if (!active) {
           return;
         }
 
-        const nextQrOrders = Object.fromEntries(
-          results.filter((entry): entry is QrCurrentOrderResponse => Boolean(entry)).map((entry) => [entry.tableCode, entry])
+        const previewEntries = await Promise.all(
+          contexts.map(async (context) => {
+            if (!context?.currentActiveOrder || context.currentActiveOrder.status !== "PENDING_SETTLEMENT") {
+              return null;
+            }
+
+            const preview = await fetchSettlementPreview(context.currentActiveOrder.activeOrderId);
+            return [context.tableCode, preview] as const;
+          })
         );
 
-        const mergedQrOrders = { ...nextQrOrders };
-        const nextDraftOrders = { ...draftOrdersRef.current };
+        const previewMap = Object.fromEntries(
+          previewEntries.filter((entry): entry is readonly [string, SettlementPreviewResponse | null] => Boolean(entry))
+        );
 
-        Object.values(nextQrOrders).forEach((entry) => {
-          const tableId = Number(entry.tableCode.replace("T", ""));
-          if (Number.isNaN(tableId)) {
-            return;
-          }
+        const nextQrOrders = Object.fromEntries(
+          contexts
+            .filter((entry): entry is TableContextResponse => Boolean(entry))
+            .map((entry) => {
+              const mappedOrder = toQrOrderResponse(entry, previewMap[entry.tableCode]);
+              return [entry.tableCode, mappedOrder];
+            })
+            .filter((entry): entry is [string, QrCurrentOrderResponse] => Boolean(entry[1]))
+        );
 
-          const localDraft = nextDraftOrders[tableId] ?? [];
-          if (localDraft.length === 0) {
-            return;
-          }
+        setQrOrders(nextQrOrders);
 
-          const incomingItems = entry.items.map((item, index) => {
-            const source = menuByName.get(item.productName);
-            const unitPrice = (item.memberPriceCents ?? item.unitPriceCents ?? 0) / 100;
-
-            return {
-              id: source?.id ?? 9000 + index,
-              name: item.productName,
-              category: source?.category ?? "qr",
-              price: unitPrice,
-              memberPrice: item.memberPriceCents ? item.memberPriceCents / 100 : source?.memberPrice,
-              image: source?.image ?? "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
-              quantity: item.quantity,
-              note: "桌码点单"
-            } satisfies OrderItem;
-          });
-
-          const combinedItems = mergeOrderItems(localDraft, incomingItems);
-          const combinedPayloadItems = combinedItems.map((item) => ({
-            productName: item.name,
-            quantity: item.quantity,
-            unitPriceCents: Math.round(item.price * 100),
-            memberPriceCents: item.memberPrice ? Math.round(item.memberPrice * 100) : null
-          }));
-          const originalAmountCents = combinedPayloadItems.reduce(
-            (sum, item) => sum + (item.unitPriceCents ?? 0) * item.quantity,
-            0
-          );
-          const memberDiscountCents = combinedPayloadItems.reduce((sum, item) => {
-            const unitPrice = item.unitPriceCents ?? 0;
-            const memberPrice = item.memberPriceCents ?? unitPrice;
-            return sum + Math.max(0, unitPrice - memberPrice) * item.quantity;
-          }, 0);
-          const promotionDiscountCents = originalAmountCents >= 6000 ? 800 : 0;
-
-          mergedQrOrders[entry.tableCode] = {
-            ...entry,
-            items: combinedPayloadItems,
-            originalAmountCents,
-            memberDiscountCents,
-            promotionDiscountCents,
-            payableAmountCents: Math.max(0, originalAmountCents - memberDiscountCents - promotionDiscountCents)
-          };
-          delete nextDraftOrders[tableId];
-          void persistQrOrderItems(mergedQrOrders[entry.tableCode], entry.tableCode, tableId);
-        });
-
-        setTableDraftOrders(nextDraftOrders);
-        setQrOrders(mergedQrOrders);
-
-        const newIncomingOrder = Object.values(mergedQrOrders).find((entry) => !seenQrOrderNos.current.has(entry.orderNo));
+        const newIncomingOrder = Object.values(nextQrOrders).find((entry) => !seenQrOrderNos.current.has(entry.orderNo));
         if (newIncomingOrder) {
           setRecentQrAlert(newIncomingOrder);
         }
 
-        Object.values(mergedQrOrders).forEach((entry) => {
+        Object.values(nextQrOrders).forEach((entry) => {
           seenQrOrderNos.current.add(entry.orderNo);
         });
 
         setTableState((current) =>
           current.map((table) => {
-            if (pendingQrWrites.current.has(`T${table.id}`)) {
-              return table;
-            }
-
-            const match = mergedQrOrders[`T${table.id}`];
+            const match = nextQrOrders[`T${table.id}`];
             if (!match) {
               return table.source === "QR"
                 ? {
@@ -571,18 +824,25 @@ function App() {
             return {
               ...table,
               status: "occupied",
-              source: "QR",
+              source: match.orderSource,
               settlementState: match.settlementStatus,
               memberName: match.memberName ?? undefined,
               total: Number((match.payableAmountCents / 100).toFixed(2)),
-              course: `${match.items.length} items waiting for cashier`
+              course:
+                match.settlementStatus === "DRAFT"
+                  ? "Draft order in progress"
+                  : match.settlementStatus === "SUBMITTED"
+                    ? "Sent to kitchen"
+                      : match.settlementStatus === "PENDING_SETTLEMENT"
+                      ? `${match.items.length} items payment pending`
+                      : "Settled"
             };
           })
         );
         setTableOrderStages((current) => ({
           ...current,
           ...Object.fromEntries(
-            Object.values(mergedQrOrders).map((entry) => [
+            Object.values(nextQrOrders).map((entry) => [
               Number(entry.tableCode.replace("T", "")),
               entry.settlementStatus === "PENDING_SETTLEMENT"
                 ? "PENDING_SETTLEMENT"
@@ -606,39 +866,68 @@ function App() {
     };
   }, []);
 
-  const displayedOrderItems = selectedQrOrder
-    ? selectedQrOrder.items.map((item, index) => {
+  const backendDraftItems = selectedPosDraftOrder
+    ? selectedPosDraftOrder.items.map((item, index) => {
         const source = menuByName.get(item.productName);
         const unitPrice =
-          (item.memberPriceCents ?? item.unitPriceCents ?? Math.round((selectedQrOrder.payableAmountCents / Math.max(selectedQrOrder.items.length, 1)))) / 100;
+          (item.memberPriceCents ??
+            item.unitPriceCents ??
+            Math.round(
+              selectedPosDraftOrder.payableAmountCents / Math.max(selectedPosDraftOrder.items.length, 1)
+            )) / 100;
 
         return {
           id: source?.id ?? 9000 + index,
+          skuId: source?.skuId ?? item.skuId,
+          skuCode: source?.skuCode ?? item.skuCode,
           name: item.productName,
           category: source?.category ?? "qr",
           price: unitPrice,
           memberPrice: item.memberPriceCents ? item.memberPriceCents / 100 : source?.memberPrice,
           image: source?.image ?? "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
           quantity: item.quantity,
-          note: "桌码点单"
+          note: "草稿"
         } satisfies OrderItem;
       })
-    : draftOrderItems;
+    : [];
+  const displayedOrderItems = selectedPosDraftOrder ? backendDraftItems : draftOrderItems;
+  const effectiveDraftOrderItems = displayedOrderItems;
 
-  const displayedSubtotal = selectedQrOrder
-    ? (selectedQrOrder.originalAmountCents ?? selectedQrOrder.payableAmountCents) / 100
+  const paymentOrderItems = submittedOrderItems;
+
+  const displayedSubtotal = selectedPosDraftOrder
+    ? (selectedPosDraftOrder.originalAmountCents ?? selectedPosDraftOrder.payableAmountCents) / 100
     : subtotal;
-  const displayedMemberDiscount = selectedQrOrder
-    ? (selectedQrOrder.memberDiscountCents ?? 0) / 100
+  const displayedMemberDiscount = selectedPosDraftOrder
+    ? (selectedPosDraftOrder.memberDiscountCents ?? 0) / 100
     : memberDiscount;
-  const displayedPromotionDiscount = selectedQrOrder
-    ? (selectedQrOrder.promotionDiscountCents ?? 0) / 100
+  const displayedPromotionDiscount = selectedPosDraftOrder
+    ? (selectedPosDraftOrder.promotionDiscountCents ?? 0) / 100
     : promotionDiscount;
-  const displayedTax = selectedQrOrder ? 0 : tax;
-  const displayedService = selectedQrOrder ? 0 : service;
-  const displayedGrossTotal = selectedQrOrder ? displayedSubtotal : grossTotal;
-  const displayedTotal = selectedQrOrder ? selectedQrOrder.payableAmountCents / 100 : total;
-  const perGuest = displayedTotal / splitGuests;
+  const displayedTax = selectedPosDraftOrder ? 0 : tax;
+  const displayedService = selectedPosDraftOrder ? 0 : service;
+  const displayedGrossTotal = selectedPosDraftOrder ? displayedSubtotal : grossTotal;
+  const displayedTotal = selectedPosDraftOrder ? selectedPosDraftOrder.payableAmountCents / 100 : total;
+  const paymentSubtotal = selectedTablePaymentPreview
+    ? selectedTablePaymentPreview.pricing.originalAmountCents / 100
+    : selectedSubmittedOrders.reduce((sum, order) => sum + order.pricing.originalAmountCents / 100, 0);
+  const paymentMemberDiscount = selectedTablePaymentPreview
+    ? selectedTablePaymentPreview.pricing.memberDiscountCents / 100
+    : selectedSubmittedOrders.reduce((sum, order) => sum + order.pricing.memberDiscountCents / 100, 0);
+  const paymentPromotionDiscount = selectedTablePaymentPreview
+    ? selectedTablePaymentPreview.pricing.promotionDiscountCents / 100
+    : selectedSubmittedOrders.reduce((sum, order) => sum + order.pricing.promotionDiscountCents / 100, 0);
+  const paymentTax = 0;
+  const paymentService = 0;
+  const paymentGrossTotal = paymentSubtotal;
+  const paymentTotal = selectedTablePaymentPreview
+    ? selectedTablePaymentPreview.pricing.payableAmountCents / 100
+    : Math.max(paymentSubtotal - paymentMemberDiscount - paymentPromotionDiscount, 0);
+  const perGuest = paymentTotal / splitGuests;
+  const submittedRoundsTotal = selectedSubmittedOrders.reduce(
+    (sum, order) => sum + order.pricing.payableAmountCents / 100,
+    0
+  );
 
   useEffect(() => {
     draftOrdersRef.current = tableDraftOrders;
@@ -652,157 +941,230 @@ function App() {
     window.localStorage.setItem(ORDER_STAGES_STORAGE_KEY, JSON.stringify(tableOrderStages));
   }, [tableOrderStages]);
 
+  const syncTableFromV2 = async (tableCode: string, tableId: number) => {
+    const refreshedContext = await fetchTableContext(tableCode);
+    if (!refreshedContext) {
+      return null;
+    }
+    const backendSubmittedOrders = await fetchSubmittedOrders(refreshedContext.storeId, refreshedContext.tableId);
+    const backendSubmittedRounds = mapSubmittedOrdersToRounds(backendSubmittedOrders, menuByName);
+
+    const preview =
+      refreshedContext.tableStatus === "PENDING_SETTLEMENT"
+        ? await fetchTablePaymentPreview(refreshedContext.storeId, refreshedContext.tableId)
+        : refreshedContext.currentActiveOrder?.status === "PENDING_SETTLEMENT"
+          ? await fetchSettlementPreview(refreshedContext.currentActiveOrder.activeOrderId)
+          : null;
+    const nextOrder = toQrOrderResponse(refreshedContext, preview);
+
+    setQrOrders((current) => {
+      const next = { ...current };
+      if (nextOrder) {
+        next[tableCode] = nextOrder;
+      } else {
+        delete next[tableCode];
+      }
+      return next;
+    });
+
+    setTableState((current) =>
+      current.map((table) => {
+        if (table.id !== tableId) {
+          return table;
+        }
+
+        if (!nextOrder) {
+          if (backendSubmittedRounds.length > 0) {
+            const submittedTotal = backendSubmittedRounds.reduce((sum, round) => sum + round.total, 0);
+            const backendSource = backendSubmittedOrders.some((order) => order.sourceOrderType === "QR") ? "QR" : "POS";
+            const isPaymentPending = refreshedContext.tableStatus === "PENDING_SETTLEMENT";
+            return {
+              ...table,
+              status: "occupied",
+              source: backendSource,
+              settlementState: isPaymentPending ? "PENDING_SETTLEMENT" : "SUBMITTED",
+              memberName: undefined,
+              total: Number(submittedTotal.toFixed(2)),
+              guests: table.guests || 2,
+              course: isPaymentPending
+                ? `${backendSubmittedRounds.reduce((sum, round) => sum + round.items.length, 0)} items payment pending`
+                : `${backendSubmittedRounds.length} rounds sent to kitchen`
+            };
+          }
+
+          return {
+            ...table,
+            status: "available",
+            source: undefined,
+            settlementState: undefined,
+            memberName: undefined,
+            total: 0,
+            guests: 0,
+            course: "Ready"
+          };
+        }
+
+        return {
+          ...table,
+          status: "occupied",
+          source: nextOrder.orderSource,
+          settlementState: nextOrder.settlementStatus,
+          memberName: nextOrder.memberName ?? undefined,
+          total: Number((nextOrder.payableAmountCents / 100).toFixed(2)),
+          guests: table.guests || 2,
+          course:
+            nextOrder.settlementStatus === "DRAFT"
+              ? "Draft order in progress"
+              : nextOrder.settlementStatus === "SUBMITTED"
+                ? "Sent to kitchen"
+                : nextOrder.settlementStatus === "PENDING_SETTLEMENT"
+                  ? `${nextOrder.items.length} items payment pending`
+                  : "Settled"
+        };
+      })
+    );
+
+    setTableOrderStages((current) => ({
+      ...current,
+      [tableId]:
+        nextOrder?.settlementStatus === "SETTLED"
+          ? "SETTLED"
+          : nextOrder?.settlementStatus === "PENDING_SETTLEMENT"
+            ? "PENDING_SETTLEMENT"
+            : nextOrder?.settlementStatus === "SUBMITTED"
+              ? "SUBMITTED"
+              : refreshedContext.tableStatus === "PENDING_SETTLEMENT"
+                ? "PENDING_SETTLEMENT"
+              : backendSubmittedRounds.length > 0
+                ? "SUBMITTED"
+                : "DRAFT"
+    }));
+
+    setTableDraftOrders((current) => {
+      if (!nextOrder || nextOrder.settlementStatus !== "DRAFT" || nextOrder.orderSource !== "POS") {
+        if (!current[tableId]?.length) {
+          return current;
+        }
+
+        const next = { ...current };
+        next[tableId] = [];
+        return next;
+      }
+
+      const mappedItems = nextOrder.items.map((item, index) => {
+        const source = menuByName.get(item.productName);
+        const unitPrice =
+          (item.memberPriceCents ?? item.unitPriceCents ?? 0) / 100;
+
+        return {
+          id: source?.id ?? 9000 + index,
+          skuId: source?.skuId ?? item.skuId,
+          skuCode: source?.skuCode ?? item.skuCode,
+          name: item.productName,
+          category: source?.category ?? "all",
+          price: unitPrice,
+          memberPrice: item.memberPriceCents ? item.memberPriceCents / 100 : source?.memberPrice,
+          image:
+            source?.image ??
+            "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+          quantity: item.quantity,
+          note: source?.category ?? "加菜"
+        } satisfies OrderItem;
+      });
+
+      return {
+        ...current,
+        [tableId]: mappedItems
+      };
+    });
+
+    setSubmittedOrdersByTable((current) => ({
+      ...current,
+      [tableId]: backendSubmittedOrders
+    }));
+
+    setTablePaymentPreviews((current) => ({
+      ...current,
+      [tableId]: preview
+    }));
+
+    return nextOrder;
+  };
+
   const persistQrOrderItems = async (
     nextQrOrder: QrCurrentOrderResponse,
     tableCode = selectedTableCode,
     tableId = selectedTable.id
   ) => {
+    const tableContext = await fetchTableContext(tableCode);
+    if (!tableContext) {
+      return;
+    }
+
     pendingQrWrites.current.add(tableCode);
 
     try {
-      const response = await fetch("/api/v1/orders/qr-current", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          storeCode: "1001",
-          tableCode,
-          settlementStatus: nextQrOrder.settlementStatus,
-          items: nextQrOrder.items
-        })
-      });
+      const response = await fetch(
+        `/api/v2/stores/${tableContext.storeId}/tables/${tableContext.tableId}/active-order/items`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            orderSource: nextQrOrder.orderSource,
+            memberId: nextQrOrder.memberId,
+            items: nextQrOrder.items.map((item) => ({
+              skuId: item.skuId,
+              skuCode: item.skuCode,
+              skuName: item.productName,
+              quantity: item.quantity,
+              unitPriceCents: item.unitPriceCents,
+              remark: ""
+            }))
+          })
+        }
+      );
 
       if (!response.ok) {
-        throw new Error("Failed to update QR order");
+        throw new Error("Failed to update active order");
       }
 
-      const payload = (await response.json()) as ApiResponse<QrCurrentOrderResponse>;
+      const payload = (await response.json()) as ApiResponse<ActiveTableOrderDto>;
       if (payload.code !== 0 || !payload.data) {
-        throw new Error(payload.message || "Failed to update QR order");
+        throw new Error(payload.message || "Failed to update active order");
       }
 
-      setQrOrders((current) => ({
-        ...current,
-        [tableCode]: payload.data
-      }));
-      setTableState((current) =>
-        current.map((table) =>
-          table.id === tableId
-            ? {
-                ...table,
-                status: "occupied",
-                source: "QR",
-                settlementState: payload.data.settlementStatus,
-                memberName: payload.data.memberName ?? undefined,
-                total: Number((payload.data.payableAmountCents / 100).toFixed(2)),
-                course: `${payload.data.items.length} items waiting for cashier`
-              }
-            : table
-        )
-      );
+      await syncTableFromV2(tableCode, tableId);
     } finally {
       pendingQrWrites.current.delete(tableCode);
     }
   };
 
-  const clearCurrentTableOrder = async (tableCode = selectedTableCode) => {
+  const clearCurrentTableOrder = async (activeOrderId: string) => {
     await fetch(
-      `/api/v1/orders/qr-current?storeCode=1001&tableCode=${encodeURIComponent(tableCode)}`,
+      `/api/v2/stores/${STORE_ID}/tables/${selectedTable.id}/active-order/${encodeURIComponent(activeOrderId)}/empty-draft`,
       { method: "DELETE" }
     );
   };
 
   const addItem = (item: MenuItem) => {
-    if (selectedQrOrder) {
-      const currentItems = displayedOrderItems;
-      const existing = currentItems.find((entry) => entry.name === item.name);
-      const nextItems = existing
-        ? currentItems.map((entry) =>
-            entry.name === item.name ? { ...entry, quantity: entry.quantity + 1 } : entry
-          )
-        : [...currentItems, { ...item, quantity: 1, note: "加菜" }];
-
-      const nextQrOrder: QrCurrentOrderResponse = {
-        ...selectedQrOrder,
-        items: nextItems.map((entry) => ({
-          productName: entry.name,
-          quantity: entry.quantity,
-          unitPriceCents: Math.round(entry.price * 100),
-          memberPriceCents: entry.memberPrice ? Math.round(entry.memberPrice * 100) : null
-        }))
-      };
-
-      const originalAmountCents = nextQrOrder.items.reduce(
-        (sum, entry) => sum + (entry.unitPriceCents ?? 0) * entry.quantity,
-        0
-      );
-      const memberDiscountCents = nextQrOrder.items.reduce((sum, entry) => {
-        const unitPrice = entry.unitPriceCents ?? 0;
-        const memberPrice = entry.memberPriceCents ?? unitPrice;
-        return sum + Math.max(0, unitPrice - memberPrice) * entry.quantity;
-      }, 0);
-      const promotionDiscountCents = originalAmountCents >= 6000 ? 800 : 0;
-
-      nextQrOrder.originalAmountCents = originalAmountCents;
-      nextQrOrder.memberDiscountCents = memberDiscountCents;
-      nextQrOrder.promotionDiscountCents = promotionDiscountCents;
-      nextQrOrder.payableAmountCents = Math.max(
-        0,
-        originalAmountCents - memberDiscountCents - promotionDiscountCents
-      );
-
-      setQrOrders((current) => ({
-        ...current,
-        [selectedTableCode]: nextQrOrder
-      }));
-      setTableState((current) =>
-        current.map((table) =>
-          table.id === selectedTable.id
-            ? {
-                ...table,
-                status: "occupied",
-                source: "QR",
-                settlementState: "PENDING_SETTLEMENT",
-                total: Number((nextQrOrder.payableAmountCents / 100).toFixed(2)),
-                course: `${nextQrOrder.items.length} items waiting for cashier`
-              }
-            : table
-        )
-      );
-      setTableOrderStages((current) => ({
-        ...current,
-        [selectedTable.id]: "PENDING_SETTLEMENT"
-      }));
-      void persistQrOrderItems(nextQrOrder);
-
-      return;
-    }
-
-    const existingDraftItems = tableDraftOrders[selectedTable.id] ?? [];
-    const previewNextItems = existingDraftItems.find((entry) => entry.id === item.id)
-      ? existingDraftItems.map((entry) =>
+    const currentItems = effectiveDraftOrderItems;
+    const nextItems = currentItems.find((entry) => entry.id === item.id)
+      ? currentItems.map((entry) =>
           entry.id === item.id ? { ...entry, quantity: entry.quantity + 1 } : entry
         )
-      : [...existingDraftItems, { ...item, quantity: 1 }];
+      : [...currentItems, { ...item, quantity: 1, note: "加菜" }];
 
     setTableDraftOrders((current) => {
-      const currentTableOrder = current[selectedTable.id] ?? [];
-      const existing = currentTableOrder.find((entry) => entry.id === item.id);
-      const nextTableOrder = existing
-        ? currentTableOrder.map((entry) =>
-            entry.id === item.id ? { ...entry, quantity: entry.quantity + 1 } : entry
-          )
-        : [...currentTableOrder, { ...item, quantity: 1 }];
-
       return {
         ...current,
-        [selectedTable.id]: nextTableOrder
+        [selectedTable.id]: nextItems
       };
     });
     setTableOrderStages((current) => ({
       ...current,
-      [selectedTable.id]: "DRAFT"
+      [selectedTable.id]: hasSubmittedRounds ? "SUBMITTED" : "DRAFT"
     }));
     setTableState((current) =>
       current.map((table) =>
@@ -810,72 +1172,31 @@ function App() {
           ? {
               ...table,
               status: "occupied",
-              source: table.source ?? "POS",
+              source: table.source === "QR" && hasSubmittedRounds ? "QR" : "POS",
               guests: table.guests || 2,
-              total: getDraftOrderTotal(previewNextItems),
-              course: "Draft order in progress"
+              total: Number((submittedRoundsTotal + getDraftOrderTotal(nextItems)).toFixed(2)),
+              course:
+                hasSubmittedRounds
+                  ? `${submittedRounds.length} rounds sent · drafting add-ons`
+                  : "Draft order in progress"
             }
           : table
       )
     );
-    void persistQrOrderItems(createQrPayloadFromDraft(selectedTableCode, previewNextItems, "DRAFT"), selectedTableCode, selectedTable.id);
+    void persistQrOrderItems(
+      createQrPayloadFromDraft(
+        selectedTableCode,
+        nextItems,
+        "DRAFT",
+        "POS"
+      ),
+      selectedTableCode,
+      selectedTable.id
+    );
   };
 
   const updateQuantity = (id: number, delta: number) => {
-    if (selectedQrOrder) {
-      const nextItems = displayedOrderItems
-        .map((entry) =>
-          entry.id === id ? { ...entry, quantity: Math.max(0, entry.quantity + delta) } : entry
-        )
-        .filter((entry) => entry.quantity > 0);
-
-      const nextQrOrder: QrCurrentOrderResponse = {
-        ...selectedQrOrder,
-        items: nextItems.map((item) => ({
-          productName: item.name,
-          quantity: item.quantity,
-          unitPriceCents: Math.round(item.price * 100),
-          memberPriceCents: item.memberPrice ? Math.round(item.memberPrice * 100) : null
-        }))
-      };
-
-      const originalAmountCents = nextQrOrder.items.reduce(
-        (sum, item) => sum + (item.unitPriceCents ?? 0) * item.quantity,
-        0
-      );
-      const memberDiscountCents = nextQrOrder.items.reduce((sum, item) => {
-        const unitPrice = item.unitPriceCents ?? 0;
-        const memberPrice = item.memberPriceCents ?? unitPrice;
-        return sum + Math.max(0, unitPrice - memberPrice) * item.quantity;
-      }, 0);
-      const promotionDiscountCents = originalAmountCents >= 6000 ? 800 : 0;
-
-      nextQrOrder.originalAmountCents = originalAmountCents;
-      nextQrOrder.memberDiscountCents = memberDiscountCents;
-      nextQrOrder.promotionDiscountCents = promotionDiscountCents;
-      nextQrOrder.payableAmountCents = Math.max(0, originalAmountCents - memberDiscountCents - promotionDiscountCents);
-
-      setQrOrders((current) => ({
-        ...current,
-        [selectedTableCode]: nextQrOrder
-      }));
-      setTableState((current) =>
-        current.map((table) =>
-          table.id === selectedTable.id
-            ? {
-                ...table,
-                total: Number((nextQrOrder.payableAmountCents / 100).toFixed(2)),
-                course: `${nextQrOrder.items.length} items waiting for cashier`
-              }
-            : table
-        )
-      );
-      void persistQrOrderItems(nextQrOrder);
-
-      return;
-    }
-
-    const previewNextItems = (tableDraftOrders[selectedTable.id] ?? [])
+    const previewNextItems = effectiveDraftOrderItems
       .map((entry) =>
         entry.id === id ? { ...entry, quantity: Math.max(0, entry.quantity + delta) } : entry
       )
@@ -887,7 +1208,7 @@ function App() {
     }));
     setTableOrderStages((current) => ({
       ...current,
-      [selectedTable.id]: "DRAFT"
+      [selectedTable.id]: hasSubmittedRounds ? "SUBMITTED" : "DRAFT"
     }));
     setTableState((current) =>
       current.map((table) =>
@@ -895,21 +1216,44 @@ function App() {
           ? {
               ...table,
               status: previewNextItems.length > 0 ? "occupied" : "available",
-              source: previewNextItems.length > 0 ? (table.source === "QR" ? "QR" : "POS") : undefined,
+              source:
+                previewNextItems.length > 0
+                  ? table.source === "QR" && hasSubmittedRounds ? "QR" : "POS"
+                  : undefined,
               guests: previewNextItems.length > 0 ? table.guests || 2 : 0,
-              total: getDraftOrderTotal(previewNextItems),
-              course: previewNextItems.length > 0 ? "Draft order in progress" : "Ready"
+              total: Number((submittedRoundsTotal + getDraftOrderTotal(previewNextItems)).toFixed(2)),
+              course:
+                previewNextItems.length > 0
+                  ? hasSubmittedRounds
+                    ? `${submittedRounds.length} rounds sent · drafting add-ons`
+                    : "Draft order in progress"
+                  : hasSubmittedRounds
+                    ? `${submittedRounds.length} rounds sent to kitchen`
+                    : "Ready"
             }
           : table
       )
     );
 
     if (previewNextItems.length === 0) {
-      void clearCurrentTableOrder(selectedTableCode);
+      if (selectedBackendOrder?.activeOrderId && selectedOrderStage === "DRAFT") {
+        void clearCurrentTableOrder(selectedBackendOrder.activeOrderId).then(() =>
+          syncTableFromV2(selectedTableCode, selectedTable.id)
+        );
+      }
       return;
     }
 
-    void persistQrOrderItems(createQrPayloadFromDraft(selectedTableCode, previewNextItems, "DRAFT"), selectedTableCode, selectedTable.id);
+    void persistQrOrderItems(
+      createQrPayloadFromDraft(
+        selectedTableCode,
+        previewNextItems,
+        "DRAFT",
+        "POS"
+      ),
+      selectedTableCode,
+      selectedTable.id
+    );
   };
 
   const chooseTable = (table: TableCard) => {
@@ -917,132 +1261,78 @@ function App() {
     setView("ordering");
   };
 
-  const sendToKitchen = () => {
-    if (selectedQrOrder) {
-      setView("review");
+  const sendToKitchen = async () => {
+    const currentDraftItems = effectiveDraftOrderItems;
+    if (currentDraftItems.length === 0) {
       return;
     }
+    let activeOrderId = selectedPosDraftOrder?.activeOrderId;
+    let storeId = selectedPosDraftOrder?.storeId ?? STORE_ID;
+    let tableId = selectedPosDraftOrder?.tableId ?? selectedTable.id;
 
-    setTableOrderStages((current) => ({
-      ...current,
-      [selectedTable.id]: "SUBMITTED"
-    }));
-    setTableState((current) =>
-      current.map((table) =>
-        table.id === selectedTable.id
-            ? {
-                ...table,
-                status: "occupied",
-                source: "POS",
-                total: getDraftOrderTotal(tableDraftOrders[selectedTable.id] ?? []),
-                course: "Sent to kitchen"
-              }
-            : table
-      )
-    );
-    const currentDraftItems = tableDraftOrders[selectedTable.id] ?? [];
-    if (currentDraftItems.length > 0) {
-      void persistQrOrderItems(
-        createQrPayloadFromDraft(selectedTableCode, currentDraftItems, "SUBMITTED"),
+    if (!activeOrderId) {
+      await persistQrOrderItems(
+        createQrPayloadFromDraft(selectedTableCode, currentDraftItems, "DRAFT", "POS"),
         selectedTableCode,
         selectedTable.id
       );
+      const latestDraft = await syncTableFromV2(selectedTableCode, selectedTable.id);
+      activeOrderId = latestDraft?.activeOrderId;
+      storeId = latestDraft?.storeId ?? storeId;
+      tableId = latestDraft?.tableId ?? tableId;
     }
-    setView("review");
+
+    if (!activeOrderId) {
+      return;
+    }
+
+    await fetch(
+      `/api/v2/stores/${storeId}/tables/${tableId}/active-order/${encodeURIComponent(activeOrderId)}/submit-to-kitchen`,
+      { method: "POST" }
+    );
+    setTableDraftOrders((current) => ({
+      ...current,
+      [selectedTable.id]: []
+    }));
+    await syncTableFromV2(selectedTableCode, selectedTable.id);
+    setView("ordering");
   };
 
-  const moveToSettlement = () => {
-    if (!selectedQrOrder) {
-      setTableOrderStages((current) => ({
-        ...current,
-        [selectedTable.id]: "PENDING_SETTLEMENT"
-      }));
-      setTableState((current) =>
-        current.map((table) =>
-          table.id === selectedTable.id
-            ? {
-                ...table,
-                status: "occupied",
-                source: "POS",
-                total: getDraftOrderTotal(tableDraftOrders[selectedTable.id] ?? []),
-                course: "Waiting for cashier settlement"
-              }
-            : table
-        )
-      );
-      const currentDraftItems = tableDraftOrders[selectedTable.id] ?? [];
-      if (currentDraftItems.length > 0) {
-        void persistQrOrderItems(
-          createQrPayloadFromDraft(selectedTableCode, currentDraftItems, "PENDING_SETTLEMENT"),
-          selectedTableCode,
-          selectedTable.id
-        );
-      }
+  const moveToSettlement = async () => {
+    if (!hasSubmittedRounds || effectiveDraftOrderItems.length > 0) {
+      return;
     }
 
+    await fetch(
+      `/api/v2/stores/${STORE_ID}/tables/${selectedTable.id}/payment`,
+      { method: "POST" }
+    );
+    const preview = await fetchTablePaymentPreview(STORE_ID, selectedTable.id);
+    setTablePaymentPreviews((current) => ({
+      ...current,
+      [selectedTable.id]: preview
+    }));
+    await syncTableFromV2(selectedTableCode, selectedTable.id);
     setView("payment");
   };
 
   const completeSettlement = async () => {
-    if (selectedQrOrder) {
-      await fetch("/api/v1/orders/qr-settle", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          storeCode: "1001",
-          tableCode: selectedTableCode
-        })
-      });
-
-      setQrOrders((current) => {
-        const next = { ...current };
-        delete next[selectedTableCode];
-        return next;
-      });
-      setTableState((current) =>
-        current.map((table) =>
-          table.id === selectedTable.id
-            ? {
-                ...tables.find((baseTable) => baseTable.id === table.id)!,
-                source: undefined,
-                settlementState: undefined,
-                memberName: undefined
-              }
-            : table
-        )
-      );
-      setTableOrderStages((current) => ({
-        ...current,
-        [selectedTable.id]: "DRAFT"
-      }));
-    } else {
-      setTableDraftOrders((current) => ({
-        ...current,
-        [selectedTable.id]: []
-      }));
-      setTableOrderStages((current) => ({
-        ...current,
-        [selectedTable.id]: "DRAFT"
-      }));
-      setTableState((current) =>
-        current.map((table) =>
-          table.id === selectedTable.id
-            ? {
-                ...table,
-                status: "available",
-                source: undefined,
-                settlementState: undefined,
-                memberName: undefined,
-                total: 0,
-                guests: 0,
-                course: "Ready"
-              }
-            : table
-        )
-      );
-    }
+    await fetch(`/api/v2/stores/${STORE_ID}/tables/${selectedTable.id}/payment/collect`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        cashierId: 9001,
+        paymentMethod: "CASHIER_POS",
+        collectedAmountCents: Math.round(paymentTotal * 100)
+      })
+    });
+    setTablePaymentPreviews((current) => ({
+      ...current,
+      [selectedTable.id]: null
+    }));
+    await syncTableFromV2(selectedTableCode, selectedTable.id);
 
     setView("success");
   };
@@ -1090,7 +1380,7 @@ function App() {
                 className="persistent-nav-button persistent-nav-button-secondary"
                 onClick={() =>
                   window.open(
-                    `http://localhost:4177/?storeName=Riverside%20Branch&storeCode=1001&table=${encodeURIComponent(selectedTableCode)}`,
+                    `${QR_ORDERING_BASE_URL}/?storeName=Riverside%20Branch&storeCode=1001&table=${encodeURIComponent(selectedTableCode)}`,
                     "_blank"
                   )
                 }
@@ -1105,7 +1395,7 @@ function App() {
               <div>
                 <p className="table-tag">New QR order pending settlement</p>
                 <h3>
-                  {recentQrAlert.tableCode} · {recentQrAlert.queueNo}
+                  {recentQrAlert.tableCode} · {recentQrAlert.orderNo}
                 </h3>
                 <p>
                   {recentQrAlert.items.length} items · {formatMoney(recentQrAlert.payableAmountCents / 100)} waiting for cashier
@@ -1119,7 +1409,7 @@ function App() {
                     if (!Number.isNaN(tableId)) {
                       setSelectedTableId(tableId);
                     }
-                    setView("review");
+                    setView("ordering");
                     setRecentQrAlert(null);
                   }}
                 >
@@ -1135,9 +1425,7 @@ function App() {
           <div className="persistent-nav persistent-nav-top">
             {[
               ["tables", "Table Management"],
-              ["ordering", "Ordering"],
-              ["review", "Order Review"],
-              ["payment", "Payment"]
+              ["ordering", "Ordering"]
             ].map(([value, label]) => (
               <button
                 key={value}
@@ -1288,7 +1576,13 @@ function App() {
                           <div key={index} className="floorplan-island">
                             <div className="floorplan-grid">
                               {group.map((table) => {
-                                const tableStage = tableOrderStages[table.id] ?? getInitialOrderStage(table);
+                                const tableStage = deriveOrderStage({
+                                  table,
+                                  backendOrder: qrOrders[`T${table.id}`],
+                                  submittedOrders: submittedOrdersByTable[table.id] ?? [],
+                                  paymentPreview: tablePaymentPreviews[table.id] ?? null,
+                                  draftItems: tableDraftOrders[table.id] ?? []
+                                });
                                 const tone =
                                   table.status === "available"
                                     ? "available"
@@ -1298,9 +1592,7 @@ function App() {
                                         ? "billing"
                                         : tableStage === "SETTLED"
                                           ? "neutral"
-                                          : table.total >= 100
-                                            ? "attention"
-                                            : "occupied";
+                                          : "occupied";
 
                                 return (
                                   <button
@@ -1422,17 +1714,15 @@ function App() {
             <div className="pos-body">
               <section className="menu-section">
                 <div className="section-heading">
-                  <div>
-                    <div className="current-table-badge">
-                      <span className="current-table-label">Current table</span>
-                      <strong>T{selectedTable.id}</strong>
+                  <div className="section-heading-main">
+                    <div className="heading-topline">
+                      <div className="current-table-badge">
+                        <span className="current-table-label">Current table</span>
+                        <strong>T{selectedTable.id}</strong>
+                      </div>
+                      <button className="minor-pill order-stage-pill">{getStageLabel(selectedOrderStage)}</button>
+                      <span className="ordering-inline-copy">{getStageSupportText(selectedOrderStage)}</span>
                     </div>
-                    <h2>Ordering</h2>
-                    <div className="heading-underline" />
-                    <p className="stage-support-copy">{getStageSupportText(selectedOrderStage)}</p>
-                  </div>
-                  <div className="utility-group">
-                    <button className="minor-pill order-stage-pill">{getStageLabel(selectedOrderStage)}</button>
                   </div>
                 </div>
 
@@ -1489,27 +1779,6 @@ function App() {
               </section>
 
               <aside className="sidebar-panel ordering-sidebar">
-                <div className="ordering-panel-card member-card">
-                  <div className="ordering-panel-head">
-                    <div>
-                      <p className="sidebar-title">Member</p>
-                      <h2>{memberProfile.name}</h2>
-                    </div>
-                    <span className="cart-pill">{memberProfile.tier}</span>
-                  </div>
-
-                  <div className="member-metrics">
-                    <div className="member-metric">
-                      <span>Points</span>
-                      <strong>{memberProfile.points}</strong>
-                    </div>
-                    <div className="member-metric">
-                      <span>Balance</span>
-                      <strong>{formatMoney(memberProfile.balance)}</strong>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="ordering-panel-card">
                   <div className="ordering-panel-head">
                     <div>
@@ -1537,6 +1806,62 @@ function App() {
                 </div>
 
                 <div className="ordering-panel-card">
+                  <p className="sidebar-title">Actions</p>
+                  <button className="sort-row">
+                    <span className="sort-icon" />
+                    <span>Add note</span>
+                  </button>
+                  <button className="sort-row">
+                    <span className="sort-icon" />
+                    <span>Apply discount</span>
+                  </button>
+                  {effectiveDraftOrderItems.length > 0 ? (
+                    <button className="sort-row" onClick={sendToKitchen}>
+                      <span className="sort-icon" />
+                      <span>Send to kitchen</span>
+                    </button>
+                  ) : null}
+                  {hasSubmittedRounds && effectiveDraftOrderItems.length === 0 && selectedOrderStage !== "PENDING_SETTLEMENT" ? (
+                    <button className="sort-row" onClick={moveToSettlement}>
+                      <span className="sort-icon" />
+                      <span>Payment</span>
+                    </button>
+                  ) : null}
+                  {selectedOrderStage === "PENDING_SETTLEMENT" ? (
+                    <button className="sort-row" onClick={() => setView("payment")}>
+                      <span className="sort-icon" />
+                      <span>Collect payment</span>
+                    </button>
+                  ) : null}
+                </div>
+
+                {hasSubmittedRounds ? (
+                  <div className="ordering-panel-card">
+                    <div className="ordering-panel-head">
+                      <div>
+                        <p className="sidebar-title">Sent to kitchen</p>
+                        <h2>Submitted rounds</h2>
+                      </div>
+                      <span className="cart-pill">{selectedSubmittedOrders.length} rounds</span>
+                    </div>
+
+                    <div className="ordering-cart-list">
+                      {submittedRounds.map((round, index) => (
+                        <article key={round.id} className="ordering-cart-row">
+                          <div>
+                            <strong>Round {index + 1}</strong>
+                            <p>
+                              {round.sentAt} · {round.items.map((item) => `${item.name} x${item.quantity}`).join(" / ")}
+                            </p>
+                          </div>
+                          <strong>{formatMoney(round.total)}</strong>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="ordering-panel-card">
                   <p className="sidebar-title">Summary</p>
                   <div className="amount-row">
                     <span>Subtotal</span>
@@ -1562,39 +1887,6 @@ function App() {
                     <span>Payable</span>
                     <strong>{formatMoney(displayedTotal)}</strong>
                   </div>
-                </div>
-
-                <div className="ordering-panel-card">
-                  <p className="sidebar-title">Actions</p>
-                  <button className="sort-row">
-                    <span className="sort-icon" />
-                    <span>Add note</span>
-                  </button>
-                  <button className="sort-row">
-                    <span className="sort-icon" />
-                    <span>Apply discount</span>
-                  </button>
-                  {selectedOrderStage === "DRAFT" ? (
-                    <button className="sort-row" onClick={sendToKitchen}>
-                      <span className="sort-icon" />
-                      <span>Send to kitchen</span>
-                    </button>
-                  ) : null}
-                  {selectedOrderStage === "SUBMITTED" ? (
-                    <button className="sort-row" onClick={moveToSettlement}>
-                      <span className="sort-icon" />
-                      <span>Move to settlement</span>
-                    </button>
-                  ) : null}
-                  {selectedOrderStage === "PENDING_SETTLEMENT" ? (
-                    <button className="sort-row" onClick={() => setView("payment")}>
-                      <span className="sort-icon" />
-                      <span>Open cashier settlement</span>
-                    </button>
-                  ) : null}
-                  <button className="cta-button" onClick={() => setView("review")}>
-                    {selectedOrderStage === "PENDING_SETTLEMENT" ? "Review settlement order" : "Review current order"}
-                  </button>
                 </div>
               </aside>
             </div>
@@ -1635,13 +1927,13 @@ function App() {
                       </p>
                     </div>
                     <span className="reservation-badge badge-waiting">
-                      {selectedTable.settlementState ?? "PENDING_SETTLEMENT"}
+                      {selectedOrderStage === "PENDING_SETTLEMENT" ? "PAYMENT_PENDING" : selectedTable.settlementState ?? "SUBMITTED"}
                     </span>
                   </div>
                 ) : null}
 
                 <div className="order-card-list">
-                  {displayedOrderItems.map((item) => (
+                  {paymentOrderItems.map((item) => (
                     <article key={item.id} className="order-row-card">
                       <img src={item.image} alt={item.name} />
                       <div className="order-row-main">
@@ -1649,11 +1941,7 @@ function App() {
                           <strong>{item.name}</strong>
                           <p>{item.note ?? item.category}</p>
                         </div>
-                        <div className="qty-control">
-                          <button onClick={() => updateQuantity(item.id, -1)}>-</button>
-                          <span>{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.id, 1)}>+</button>
-                        </div>
+                        <strong>{item.quantity} items</strong>
                       </div>
                       <strong className="row-price">
                         {formatMoney(item.quantity * item.price)}
@@ -1698,25 +1986,19 @@ function App() {
                     <span className="sort-icon" />
                     <span>Member recharge</span>
                   </button>
-                  {selectedOrderStage === "DRAFT" ? (
-                    <button className="sort-row" onClick={sendToKitchen}>
-                      <span className="sort-icon" />
-                      <span>Send to kitchen</span>
-                    </button>
-                  ) : null}
                   <button className="sort-row" onClick={() => setView("split")}>
                     <span className="sort-icon" />
                     <span>Split bill</span>
                   </button>
-                  {selectedOrderStage !== "PENDING_SETTLEMENT" ? (
+                  {hasSubmittedRounds && effectiveDraftOrderItems.length === 0 && selectedOrderStage !== "PENDING_SETTLEMENT" ? (
                     <button className="sort-row" onClick={moveToSettlement}>
                       <span className="sort-icon" />
-                      <span>Move to settlement</span>
+                      <span>Payment</span>
                     </button>
                   ) : null}
                   {selectedOrderStage === "PENDING_SETTLEMENT" ? (
                     <button className="cta-button" onClick={() => setView("payment")}>
-                      Open cashier settlement
+                      Collect payment
                     </button>
                   ) : null}
                 </div>
@@ -1735,8 +2017,8 @@ function App() {
                     </div>
                     <h2>Split bill</h2>
                   </div>
-                  <button className="minor-pill" onClick={() => setView("review")}>
-                    Back to review
+                  <button className="minor-pill" onClick={() => setView("ordering")}>
+                    Back to ordering
                   </button>
                 </div>
 
@@ -1794,15 +2076,15 @@ function App() {
                     <h2>Cashier settlement</h2>
                     <p className="stage-support-copy">{getStageSupportText(selectedOrderStage)}</p>
                   </div>
-                  <button className="minor-pill" onClick={() => setView("review")}>
-                    Back to review
+                  <button className="minor-pill" onClick={() => setView("ordering")}>
+                    Back to ordering
                   </button>
                 </div>
 
                 <div className="payment-hero">
                   <div className="payment-card feature-card">
                     <p className="sidebar-title">Ready to charge</p>
-                    <h3>{formatMoney(displayedTotal)}</h3>
+                    <h3>{formatMoney(paymentTotal)}</h3>
                     <p className="accent-copy">
                       {selectedTable.source === "QR"
                         ? "A QR table order has already been placed by the guest. Confirm the basket and collect payment at cashier."
@@ -1827,24 +2109,28 @@ function App() {
                 <div className="payment-card settlement-breakdown">
                   <div className="amount-row">
                     <span>Original amount</span>
-                    <strong>{formatMoney(displayedGrossTotal)}</strong>
+                    <strong>{formatMoney(paymentGrossTotal)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Member benefit</span>
-                    <strong>-{formatMoney(displayedMemberDiscount)}</strong>
+                    <strong>-{formatMoney(paymentMemberDiscount)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Promotion benefit</span>
-                    <strong>-{formatMoney(displayedPromotionDiscount)}</strong>
+                    <strong>-{formatMoney(paymentPromotionDiscount)}</strong>
                   </div>
-                  <div className="amount-row">
-                    <span>Gift item</span>
-                    <strong>Peach Soda</strong>
-                  </div>
+                  {(selectedTablePaymentPreview?.giftItems ?? []).map((gift) => (
+                    <div className="amount-row" key={gift.skuName}>
+                      <span>Gift item</span>
+                      <strong>
+                        {gift.skuName} x{gift.quantity}
+                      </strong>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="order-card-list compact-list">
-                  {displayedOrderItems.map((item) => (
+                  {paymentOrderItems.map((item) => (
                     <article key={item.id} className="order-row-card compact-row">
                       <img src={item.image} alt={item.name} />
                       <div className="order-row-main">
@@ -1868,27 +2154,27 @@ function App() {
                   <p className="sidebar-title">Payment summary</p>
                   <div className="amount-row">
                     <span>Subtotal</span>
-                    <strong>{formatMoney(displayedSubtotal)}</strong>
+                    <strong>{formatMoney(paymentSubtotal)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Tax</span>
-                    <strong>{formatMoney(displayedTax)}</strong>
+                    <strong>{formatMoney(paymentTax)}</strong>
                   </div>
                   <div className="amount-row">
                     <span>Service</span>
-                    <strong>{formatMoney(displayedService)}</strong>
+                    <strong>{formatMoney(paymentService)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Member benefit</span>
-                    <strong>-{formatMoney(displayedMemberDiscount)}</strong>
+                    <strong>-{formatMoney(paymentMemberDiscount)}</strong>
                   </div>
                   <div className="amount-row discount-row">
                     <span>Promotion benefit</span>
-                    <strong>-{formatMoney(displayedPromotionDiscount)}</strong>
+                    <strong>-{formatMoney(paymentPromotionDiscount)}</strong>
                   </div>
                   <div className="amount-row total">
                     <span>Total due</span>
-                    <strong>{formatMoney(displayedTotal)}</strong>
+                    <strong>{formatMoney(paymentTotal)}</strong>
                   </div>
                 </div>
 
@@ -1904,7 +2190,7 @@ function App() {
 
                 <div className="payment-card accent-card">
                   <p className="sidebar-title">Ready to collect</p>
-                  <h3>{formatMoney(displayedTotal)}</h3>
+                  <h3>{formatMoney(paymentTotal)}</h3>
                   <p className="accent-copy">
                     Complete cashier settlement to close the active table order and release the
                     table back into service.
@@ -1918,7 +2204,7 @@ function App() {
                   </button>
                   {!canCollectPayment(selectedOrderStage) ? (
                     <p className="payment-guard-copy">
-                      Move this order to <strong>Pending settlement</strong> before collecting payment.
+                      Move this order to <strong>Payment Pending</strong> before collecting payment.
                     </p>
                   ) : null}
                 </div>
@@ -1943,7 +2229,7 @@ function App() {
                 <div className="success-metrics">
                   <article className="status-card tone-mint">
                     <span>Amount paid</span>
-                    <strong>{formatMoney(displayedTotal)}</strong>
+                    <strong>{formatMoney(paymentTotal)}</strong>
                   </article>
                   <article className="status-card tone-sky">
                     <span>Method</span>
@@ -1980,8 +2266,8 @@ function App() {
                     Staff can now clear Table {selectedTable.id} and release it back into the
                     available pool for the next reservation or walk-in.
                   </p>
-                  <button className="cta-button" onClick={() => setView("reservations")}>
-                    Back to host stand
+                  <button className="cta-button" onClick={() => setView("tables")}>
+                    Payment Done
                   </button>
                 </div>
               </aside>
@@ -1993,8 +2279,7 @@ function App() {
             {[
               ["reservations", "Reservations"],
               ["transfer", "Transfer Table"],
-              ["split", "Split Bill"],
-              ["success", "Payment Success"]
+              ["split", "Split Bill"]
             ].map(([value, label]) => (
               <button
                 key={value}

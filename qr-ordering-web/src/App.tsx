@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 
-type Category = "Popular" | "Meals" | "Snacks" | "Drinks" | "Desserts";
-
 type CategoryMeta = {
-  id: Category;
+  id: string;
   label: string;
   icon: string;
 };
 
 type MenuItem = {
   id: number;
+  productCode: string;
+  skuId: number;
+  skuCode: string;
   name: string;
-  category: Category;
+  category: string;
   price: number;
   memberPrice?: number;
   description: string;
@@ -31,139 +32,117 @@ type ApiResponse<T> = {
   data: T;
 };
 
-type QrSubmitResponse = {
+type ActiveOrderDto = {
+  activeOrderId: string;
   orderNo: string;
-  queueNo: string;
-  storeCode: string;
-  storeName: string;
+  storeId: number;
+  tableId: number;
   tableCode: string;
-  orderType: string;
-  settlementStatus: string;
-  memberName: string | null;
-  memberTier: string | null;
-  originalAmountCents: number;
-  memberDiscountCents: number;
-  promotionDiscountCents: number;
-  payableAmountCents: number;
-};
-
-type QrCurrentOrderResponse = {
-  orderNo: string;
-  queueNo: string;
-  storeCode: string;
-  storeName: string;
-  tableCode: string;
-  settlementStatus: string;
-  memberName: string | null;
-  memberTier: string | null;
-  originalAmountCents: number;
-  memberDiscountCents: number;
-  promotionDiscountCents: number;
-  payableAmountCents: number;
+  orderSource: string;
+  status: string;
+  memberId: number | null;
   items: Array<{
-    productId: number | null;
-    productName: string;
+    skuId: number;
+    skuCode: string;
+    skuName: string;
     quantity: number;
     unitPriceCents: number;
-    memberPriceCents: number | null;
+    remark: string | null;
+    lineTotalCents: number;
+  }>;
+  pricing: {
+    originalAmountCents: number;
+    memberDiscountCents: number;
+    promotionDiscountCents: number;
+    payableAmountCents: number;
+  };
+};
+
+type QrSubmitResponse = {
+  activeOrderId: string;
+  orderNo: string;
+  storeCode: string;
+  tableCode: string;
+  status: string;
+  payableAmountCents: number;
+  totalItemCount: number;
+};
+
+type QrContextResponse = {
+  storeId: number;
+  storeCode: string;
+  storeName: string;
+  tableId: number;
+  tableCode: string;
+  tableName: string;
+  tableStatus: string;
+  currentActiveOrder: ActiveOrderDto | null;
+  submittedOrders: SubmittedOrderDto[];
+};
+
+type SubmittedOrderDto = {
+  submittedOrderId: string;
+  orderNo: string;
+  sourceOrderType: string;
+  fulfillmentStatus: string;
+  settlementStatus: string;
+  memberId: number | null;
+  pricing: {
+    originalAmountCents: number;
+    memberDiscountCents: number;
+    promotionDiscountCents: number;
+    payableAmountCents: number;
+  };
+  items: Array<{
+    skuId: number;
+    skuCode: string;
+    skuName: string;
+    quantity: number;
+    unitPriceCents: number;
+    remark: string | null;
+    lineTotalCents: number;
   }>;
 };
 
-const menu: MenuItem[] = [
-  {
-    id: 1,
-    name: "招牌炒饭",
-    category: "Meals",
-    price: 18,
-    memberPrice: 16,
-    description: "现炒蛋香粒粒分明",
-    sales: 385,
-    likes: 721,
-    image: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80"
-  },
-  {
-    id: 2,
-    name: "黑椒牛肉饭",
-    category: "Meals",
-    price: 34,
-    memberPrice: 31,
-    description: "现煎牛肉配黑椒酱汁",
-    spicy: true,
-    sales: 265,
-    likes: 713,
-    image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80"
-  },
-  {
-    id: 3,
-    name: "酥脆鸡块",
-    category: "Snacks",
-    price: 16,
-    description: "外酥里嫩搭配蘸酱",
-    sales: 186,
-    likes: 488,
-    image: "https://images.unsplash.com/photo-1562967916-eb82221dfb92?auto=format&fit=crop&w=600&q=80"
-  },
-  {
-    id: 4,
-    name: "白桃气泡饮",
-    category: "Drinks",
-    price: 12,
-    memberPrice: 10,
-    description: "轻甜爽口店内热卖",
-    sales: 482,
-    likes: 999,
-    image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80"
-  },
-  {
-    id: 5,
-    name: "黑糖奶茶",
-    category: "Drinks",
-    price: 14,
-    memberPrice: 12,
-    description: "经典奶香与黑糖风味",
-    sales: 356,
-    likes: 875,
-    image: "https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=600&q=80"
-  },
-  {
-    id: 6,
-    name: "芒果布丁",
-    category: "Desserts",
-    price: 15,
-    description: "清爽收尾甜品",
-    sales: 144,
-    likes: 402,
-    image: "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80"
-  },
-  {
-    id: 7,
-    name: "主厨套餐",
-    category: "Popular",
-    price: 46,
-    memberPrice: 42,
-    description: "主食+小食+饮品组合",
-    sales: 517,
-    likes: 1104,
-    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80"
-  },
-  {
-    id: 8,
-    name: "松露薯条",
-    category: "Snacks",
-    price: 19,
-    description: "薯条香脆带松露风味",
-    sales: 199,
-    likes: 530,
-    image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=600&q=80"
-  }
-];
+type SubmitItemPayload = {
+  skuId: number;
+  skuCode: string;
+  skuName: string;
+  quantity: number;
+  unitPriceCents: number;
+  remark: string;
+};
 
-const categories: CategoryMeta[] = [
-  { id: "Popular", label: "新品", icon: "🟢" },
-  { id: "Meals", label: "热销饭类", icon: "🍱" },
-  { id: "Snacks", label: "现炸小食", icon: "🍟" },
-  { id: "Drinks", label: "饮品甜水", icon: "🥤" },
-  { id: "Desserts", label: "甜点轻食", icon: "🧁" }
+type QrMenuResponse = {
+  storeId: number;
+  storeCode: string;
+  storeName: string;
+  categories: Array<{
+    categoryId: number;
+    categoryCode: string;
+    categoryName: string;
+    items: Array<{
+      productId: number;
+      productCode: string;
+      productName: string;
+      skuId: number;
+      skuCode: string;
+      skuName: string;
+      unitPriceCents: number;
+    }>;
+  }>;
+};
+
+const categoryIcons = ["🟢", "🍱", "🍟", "🥤", "🧁", "🍜", "🍛", "🍤"];
+const menuImagePool = [
+  "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1562967916-eb82221dfb92?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80",
+  "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=600&q=80"
 ];
 
 function money(value: number) {
@@ -174,33 +153,129 @@ function money(value: number) {
   }).format(value);
 }
 
+function buildIncrementalSubmissionItems(
+  cart: CartItem[],
+  existingItems: Array<{ skuId: number; quantity: number }>
+): SubmitItemPayload[] {
+  const existingQuantities = new Map<number, number>();
+
+  existingItems.forEach((item) => {
+    existingQuantities.set(item.skuId, (existingQuantities.get(item.skuId) ?? 0) + item.quantity);
+  });
+
+  return cart
+    .map((item) => {
+      const existingQuantity = existingQuantities.get(item.skuId) ?? 0;
+      const nextQuantity = item.quantity - existingQuantity;
+
+      if (nextQuantity <= 0) {
+        return null;
+      }
+
+      return {
+        skuId: item.skuId,
+        skuCode: item.skuCode,
+        skuName: item.name,
+        quantity: nextQuantity,
+        unitPriceCents: Math.round(item.price * 100),
+        remark: ""
+      } satisfies SubmitItemPayload;
+    })
+    .filter((item): item is SubmitItemPayload => Boolean(item));
+}
+
 export default function App() {
   const params = new URLSearchParams(window.location.search);
-  const storeName = params.get("storeName") ?? "Riverside Branch";
+  const initialStoreName = params.get("storeName") ?? "Riverside Branch";
   const storeCode = params.get("storeCode") ?? "1001";
   const tableCode = params.get("table") ?? "T12";
-  const [activeCategory, setActiveCategory] = useState<Category>("Popular");
+  const [storeName, setStoreName] = useState(initialStoreName);
+  const [categories, setCategories] = useState<CategoryMeta[]>([]);
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [activeCategory, setActiveCategory] = useState<string>("");
   const [keyword, setKeyword] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([
-    { ...menu[0], quantity: 1 },
-    { ...menu[3], quantity: 2 }
-  ]);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [memberBound, setMemberBound] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitResult, setSubmitResult] = useState<QrSubmitResponse | null>(null);
-  const [currentOrder, setCurrentOrder] = useState<QrCurrentOrderResponse | null>(null);
+  const [currentOrder, setCurrentOrder] = useState<ActiveOrderDto | null>(null);
+  const [submittedOrders, setSubmittedOrders] = useState<SubmittedOrderDto[]>([]);
+
+  const hydrateCartFromActiveOrder = (
+    activeOrder: ActiveOrderDto | null,
+    menuSource: MenuItem[],
+    categorySource: CategoryMeta[],
+    activeCategoryValue: string
+  ) => {
+    if (!activeOrder || menuSource.length === 0) {
+      return [] as CartItem[];
+    }
+
+    return activeOrder.items.map((item, index) => {
+      const matchedMenuItem =
+        menuSource.find((menuItem) => menuItem.skuId === item.skuId) ??
+        menuSource.find((menuItem) => menuItem.skuCode === item.skuCode);
+
+      if (matchedMenuItem) {
+        return {
+          ...matchedMenuItem,
+          quantity: item.quantity
+        };
+      }
+
+      return {
+        id: item.skuId || index + 1,
+        productCode: item.skuCode,
+        skuId: item.skuId,
+        skuCode: item.skuCode,
+        name: item.skuName,
+        category: activeCategoryValue || categorySource[0]?.id || "",
+        price: item.unitPriceCents / 100,
+        description: "当前桌台订单",
+        image: menuImagePool[index % menuImagePool.length],
+        quantity: item.quantity
+      };
+    });
+  };
 
   const visibleMenu = useMemo(
     () =>
       menu.filter((item) => {
-        const matchCategory = activeCategory === "Popular" ? true : item.category === activeCategory;
+        const matchCategory = activeCategory === "" ? true : item.category === activeCategory;
         const matchKeyword =
           keyword.trim() === "" || `${item.name} ${item.description}`.toLowerCase().includes(keyword.toLowerCase());
         return matchCategory && matchKeyword;
       }),
-    [activeCategory, keyword]
+    [menu, activeCategory, keyword]
   );
+
+  const existingSubmittedItems = useMemo(
+    () =>
+      submittedOrders.flatMap((order) =>
+        order.items.map((item) => ({
+          skuId: item.skuId,
+          quantity: item.quantity
+        }))
+      ),
+    [submittedOrders]
+  );
+
+  const currentTableItems = useMemo(() => {
+    if (submittedOrders.length > 0) {
+      return submittedOrders.flatMap((order) => order.items);
+    }
+
+    return currentOrder?.items ?? [];
+  }, [currentOrder, submittedOrders]);
+
+  const currentTablePayable = useMemo(() => {
+    if (submittedOrders.length > 0) {
+      return submittedOrders.reduce((sum, order) => sum + order.pricing.payableAmountCents, 0);
+    }
+
+    return currentOrder?.pricing.payableAmountCents ?? 0;
+  }, [currentOrder, submittedOrders]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const memberDiscount = memberBound
@@ -208,24 +283,64 @@ export default function App() {
     : 0;
   const promotionDiscount = subtotal >= 60 ? 8 : 0;
   const payable = subtotal - memberDiscount - promotionDiscount;
+  const incrementalSubmissionItems = useMemo(
+    () => buildIncrementalSubmissionItems(cart, existingSubmittedItems),
+    [cart, existingSubmittedItems]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
 
-    const loadCurrentOrder = async () => {
+    const loadContextAndMenu = async () => {
       try {
-        const response = await fetch(
-          `/api/v1/orders/qr-current?storeCode=${encodeURIComponent(storeCode)}&tableCode=${encodeURIComponent(tableCode)}`,
-          { signal: controller.signal }
-        );
+        const [contextResponse, menuResponse] = await Promise.all([
+          fetch(
+            `/api/v2/qr-ordering/context?storeCode=${encodeURIComponent(storeCode)}&tableCode=${encodeURIComponent(tableCode)}`,
+            { signal: controller.signal }
+          ),
+          fetch(`/api/v2/qr-ordering/menu?storeCode=${encodeURIComponent(storeCode)}`, {
+            signal: controller.signal
+          })
+        ]);
 
-        if (!response.ok) {
+        if (!contextResponse.ok || !menuResponse.ok) {
           return;
         }
 
-        const payload = (await response.json()) as ApiResponse<QrCurrentOrderResponse | null>;
-        if (payload.code === 0) {
-          setCurrentOrder(payload.data ?? null);
+        const contextPayload = (await contextResponse.json()) as ApiResponse<QrContextResponse>;
+        const menuPayload = (await menuResponse.json()) as ApiResponse<QrMenuResponse>;
+
+        if (contextPayload.code === 0 && contextPayload.data) {
+          setStoreName(contextPayload.data.storeName);
+          setCurrentOrder(contextPayload.data.currentActiveOrder ?? null);
+          setSubmittedOrders(contextPayload.data.submittedOrders ?? []);
+        }
+
+        if (menuPayload.code === 0 && menuPayload.data) {
+          setStoreName(menuPayload.data.storeName);
+          const nextCategories = menuPayload.data.categories.map((category, index) => ({
+            id: category.categoryCode,
+            label: category.categoryName,
+            icon: categoryIcons[index % categoryIcons.length]
+          }));
+          const nextMenu = menuPayload.data.categories.flatMap((category, categoryIndex) =>
+            category.items.map((item, itemIndex) => ({
+              id: item.productId,
+              productCode: item.productCode,
+              skuId: item.skuId,
+              skuCode: item.skuCode,
+              name: item.skuName || item.productName,
+              category: category.categoryCode,
+              price: item.unitPriceCents / 100,
+              description: category.categoryName,
+              sales: 100 + itemIndex * 17,
+              likes: 300 + categoryIndex * 41 + itemIndex * 13,
+              image: menuImagePool[(categoryIndex + itemIndex) % menuImagePool.length]
+            }))
+          );
+          setCategories(nextCategories);
+          setMenu(nextMenu);
+          setActiveCategory((current) => current || nextCategories[0]?.id || "");
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
@@ -234,10 +349,51 @@ export default function App() {
       }
     };
 
-    void loadCurrentOrder();
+    void loadContextAndMenu();
 
     return () => controller.abort();
   }, [storeCode, tableCode]);
+
+  useEffect(() => {
+    if (menu.length === 0 || currentTableItems.length === 0) {
+      return;
+    }
+
+    setCart((current) =>
+      current.length > 0
+        ? current
+        : hydrateCartFromActiveOrder(
+            {
+              activeOrderId: currentOrder?.activeOrderId ?? "submitted",
+              orderNo: currentOrder?.orderNo ?? (submittedOrders[0]?.orderNo ?? "submitted"),
+              storeId: currentOrder?.storeId ?? 0,
+              tableId: currentOrder?.tableId ?? 0,
+              tableCode,
+              orderSource: currentOrder?.orderSource ?? "QR",
+              status: currentOrder?.status ?? "SUBMITTED",
+              memberId: currentOrder?.memberId ?? null,
+              items: currentTableItems.map((item) => ({
+                skuId: item.skuId,
+                skuCode: item.skuCode,
+                skuName: item.skuName,
+                quantity: item.quantity,
+                unitPriceCents: item.unitPriceCents,
+                remark: item.remark,
+                lineTotalCents: item.lineTotalCents
+              })),
+              pricing: {
+                originalAmountCents: 0,
+                memberDiscountCents: 0,
+                promotionDiscountCents: 0,
+                payableAmountCents: currentTablePayable
+              }
+            },
+            menu,
+            categories,
+            activeCategory
+          )
+    );
+  }, [activeCategory, categories, currentOrder, currentTableItems, currentTablePayable, menu, submittedOrders, tableCode]);
 
   const addItem = (item: MenuItem) => {
     setCart((current) => {
@@ -263,30 +419,25 @@ export default function App() {
       return;
     }
 
+    if (incrementalSubmissionItems.length === 0) {
+      setSubmitError("没有新增菜品可提交");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError("");
 
     try {
-      const response = await fetch("/api/v1/orders/qr-submit", {
+      const response = await fetch("/api/v2/qr-ordering/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
           storeCode,
-          storeName,
           tableCode,
-          memberBound,
-          memberName: memberBound ? "Lina Chen" : null,
-          memberTier: memberBound ? "Gold" : null,
-          memberPhone: memberBound ? "13800000001" : null,
-          items: cart.map((item) => ({
-            productId: item.id,
-            productName: item.name,
-            quantity: item.quantity,
-            unitPriceCents: Math.round(item.price * 100),
-            memberPriceCents: item.memberPrice ? Math.round(item.memberPrice * 100) : null
-          }))
+          memberId: null,
+          items: incrementalSubmissionItems
         })
       });
 
@@ -299,28 +450,93 @@ export default function App() {
         throw new Error(payload.message || "Unable to submit order");
       }
 
+      let latestActiveOrder: ActiveOrderDto | null = null;
+      const refreshedContextResponse = await fetch(
+        `/api/v2/qr-ordering/context?storeCode=${encodeURIComponent(storeCode)}&tableCode=${encodeURIComponent(tableCode)}`
+      );
+      if (refreshedContextResponse.ok) {
+        const refreshedContextPayload = (await refreshedContextResponse.json()) as ApiResponse<QrContextResponse>;
+        if (refreshedContextPayload.code === 0 && refreshedContextPayload.data) {
+          latestActiveOrder = refreshedContextPayload.data.currentActiveOrder ?? null;
+          setCurrentOrder(latestActiveOrder);
+          setSubmittedOrders(refreshedContextPayload.data.submittedOrders ?? []);
+          const latestItems =
+            (refreshedContextPayload.data.submittedOrders ?? []).flatMap((order) => order.items);
+          if (latestItems.length > 0 || latestActiveOrder) {
+            setCart(
+              hydrateCartFromActiveOrder(
+                latestActiveOrder ?? {
+                  activeOrderId: payload.data.activeOrderId,
+                  orderNo: payload.data.orderNo,
+                  storeId: refreshedContextPayload.data.storeId,
+                  tableId: refreshedContextPayload.data.tableId,
+                  tableCode: refreshedContextPayload.data.tableCode,
+                  orderSource: "QR",
+                  status: payload.data.status,
+                  memberId: null,
+                  items: latestItems.length > 0
+                    ? latestItems.map((item) => ({
+                        skuId: item.skuId,
+                        skuCode: item.skuCode,
+                        skuName: item.skuName,
+                        quantity: item.quantity,
+                        unitPriceCents: item.unitPriceCents,
+                        remark: item.remark,
+                        lineTotalCents: item.lineTotalCents
+                      }))
+                    : cart.map((item) => ({
+                        skuId: item.skuId,
+                        skuCode: item.skuCode,
+                        skuName: item.name,
+                        quantity: item.quantity,
+                        unitPriceCents: Math.round(item.price * 100),
+                        remark: "",
+                        lineTotalCents: Math.round(item.price * 100) * item.quantity
+                      })),
+                  pricing: {
+                    originalAmountCents: 0,
+                    memberDiscountCents: 0,
+                    promotionDiscountCents: 0,
+                    payableAmountCents: payload.data.payableAmountCents
+                  }
+                },
+                menu,
+                categories,
+                activeCategory
+              )
+            );
+          }
+        }
+      }
+
       setSubmitResult(payload.data);
-      setCurrentOrder({
-        orderNo: payload.data.orderNo,
-        queueNo: payload.data.queueNo,
-        storeCode: payload.data.storeCode,
-        storeName: payload.data.storeName,
-        tableCode: payload.data.tableCode,
-        settlementStatus: payload.data.settlementStatus,
-        memberName: payload.data.memberName,
-        memberTier: payload.data.memberTier,
-        originalAmountCents: payload.data.originalAmountCents,
-        memberDiscountCents: payload.data.memberDiscountCents,
-        promotionDiscountCents: payload.data.promotionDiscountCents,
-        payableAmountCents: payload.data.payableAmountCents,
-        items: cart.map((item) => ({
-          productId: item.id,
-          productName: item.name,
-          quantity: item.quantity,
-          unitPriceCents: Math.round(item.price * 100),
-          memberPriceCents: item.memberPrice ? Math.round(item.memberPrice * 100) : null
-        }))
-      });
+      if (!latestActiveOrder) {
+        setCurrentOrder({
+          activeOrderId: payload.data.activeOrderId,
+          orderNo: payload.data.orderNo,
+          storeId: 0,
+          tableId: 0,
+          tableCode: payload.data.tableCode,
+          orderSource: "QR",
+          status: payload.data.status,
+          memberId: null,
+          items: cart.map((item) => ({
+            skuId: item.skuId,
+            skuCode: item.skuCode,
+            skuName: item.name,
+            quantity: item.quantity,
+            unitPriceCents: Math.round(item.price * 100),
+            remark: "",
+            lineTotalCents: Math.round(item.price * 100) * item.quantity
+          })),
+          pricing: {
+            originalAmountCents: Math.round(subtotal * 100),
+            memberDiscountCents: Math.round(memberDiscount * 100),
+            promotionDiscountCents: Math.round(promotionDiscount * 100),
+            payableAmountCents: payload.data.payableAmountCents
+          }
+        });
+      }
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to submit order");
     } finally {
@@ -334,7 +550,7 @@ export default function App() {
         <div className="mobile-shell success-shell">
           <div className="success-orb">✓</div>
           <p className="eyebrow">
-            {submitResult.storeName} · 桌号 {submitResult.tableCode}
+            {storeName} · 桌号 {submitResult.tableCode}
           </p>
           <h1>下单成功</h1>
           <p className="hero-copy">
@@ -344,7 +560,7 @@ export default function App() {
           <div className="success-cards">
             <article className="metric-card">
               <span>取号队列</span>
-              <strong>{submitResult.queueNo}</strong>
+              <strong>{submitResult.orderNo}</strong>
             </article>
             <article className="metric-card">
               <span>待收金额</span>
@@ -352,7 +568,7 @@ export default function App() {
             </article>
             <article className="metric-card">
               <span>会员身份</span>
-              <strong>{submitResult.memberTier ? `${submitResult.memberTier} 会员` : "散客"}</strong>
+              <strong>{memberBound ? "待绑定会员" : "散客"}</strong>
             </article>
           </div>
 
@@ -390,16 +606,16 @@ export default function App() {
           </button>
         </section>
 
-        {currentOrder ? (
+        {currentOrder || submittedOrders.length > 0 ? (
           <section className="current-order-banner">
-            <div>
-              <p className="eyebrow">当前桌台订单</p>
-              <h2>{currentOrder.queueNo}</h2>
-              <p>
-                {currentOrder.items.length} 件商品 · 待前台结账 · 待收 {money(currentOrder.payableAmountCents / 100)}
-              </p>
-            </div>
-            <span className="table-order-state">进行中</span>
+          <div>
+            <p className="eyebrow">当前桌台订单</p>
+            <h2>{submittedOrders[0]?.orderNo ?? currentOrder?.orderNo ?? `${tableCode}-ACTIVE`}</h2>
+            <p>
+              {currentTableItems.length} 件商品 · 待前台结账 · 待收 {money(currentTablePayable / 100)}
+            </p>
+          </div>
+          <span className="table-order-state">进行中</span>
           </section>
         ) : null}
 

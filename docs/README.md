@@ -32,6 +32,10 @@
 - `26-v2-acceptance-document.md`
 - `27-feature-completion-checklist.md`
 - `28-v2-day-1-progress-note.md`
+- `29-kitchen-fulfillment-requirements.md`
+- `30-kitchen-status-model.md`
+- `31-kitchen-display-flow.md`
+- `32-table-session-and-multi-order-model.md`
 
 建议阅读顺序：
 
@@ -63,3 +67,7 @@
 26. `26-v2-acceptance-document.md`
 27. `27-feature-completion-checklist.md`
 28. `28-v2-day-1-progress-note.md`
+29. `29-kitchen-fulfillment-requirements.md`
+30. `30-kitchen-status-model.md`
+31. `31-kitchen-display-flow.md`
+32. `32-table-session-and-multi-order-model.md`
