@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Category = "Popular" | "Meals" | "Snacks" | "Drinks" | "Desserts";
 
@@ -38,6 +38,28 @@ type QrSubmitResponse = {
   payableAmountCents: number;
 };
 
+type QrCurrentOrderResponse = {
+  orderNo: string;
+  queueNo: string;
+  storeCode: string;
+  storeName: string;
+  tableCode: string;
+  settlementStatus: string;
+  memberName: string | null;
+  memberTier: string | null;
+  originalAmountCents: number;
+  memberDiscountCents: number;
+  promotionDiscountCents: number;
+  payableAmountCents: number;
+  items: Array<{
+    productId: number | null;
+    productName: string;
+    quantity: number;
+    unitPriceCents: number;
+    memberPriceCents: number | null;
+  }>;
+};
+
 const menu: MenuItem[] = [
   { id: 1, name: "Signature Fried Rice", category: "Meals", price: 18, memberPrice: 16, description: "Wok fried rice with egg and scallion" },
   { id: 2, name: "Black Pepper Beef", category: "Meals", price: 34, memberPrice: 31, description: "Tender beef with pepper glaze", spicy: true },
@@ -74,6 +96,7 @@ export default function App() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitResult, setSubmitResult] = useState<QrSubmitResponse | null>(null);
+  const [currentOrder, setCurrentOrder] = useState<QrCurrentOrderResponse | null>(null);
 
   const visibleMenu = useMemo(
     () =>
@@ -92,6 +115,36 @@ export default function App() {
     : 0;
   const promotionDiscount = subtotal >= 60 ? 8 : 0;
   const payable = subtotal - memberDiscount - promotionDiscount;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadCurrentOrder = async () => {
+      try {
+        const response = await fetch(
+          `/api/v1/orders/qr-current?storeCode=${encodeURIComponent(storeCode)}&tableCode=${encodeURIComponent(tableCode)}`,
+          { signal: controller.signal }
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as ApiResponse<QrCurrentOrderResponse | null>;
+        if (payload.code === 0) {
+          setCurrentOrder(payload.data ?? null);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+      }
+    };
+
+    void loadCurrentOrder();
+
+    return () => controller.abort();
+  }, [storeCode, tableCode]);
 
   const addItem = (item: MenuItem) => {
     setCart((current) => {
@@ -154,6 +207,27 @@ export default function App() {
       }
 
       setSubmitResult(payload.data);
+      setCurrentOrder({
+        orderNo: payload.data.orderNo,
+        queueNo: payload.data.queueNo,
+        storeCode: payload.data.storeCode,
+        storeName: payload.data.storeName,
+        tableCode: payload.data.tableCode,
+        settlementStatus: payload.data.settlementStatus,
+        memberName: payload.data.memberName,
+        memberTier: payload.data.memberTier,
+        originalAmountCents: payload.data.originalAmountCents,
+        memberDiscountCents: payload.data.memberDiscountCents,
+        promotionDiscountCents: payload.data.promotionDiscountCents,
+        payableAmountCents: payload.data.payableAmountCents,
+        items: cart.map((item) => ({
+          productId: item.id,
+          productName: item.name,
+          quantity: item.quantity,
+          unitPriceCents: Math.round(item.price * 100),
+          memberPriceCents: item.memberPrice ? Math.round(item.memberPrice * 100) : null
+        }))
+      });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Unable to submit order");
     } finally {
@@ -227,6 +301,19 @@ export default function App() {
             {memberBound ? "Switch to Guest" : "Bind Member"}
           </button>
         </section>
+
+        {currentOrder ? (
+          <section className="current-order-banner">
+            <div>
+              <p className="eyebrow">Current table order</p>
+              <h2>{currentOrder.queueNo}</h2>
+              <p>
+                {currentOrder.items.length} items · Pending settlement · Payable {money(currentOrder.payableAmountCents / 100)}
+              </p>
+            </div>
+            <span className="table-order-state">Open</span>
+          </section>
+        ) : null}
 
         <section className="category-row">
           {categories.map((category) => (

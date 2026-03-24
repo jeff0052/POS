@@ -50,6 +50,24 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at DATETIME
 );
 
+CREATE TABLE IF NOT EXISTS qr_table_orders (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_no VARCHAR(64) NOT NULL,
+  queue_no VARCHAR(64) NOT NULL,
+  store_code VARCHAR(64) NOT NULL,
+  store_name VARCHAR(100) NOT NULL,
+  table_code VARCHAR(64) NOT NULL,
+  settlement_status VARCHAR(32) NOT NULL,
+  member_name VARCHAR(100),
+  member_tier VARCHAR(64),
+  original_amount_cents BIGINT NOT NULL,
+  member_discount_cents BIGINT NOT NULL DEFAULT 0,
+  promotion_discount_cents BIGINT NOT NULL DEFAULT 0,
+  payable_amount_cents BIGINT NOT NULL,
+  items_json TEXT,
+  created_at DATETIME NOT NULL
+);
+
 INSERT INTO stores (id, store_name, store_code, address, phone, status, deleted)
 VALUES (1001, 'Demo Store', 'STORE1001', 'Shanghai', '13800000000', 'ENABLED', 0)
 ON DUPLICATE KEY UPDATE store_name = VALUES(store_name);

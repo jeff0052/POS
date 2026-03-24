@@ -161,6 +161,39 @@ input {
   box-shadow: var(--shadow);
 }
 
+.current-order-banner {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(30, 44, 63, 0.95), rgba(53, 72, 99, 0.9));
+  color: #fff;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: var(--shadow);
+}
+
+.current-order-banner .eyebrow,
+.current-order-banner p {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.current-order-banner h2 {
+  margin: 6px 0 4px;
+}
+
+.table-order-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .soft-button {
   border-radius: 16px;
   padding: 12px 14px;
