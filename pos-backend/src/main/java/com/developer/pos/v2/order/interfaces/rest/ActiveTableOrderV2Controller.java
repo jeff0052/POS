@@ -9,6 +9,7 @@ import com.developer.pos.v2.order.application.query.GetActiveTableOrderQuery;
 import com.developer.pos.v2.order.application.service.ActiveTableOrderApplicationService;
 import com.developer.pos.v2.order.interfaces.rest.request.ReplaceActiveTableOrderItemsRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -74,5 +75,11 @@ public class ActiveTableOrderV2Controller implements V2Api {
     @PostMapping("/{activeOrderId}/submit-to-kitchen")
     public ApiResponse<OrderStageTransitionDto> submitToKitchen(@PathVariable String activeOrderId) {
         return ApiResponse.success(activeTableOrderApplicationService.submitToKitchen(activeOrderId));
+    }
+
+    @DeleteMapping("/{activeOrderId}/empty-draft")
+    public ApiResponse<Boolean> deleteEmptyDraft(@PathVariable String activeOrderId) {
+        activeTableOrderApplicationService.deleteEmptyDraft(activeOrderId);
+        return ApiResponse.success(true);
     }
 }

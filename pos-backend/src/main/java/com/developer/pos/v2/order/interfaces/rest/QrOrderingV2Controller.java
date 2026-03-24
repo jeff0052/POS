@@ -3,10 +3,13 @@ package com.developer.pos.v2.order.interfaces.rest;
 import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
 import com.developer.pos.v2.order.application.command.SubmitQrOrderingCommand;
+import com.developer.pos.v2.order.application.dto.QrOrderingContextDto;
 import com.developer.pos.v2.order.application.dto.QrOrderingSubmitResultDto;
 import com.developer.pos.v2.order.application.service.ActiveTableOrderApplicationService;
 import com.developer.pos.v2.order.interfaces.rest.request.QrOrderingSubmitRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +23,14 @@ public class QrOrderingV2Controller implements V2Api {
 
     public QrOrderingV2Controller(ActiveTableOrderApplicationService activeTableOrderApplicationService) {
         this.activeTableOrderApplicationService = activeTableOrderApplicationService;
+    }
+
+    @GetMapping("/context")
+    public ApiResponse<QrOrderingContextDto> getContext(
+            @RequestParam String storeCode,
+            @RequestParam String tableCode
+    ) {
+        return ApiResponse.success(activeTableOrderApplicationService.getQrOrderingContext(storeCode, tableCode));
     }
 
     @PostMapping("/submit")

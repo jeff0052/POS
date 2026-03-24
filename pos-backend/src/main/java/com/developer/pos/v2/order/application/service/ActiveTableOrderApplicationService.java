@@ -6,6 +6,7 @@ import com.developer.pos.v2.order.application.command.ReplaceActiveTableOrderIte
 import com.developer.pos.v2.order.application.command.SubmitQrOrderingCommand;
 import com.developer.pos.v2.order.application.dto.ActiveTableOrderDto;
 import com.developer.pos.v2.order.application.dto.OrderStageTransitionDto;
+import com.developer.pos.v2.order.application.dto.QrOrderingContextDto;
 import com.developer.pos.v2.order.application.dto.QrOrderingSubmitResultDto;
 import com.developer.pos.v2.order.application.query.GetActiveTableOrderQuery;
 import com.developer.pos.v2.order.domain.source.OrderSource;
@@ -56,6 +57,30 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .orElse(null);
     }
 
+    @Transactional(readOnly = true)
+    public QrOrderingContextDto getQrOrderingContext(String storeCode, String tableCode) {
+        StoreEntity store = storeLookupRepository.findByStoreCode(storeCode)
+                .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeCode));
+        StoreTableEntity table = storeTableRepository.findByStoreIdAndTableCode(store.getId(), tableCode)
+                .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableCode));
+
+        ActiveTableOrderDto currentActiveOrder = activeTableOrderRepository.findByStoreIdAndTableId(store.getId(), table.getId())
+                .filter(entity -> entity.getStatus() != ActiveOrderStatus.SETTLED)
+                .map(this::toDto)
+                .orElse(null);
+
+        return new QrOrderingContextDto(
+                store.getId(),
+                store.getStoreCode(),
+                store.getStoreName(),
+                table.getId(),
+                table.getTableCode(),
+                table.getTableName(),
+                table.getTableStatus(),
+                currentActiveOrder
+        );
+    }
+
     @Transactional
     public ActiveTableOrderDto replaceItems(ReplaceActiveTableOrderItemsCommand command) {
         StoreEntity store = storeRepository.findById(command.storeId())
@@ -98,6 +123,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
         entity.setPayableAmountCents(originalAmount);
 
         ActiveTableOrderEntity saved = activeTableOrderRepository.save(entity);
+        table.setTableStatus("ORDERING");
+        storeTableRepository.save(table);
         return toDto(saved);
     }
 
@@ -139,6 +166,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
         entity.setPayableAmountCents(originalAmount);
 
         ActiveTableOrderEntity saved = activeTableOrderRepository.save(entity);
+        table.setTableStatus("ORDERING");
+        storeTableRepository.save(table);
 
         int totalItemCount = saved.getItems().stream()
                 .mapToInt(ActiveTableOrderItemEntity::getQuantity)
@@ -192,6 +221,28 @@ public class ActiveTableOrderApplicationService implements UseCase {
         storeTableRepository.save(table);
 
         return new OrderStageTransitionDto(saved.getActiveOrderId(), saved.getStatus().name());
+    }
+
+    @Transactional
+    public void deleteEmptyDraft(String activeOrderId) {
+        ActiveTableOrderEntity entity = activeTableOrderRepository.findByActiveOrderId(activeOrderId)
+                .orElseThrow(() -> new IllegalArgumentException("Active order not found: " + activeOrderId));
+
+        if (entity.getStatus() != ActiveOrderStatus.DRAFT) {
+            throw new IllegalStateException("Only draft active orders can be deleted.");
+        }
+
+        if (!entity.getItems().isEmpty()) {
+            throw new IllegalStateException("Only empty draft active orders can be deleted.");
+        }
+
+        StoreTableEntity table = storeTableRepository.findByIdAndStoreId(entity.getTableId(), entity.getStoreId())
+                .orElseThrow(() -> new IllegalStateException("Table missing for active order: " + entity.getId()));
+
+        activeTableOrderRepository.delete(entity);
+
+        table.setTableStatus("AVAILABLE");
+        storeTableRepository.save(table);
     }
 
     private ActiveTableOrderEntity createEntity(
