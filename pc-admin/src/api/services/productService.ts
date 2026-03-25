@@ -1,27 +1,25 @@
-import { apiGet } from "../client";
+import { apiGetV2 } from "../client";
 import { USE_MOCK_API } from "../config";
 import * as mockApi from "../mockApi";
 import type { Product } from "../../types";
 
-interface ProductListResponse {
-  list: Array<{
-    id: number;
-    name: string;
-    barcode: string;
-    priceCents: number;
-    stockQty: number;
-    status: "ENABLED" | "DISABLED";
-    categoryName?: string;
-  }>;
-}
+type ProductListResponse = Array<{
+  id: number;
+  name: string;
+  barcode: string;
+  priceCents: number;
+  stockQty: number;
+  status: "ENABLED" | "DISABLED";
+  categoryName?: string;
+}>;
 
 export async function getProducts(): Promise<Product[]> {
   if (USE_MOCK_API) {
     return mockApi.getProducts();
   }
 
-  const response = await apiGet<ProductListResponse>("/products?storeId=1001&page=1&pageSize=50");
-  return response.list.map((item) => ({
+  const response = await apiGetV2<ProductListResponse>("/admin/catalog/products?storeCode=1001");
+  return response.map((item) => ({
     id: item.id,
     name: item.name,
     barcode: item.barcode,

@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.developer.pos.ui.model.ActiveOrderStage
 import com.developer.pos.ui.model.PaymentScenarioStore
 import com.developer.pos.ui.viewmodel.CashierViewModel
 
@@ -34,6 +35,7 @@ fun PaymentConfirmScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scenario = PaymentScenarioStore.current
     val payableAmountCents = if (scenario.payableAmountCents > 0L) scenario.payableAmountCents else uiState.payableAmountCents
+    val currentStage = if (scenario.source == "QR") ActiveOrderStage.PENDING_SETTLEMENT else uiState.activeOrderStage
 
     Column(
         modifier = Modifier
@@ -63,6 +65,10 @@ fun PaymentConfirmScreen(
                         onClick = {},
                         label = { Text(scenario.source) },
                         colors = AssistChipDefaults.assistChipColors()
+                    )
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(currentStage.label) }
                     )
                     scenario.tableCode?.let {
                         AssistChip(
@@ -149,13 +155,35 @@ fun PaymentConfirmScreen(
 
         Button(
             onClick = {
+                if (scenario.source != "QR") {
+                    viewModel.moveToPendingSettlement()
+                }
                 viewModel.prepareMockPayment()
                 onStartPayment()
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = uiState.cartItems.isNotEmpty() || scenario.source == "QR"
+            enabled = (uiState.cartItems.isNotEmpty() || scenario.source == "QR") &&
+                currentStage != ActiveOrderStage.SETTLED
         ) {
-            Text(if (scenario.source == "QR") "Collect Payment at Cashier" else "Start Cashier Settlement")
+            Text(
+                when {
+                    scenario.source == "QR" -> "Collect Payment at Cashier"
+                    currentStage == ActiveOrderStage.DRAFT -> "Move to Cashier Settlement"
+                    currentStage == ActiveOrderStage.SUBMITTED -> "Open Cashier Settlement"
+                    currentStage == ActiveOrderStage.PENDING_SETTLEMENT -> "Collect Payment at Cashier"
+                    else -> "Order Already Settled"
+                }
+            )
+        }
+
+        if (scenario.source != "QR" && currentStage == ActiveOrderStage.DRAFT) {
+            OutlinedButton(
+                onClick = viewModel::sendToKitchen,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = uiState.cartItems.isNotEmpty()
+            ) {
+                Text("Send to Kitchen First")
+            }
         }
     }
 }

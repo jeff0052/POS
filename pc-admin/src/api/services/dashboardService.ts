@@ -1,43 +1,40 @@
-import { apiGet } from "../client";
+import { apiGetV2 } from "../client";
 import { USE_MOCK_API } from "../config";
 import * as mockApi from "../mockApi";
 import type { DashboardSummary, Order, SalesReportSummary } from "../../types";
 
-interface OrderListResponse {
-  list: Array<{
-    id: number;
-    orderNo: string;
-    paidAmountCents: number;
-    originalAmountCents?: number;
-    memberDiscountCents?: number;
-    promotionDiscountCents?: number;
-    payableAmountCents?: number;
-    orderStatus: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
-    paymentMethod?: "CASH" | "SDK_PAY";
-    createdAt: number | string;
-    cashier?: string;
-    printStatus?: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
-    tableCode?: string;
-    orderType?: "POS" | "QR";
-    memberName?: string;
-    memberTier?: string;
-    giftItems?: string[];
-  }>;
-  total: number;
-}
+type RecentOrderResponseItem = {
+  id: number;
+  orderNo: string;
+  paidAmountCents: number;
+  originalAmountCents?: number;
+  memberDiscountCents?: number;
+  promotionDiscountCents?: number;
+  payableAmountCents?: number;
+  orderStatus: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
+  paymentMethod?: "CASH" | "SDK_PAY";
+  createdAt: number | string;
+  cashier?: string;
+  printStatus?: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
+  tableCode?: string;
+  orderType?: "POS" | "QR";
+  memberName?: string;
+  memberTier?: string;
+  giftItems?: string[];
+};
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   if (USE_MOCK_API) {
     return mockApi.getDashboardSummary();
   }
 
-  const summary = await apiGet<{
+  const summary = await apiGetV2<{
     totalRevenueCents: number;
     orderCount: number;
     refundAmountCents: number;
     cashAmountCents: number;
     sdkPayAmountCents: number;
-  }>("/reports/daily-summary?storeId=1001&date=2026-03-20");
+  }>("/reports/daily-summary?storeId=101");
 
   return {
     revenue: centsToText(summary.totalRevenueCents),
@@ -52,8 +49,8 @@ export async function getRecentOrders(): Promise<Order[]> {
     return mockApi.getOrders();
   }
 
-  const response = await apiGet<OrderListResponse>("/orders?storeId=1001&page=1&pageSize=10");
-  return response.list.map((item) => ({
+  const response = await apiGetV2<RecentOrderResponseItem[]>("/admin/orders?storeId=101");
+  return response.map((item) => ({
     id: item.id,
     orderNo: item.orderNo,
     amount: centsToText(item.paidAmountCents),
@@ -80,14 +77,14 @@ export async function getSalesReportSummary(): Promise<SalesReportSummary> {
     return mockApi.getSalesReportSummary();
   }
 
-  const summary = await apiGet<{
+  const summary = await apiGetV2<{
     totalSalesCents: number;
     totalDiscountCents: number;
     memberSalesCents: number;
     rechargeSalesCents: number;
     tableTurnoverRate: number;
     pendingGtoBatches: number;
-  }>("/reports/sales-summary");
+  }>("/reports/sales-summary?storeId=101&merchantId=1");
 
   return {
     sales: centsToText(summary.totalSalesCents),

@@ -25,6 +25,7 @@ import com.developer.pos.ui.viewmodel.CashierViewModel
 @Composable
 fun PosApp() {
     val navController = rememberNavController()
+    val cashierViewModel: CashierViewModel = hiltViewModel()
 
     NavHost(
         navController = navController,
@@ -48,28 +49,25 @@ fun PosApp() {
             )
         }
         composable(Routes.Cashier.route) {
-            val viewModel: CashierViewModel = hiltViewModel()
             CashierScreen(
-                viewModel = viewModel,
+                viewModel = cashierViewModel,
                 onBack = { navController.popBackStack() },
                 onProceedToPayment = {
-                    PaymentScenarioStore.current = PaymentScenario.fromPos(viewModel.uiState.value.payableAmountCents)
+                    PaymentScenarioStore.current = PaymentScenario.fromPos(cashierViewModel.uiState.value.payableAmountCents)
                     navController.navigate(Routes.PaymentConfirm.route)
                 }
             )
         }
         composable(Routes.PaymentConfirm.route) {
-            val viewModel: CashierViewModel = hiltViewModel()
             PaymentConfirmScreen(
-                viewModel = viewModel,
+                viewModel = cashierViewModel,
                 onBack = { navController.popBackStack() },
                 onStartPayment = { navController.navigate(Routes.PaymentProcessing.route) }
             )
         }
         composable(Routes.PaymentProcessing.route) {
-            val viewModel: CashierViewModel = hiltViewModel()
             PaymentProcessingScreen(
-                viewModel = viewModel,
+                viewModel = cashierViewModel,
                 onPaymentSuccess = {
                     navController.navigate(Routes.PaymentSuccess.route) {
                         popUpTo(Routes.PaymentConfirm.route) { inclusive = true }
@@ -83,11 +81,10 @@ fun PosApp() {
             )
         }
         composable(Routes.PaymentSuccess.route) {
-            val viewModel: CashierViewModel = hiltViewModel()
             PaymentSuccessScreen(
-                viewModel = viewModel,
+                viewModel = cashierViewModel,
                 onFinish = {
-                    viewModel.completeMockPayment()
+                    cashierViewModel.resetForNextOrder()
                     PaymentScenarioStore.current = PaymentScenario.fromPos(0L)
                     navController.navigate(Routes.Home.route) {
                         popUpTo(Routes.Home.route) { inclusive = true }
@@ -96,9 +93,8 @@ fun PosApp() {
             )
         }
         composable(Routes.PaymentFailure.route) {
-            val viewModel: CashierViewModel = hiltViewModel()
             PaymentFailureScreen(
-                viewModel = viewModel,
+                viewModel = cashierViewModel,
                 onRetry = { navController.navigate(Routes.PaymentProcessing.route) },
                 onBackToCashier = { navController.popBackStack(Routes.Cashier.route, false) }
             )

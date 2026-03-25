@@ -1,9 +1,10 @@
 import type { ApiResponse } from "../types";
 
 const API_BASE = "/api/v1";
+const V2_API_BASE = "/api/v2";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+async function request<T>(base: string, path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${base}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {})
@@ -29,18 +30,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function apiGet<T>(path: string): Promise<T> {
-  return request<T>(path);
+  return request<T>(API_BASE, path);
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, {
+  return request<T>(API_BASE, path, {
     method: "POST",
     body: JSON.stringify(body)
   });
 }
 
 export function apiPut<T>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, {
+  return request<T>(API_BASE, path, {
+    method: "PUT",
+    body: JSON.stringify(body)
+  });
+}
+
+export function apiGetV2<T>(path: string): Promise<T> {
+  return request<T>(V2_API_BASE, path);
+}
+
+export function apiPostV2<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(V2_API_BASE, path, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+}
+
+export function apiPutV2<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(V2_API_BASE, path, {
     method: "PUT",
     body: JSON.stringify(body)
   });

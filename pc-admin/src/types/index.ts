@@ -37,6 +37,7 @@ export interface OrderItem {
 
 export interface Order {
   id: number;
+  orderId?: string;
   orderNo: string;
   amount: string;
   status: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
@@ -45,6 +46,8 @@ export interface Order {
   cashier: string;
   printStatus: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
   items: OrderItem[];
+  storeId?: number;
+  tableId?: number;
   tableCode?: string;
   orderType?: "POS" | "QR";
   memberName?: string;

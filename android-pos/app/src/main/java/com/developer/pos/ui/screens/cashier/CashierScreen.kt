@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -54,6 +55,26 @@ fun CashierScreen(
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Current Order Stage", fontWeight = FontWeight.SemiBold)
+                AssistChip(
+                    onClick = {},
+                    label = { Text(uiState.activeOrderStage.label) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = uiState.syncStatus,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
             value = uiState.searchQuery,
             onValueChange = viewModel::updateSearchQuery,
@@ -143,12 +164,27 @@ fun CashierScreen(
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
+        OutlinedButton(
+            onClick = viewModel::sendToKitchen,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = uiState.cartItems.isNotEmpty() && uiState.activeOrderStage == com.developer.pos.ui.model.ActiveOrderStage.DRAFT
+        ) {
+            Text("Send to Kitchen")
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = onProceedToPayment,
             modifier = Modifier.fillMaxWidth(),
             enabled = uiState.cartItems.isNotEmpty()
         ) {
-            Text("Review Current Order")
+            Text(
+                when (uiState.activeOrderStage) {
+                    com.developer.pos.ui.model.ActiveOrderStage.DRAFT -> "Review Draft Order"
+                    com.developer.pos.ui.model.ActiveOrderStage.SUBMITTED -> "Review Submitted Order"
+                    com.developer.pos.ui.model.ActiveOrderStage.PENDING_SETTLEMENT -> "Open Cashier Settlement"
+                    com.developer.pos.ui.model.ActiveOrderStage.SETTLED -> "Review Settled Order"
+                }
+            )
         }
     }
 }

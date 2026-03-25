@@ -5,7 +5,10 @@ import androidx.room.Room
 import com.developer.pos.data.local.PosDatabase
 import com.developer.pos.data.local.dao.ProductDao
 import com.developer.pos.data.remote.ProductApi
+import com.developer.pos.data.remote.PosOrderApi
+import com.developer.pos.data.repository.PosOrderRepository
 import com.developer.pos.data.repository.ProductRepository
+import com.developer.pos.data.repository.impl.PosOrderRepositoryImpl
 import com.developer.pos.data.repository.impl.ProductRepositoryImpl
 import dagger.Module
 import dagger.Provides
@@ -49,7 +52,7 @@ object AppModule {
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://example.com/api/v1/")
+            .baseUrl("http://10.0.2.2:8094/api/v2/")
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -63,7 +66,19 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideProductRepository(productDao: ProductDao): ProductRepository {
-        return ProductRepositoryImpl(productDao)
+    fun providePosOrderApi(retrofit: Retrofit): PosOrderApi {
+        return retrofit.create(PosOrderApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideProductRepository(productDao: ProductDao, productApi: ProductApi): ProductRepository {
+        return ProductRepositoryImpl(productDao, productApi)
+    }
+
+    @Provides
+    @Singleton
+    fun providePosOrderRepository(posOrderApi: PosOrderApi): PosOrderRepository {
+        return PosOrderRepositoryImpl(posOrderApi)
     }
 }

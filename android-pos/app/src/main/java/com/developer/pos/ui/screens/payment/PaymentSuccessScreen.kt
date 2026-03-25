@@ -45,6 +45,7 @@ fun PaymentSuccessScreen(
                 )
                 Text("Order No: ${uiState.currentOrderNo}")
                 Text("Source: ${scenario.source}${scenario.tableCode?.let { " · $it" } ?: ""}")
+                Text("Order Stage: ${uiState.activeOrderStage.label}")
                 Text("Amount: CNY %.2f".format(payableAmountCents / 100.0))
                 Text(
                     if (scenario.memberTier != null) {

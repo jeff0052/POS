@@ -8,7 +8,7 @@ function getOrderStatusMeta(status: Order["status"]) {
     case "SUBMITTED":
       return { label: "Sent to Kitchen", color: "processing" };
     case "PENDING_SETTLEMENT":
-      return { label: "Pending Settlement", color: "gold" };
+      return { label: "Payment Pending", color: "gold" };
     case "PAID":
       return { label: "Paid", color: "green" };
     case "REFUNDED":

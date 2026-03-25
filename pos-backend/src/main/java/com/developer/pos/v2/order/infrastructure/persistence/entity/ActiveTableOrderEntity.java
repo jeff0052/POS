@@ -208,6 +208,10 @@ public class ActiveTableOrderEntity {
         this.payableAmountCents = payableAmountCents;
     }
 
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
+    }
+
     public List<ActiveTableOrderItemEntity> getItems() {
         return items;
     }

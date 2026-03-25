@@ -2,6 +2,7 @@ package com.developer.pos.data.repository.impl
 
 import com.developer.pos.data.local.dao.ProductDao
 import com.developer.pos.data.local.entity.ProductEntity
+import com.developer.pos.data.remote.ProductApi
 import com.developer.pos.data.repository.ProductRepository
 import com.developer.pos.domain.model.Product
 import javax.inject.Inject
@@ -9,7 +10,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class ProductRepositoryImpl @Inject constructor(
-    private val productDao: ProductDao
+    private val productDao: ProductDao,
+    private val productApi: ProductApi
 ) : ProductRepository {
     override fun observeProducts(): Flow<List<Product>> {
         return productDao.observeProducts().map { entities ->
@@ -20,12 +22,30 @@ class ProductRepositoryImpl @Inject constructor(
     override suspend fun seedIfEmpty() {
         if (productDao.count() > 0) return
 
+        val remoteItems = runCatching { productApi.getProducts().data }
+            .getOrNull()
+            ?.categories
+            ?.flatMap { category ->
+                category.items.map { item ->
+                    ProductEntity(
+                        id = item.skuId,
+                        storeId = 101,
+                        categoryId = category.categoryId,
+                        name = item.skuName,
+                        barcode = item.skuCode,
+                        priceCents = item.unitPriceCents,
+                        stockQty = 999,
+                        enabled = true
+                    )
+                }
+            }
+
         productDao.upsertAll(
-            listOf(
-                ProductEntity(1, 1, 1, "Coke", "001", 500, 100, true),
-                ProductEntity(2, 1, 1, "Fried Rice", "002", 1800, 50, true),
-                ProductEntity(3, 1, 2, "Noodles", "003", 1600, 40, true),
-                ProductEntity(4, 1, 2, "Milk Tea", "004", 1200, 70, true)
+            remoteItems?.takeIf { it.isNotEmpty() } ?: listOf(
+                ProductEntity(401, 101, 301, "Fried Rice", "fried-rice-default", 1250, 999, true),
+                ProductEntity(402, 101, 301, "Black Pepper Beef Rice", "black-pepper-beef-rice-default", 1850, 999, true),
+                ProductEntity(403, 101, 302, "Crispy Chicken Bites", "crispy-chicken-bites-default", 1600, 999, true),
+                ProductEntity(404, 101, 303, "White Peach Soda", "white-peach-soda-default", 1200, 999, true)
             )
         )
     }

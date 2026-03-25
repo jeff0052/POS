@@ -69,6 +69,9 @@ public class SubmittedOrderEntity {
     @Column(name = "settled_at")
     private OffsetDateTime settledAt;
 
+    @Column(name = "submitted_at", insertable = false, updatable = false)
+    private OffsetDateTime submittedAt;
+
     @OneToMany(mappedBy = "submittedOrder", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SubmittedOrderItemEntity> items = new ArrayList<>();
 
@@ -202,6 +205,10 @@ public class SubmittedOrderEntity {
 
     public void setSettledAt(OffsetDateTime settledAt) {
         this.settledAt = settledAt;
+    }
+
+    public OffsetDateTime getSubmittedAt() {
+        return submittedAt;
     }
 
     public List<SubmittedOrderItemEntity> getItems() {

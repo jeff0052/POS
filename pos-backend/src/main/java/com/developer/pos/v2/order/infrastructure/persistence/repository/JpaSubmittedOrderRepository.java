@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface JpaSubmittedOrderRepository extends JpaRepository<SubmittedOrderEntity, Long> {
     List<SubmittedOrderEntity> findByTableSessionIdAndSettlementStatusOrderByIdAsc(Long tableSessionId, String settlementStatus);
+
+    List<SubmittedOrderEntity> findAllByStoreIdOrderByIdDesc(Long storeId);
 }

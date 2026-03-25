@@ -12,7 +12,7 @@ function getOrderStatusMeta(status: Order["status"]) {
     case "SUBMITTED":
       return { label: "Sent to Kitchen", color: "processing" };
     case "PENDING_SETTLEMENT":
-      return { label: "Pending Settlement", color: "gold" };
+      return { label: "Payment Pending", color: "gold" };
     case "PAID":
       return { label: "Paid", color: "green" };
     case "REFUNDED":
@@ -88,7 +88,7 @@ export function OrdersPage() {
             options={[
               { label: "Draft", value: "DRAFT" },
               { label: "Sent to Kitchen", value: "SUBMITTED" },
-              { label: "Pending Settlement", value: "PENDING_SETTLEMENT" },
+              { label: "Payment Pending", value: "PENDING_SETTLEMENT" },
               { label: "Paid", value: "PAID" },
               { label: "Refunded", value: "REFUNDED" }
             ]}

@@ -1,0 +1,44 @@
+:root {
+  font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  color: #1f2933;
+  background: #f3f6fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(38, 99, 235, 0.08), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #eef3fa 100%);
+}
+
+.page-shell {
+  padding: 24px;
+}
+
+.page-title {
+  margin: 0 0 8px;
+}
+
+.page-subtitle {
+  margin: 0 0 20px;
+  color: #667085;
+}
+
+.platform-header {
+  background: rgba(255, 255, 255, 0.84);
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  backdrop-filter: blur(8px);
+}
