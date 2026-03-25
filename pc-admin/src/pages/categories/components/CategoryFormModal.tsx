@@ -11,7 +11,7 @@ export function CategoryFormModal({
   open: boolean;
   onClose: () => void;
   category: Category | null;
-  onSubmit: (values: CategoryFormValues) => void;
+  onSubmit: (values: CategoryFormValues) => Promise<void>;
 }) {
   const [form] = Form.useForm<CategoryFormValues>();
 
@@ -33,8 +33,8 @@ export function CategoryFormModal({
       <Form
         form={form}
         layout="vertical"
-        onFinish={(values) => {
-          onSubmit(values);
+        onFinish={async (values) => {
+          await onSubmit(values);
           message.success(category ? "Category draft updated" : "Category draft created");
           onClose();
         }}
@@ -54,7 +54,12 @@ export function CategoryFormModal({
           />
         </Form.Item>
         <Space>
-          <Button type="primary" htmlType="submit">
+          <Button
+            type="primary"
+            onClick={() => {
+              form.submit();
+            }}
+          >
             Save
           </Button>
           <Button onClick={onClose}>Cancel</Button>

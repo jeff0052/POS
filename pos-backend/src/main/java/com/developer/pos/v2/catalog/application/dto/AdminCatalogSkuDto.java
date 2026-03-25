@@ -1,14 +1,12 @@
 package com.developer.pos.v2.catalog.application.dto;
 
-public record AdminCatalogProductDto(
+public record AdminCatalogSkuDto(
         Long id,
-        Long categoryId,
+        Long productId,
         String name,
         String barcode,
         long priceCents,
-        int stockQty,
         String status,
-        String categoryName,
-        java.util.List<AdminCatalogSkuDto> skus
+        boolean available
 ) {
 }

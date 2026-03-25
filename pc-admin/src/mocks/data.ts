@@ -38,21 +38,43 @@ export const mockCategories: Category[] = [
 export const mockProducts: Product[] = [
   {
     id: 1,
+    categoryId: 1,
     name: "Coke",
     barcode: "692000000001",
     price: "CNY 5.00",
     stock: 100,
     status: "Enabled",
-    categoryName: "Drinks"
+    categoryName: "Drinks",
+    skus: [
+      {
+        id: 101,
+        code: "coke-default",
+        name: "Coke Default",
+        price: "CNY 5.00",
+        status: "Enabled",
+        available: true
+      }
+    ]
   },
   {
     id: 2,
+    categoryId: 2,
     name: "Fried Rice",
     barcode: "692000000002",
     price: "CNY 18.00",
     stock: 40,
     status: "Enabled",
-    categoryName: "Meals"
+    categoryName: "Meals",
+    skus: [
+      {
+        id: 201,
+        code: "fried-rice-default",
+        name: "Fried Rice Default",
+        price: "CNY 18.00",
+        status: "Enabled",
+        available: true
+      }
+    ]
   }
 ];
 
@@ -62,7 +84,7 @@ export const mockOrders: Order[] = [
     orderNo: "POS202603200001",
     amount: "CNY 28.00",
     status: "PAID",
-    payment: "SDK_PAY",
+    payment: "CARD_TERMINAL",
     time: "2026-03-20 09:21",
     cashier: "Amy",
     printStatus: "PRINT_SUCCESS",

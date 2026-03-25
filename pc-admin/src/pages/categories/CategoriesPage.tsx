@@ -1,6 +1,6 @@
 import { Alert, Button, Card, Input, Space, Table, Typography } from "antd";
 import { useMemo, useState } from "react";
-import { getCategories } from "../../api/services/categoryService";
+import { createCategory, getCategories, updateCategory } from "../../api/services/categoryService";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { Category } from "../../types";
 import { CategoryFormModal, type CategoryFormValues } from "./components/CategoryFormModal";
@@ -16,12 +16,12 @@ export function CategoriesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const query = useAsyncData(getCategories);
-  const [draftCategories, setDraftCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const data = useMemo(() => {
-    const list = draftCategories.length > 0 ? draftCategories : query.data ?? [];
+    const list = categories.length > 0 ? categories : query.data ?? [];
     if (!keyword.trim()) return list;
     return list.filter((item) => item.name.toLowerCase().includes(keyword.toLowerCase()));
-  }, [draftCategories, query.data, keyword]);
+  }, [categories, query.data, keyword]);
 
   return (
     <div className="page-shell">
@@ -70,19 +70,22 @@ export function CategoriesPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         category={selectedCategory}
-        onSubmit={(values: CategoryFormValues) => {
-          const current = draftCategories.length > 0 ? draftCategories : query.data ?? [];
-          const nextItem: Category = {
-            id: selectedCategory?.id ?? Date.now(),
+        onSubmit={async (values: CategoryFormValues) => {
+          const current = categories.length > 0 ? categories : query.data ?? [];
+          const payload = {
+            storeCode: "1001",
             name: values.name,
             sortOrder: values.sortOrder ?? 0,
-            status: values.status
+            enabled: values.status === "Enabled"
           };
+          const saved = selectedCategory
+            ? await updateCategory(selectedCategory.id, payload)
+            : await createCategory(payload);
 
           if (selectedCategory) {
-            setDraftCategories(current.map((item) => (item.id === selectedCategory.id ? nextItem : item)));
+            setCategories(current.map((item) => (item.id === selectedCategory.id ? saved : item)));
           } else {
-            setDraftCategories([nextItem, ...current]);
+            setCategories([saved, ...current]);
           }
         }}
       />

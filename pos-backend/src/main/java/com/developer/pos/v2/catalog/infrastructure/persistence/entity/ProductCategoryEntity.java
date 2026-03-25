@@ -2,6 +2,8 @@ package com.developer.pos.v2.catalog.infrastructure.persistence.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -10,6 +12,7 @@ import jakarta.persistence.Table;
 public class ProductCategoryEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "store_id", nullable = false)
@@ -28,6 +31,20 @@ public class ProductCategoryEntity {
     private int sortOrder;
 
     protected ProductCategoryEntity() {
+    }
+
+    public ProductCategoryEntity(
+            Long storeId,
+            String categoryCode,
+            String categoryName,
+            boolean active,
+            int sortOrder
+    ) {
+        this.storeId = storeId;
+        this.categoryCode = categoryCode;
+        this.categoryName = categoryName;
+        this.active = active;
+        this.sortOrder = sortOrder;
     }
 
     public Long getId() {
@@ -52,5 +69,12 @@ public class ProductCategoryEntity {
 
     public int getSortOrder() {
         return sortOrder;
+    }
+
+    public void update(String categoryCode, String categoryName, boolean active, int sortOrder) {
+        this.categoryCode = categoryCode;
+        this.categoryName = categoryName;
+        this.active = active;
+        this.sortOrder = sortOrder;
     }
 }

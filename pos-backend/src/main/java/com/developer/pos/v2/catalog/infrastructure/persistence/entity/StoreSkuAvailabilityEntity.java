@@ -2,6 +2,8 @@ package com.developer.pos.v2.catalog.infrastructure.persistence.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -10,6 +12,7 @@ import jakarta.persistence.Table;
 public class StoreSkuAvailabilityEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "store_id", nullable = false)
@@ -22,6 +25,12 @@ public class StoreSkuAvailabilityEntity {
     private boolean available;
 
     protected StoreSkuAvailabilityEntity() {
+    }
+
+    public StoreSkuAvailabilityEntity(Long storeId, Long skuId, boolean available) {
+        this.storeId = storeId;
+        this.skuId = skuId;
+        this.available = available;
     }
 
     public Long getId() {
@@ -38,5 +47,9 @@ public class StoreSkuAvailabilityEntity {
 
     public boolean isAvailable() {
         return available;
+    }
+
+    public void updateAvailability(boolean available) {
+        this.available = available;
     }
 }

@@ -15,14 +15,25 @@ export interface Category {
   status: "Enabled" | "Disabled";
 }
 
+export interface ProductSku {
+  id: number;
+  code: string;
+  name: string;
+  price: string;
+  status: "Enabled" | "Disabled";
+  available: boolean;
+}
+
 export interface Product {
   id: number;
+  categoryId?: number;
   name: string;
   barcode: string;
   price: string;
   stock: number;
   status: "Enabled" | "Disabled";
   categoryName: string;
+  skus: ProductSku[];
 }
 
 export interface OrderItem {
@@ -41,7 +52,13 @@ export interface Order {
   orderNo: string;
   amount: string;
   status: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
-  payment: "CASH" | "SDK_PAY" | "UNPAID";
+  payment:
+    | "CASH"
+    | "CARD_TERMINAL"
+    | "WECHAT_QR"
+    | "ALIPAY_QR"
+    | "PAYNOW_QR"
+    | "UNPAID";
   time: string;
   cashier: string;
   printStatus: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";

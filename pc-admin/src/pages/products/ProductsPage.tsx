@@ -1,7 +1,7 @@
 import { Alert, Button, Card, Input, Space, Table, Tag, Typography } from "antd";
 import { useMemo, useState } from "react";
 import { getCategories } from "../../api/services/categoryService";
-import { getProducts } from "../../api/services/productService";
+import { createProduct, getProducts, updateProduct } from "../../api/services/productService";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { Product } from "../../types";
 import { ProductFormDrawer, type ProductFormValues } from "./components/ProductFormDrawer";
@@ -26,12 +26,12 @@ export function ProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const query = useAsyncData(getProducts);
   const categoriesQuery = useAsyncData(getCategories);
-  const [draftProducts, setDraftProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const data = useMemo(() => {
-    const list = draftProducts.length > 0 ? draftProducts : query.data ?? [];
+    const list = products.length > 0 ? products : query.data ?? [];
     if (!keyword.trim()) return list;
     return list.filter((item) => item.name.toLowerCase().includes(keyword.toLowerCase()));
-  }, [draftProducts, query.data, keyword]);
+  }, [products, query.data, keyword]);
 
   return (
     <div className="page-shell">
@@ -84,22 +84,31 @@ export function ProductsPage() {
         onClose={() => setDrawerOpen(false)}
         product={selectedProduct}
         categories={categoriesQuery.data ?? []}
-        onSubmit={(values: ProductFormValues) => {
-          const current = draftProducts.length > 0 ? draftProducts : query.data ?? [];
-          const nextItem: Product = {
-            id: selectedProduct?.id ?? Date.now(),
+        onSubmit={async (values: ProductFormValues) => {
+          const current = products.length > 0 ? products : query.data ?? [];
+          const payload = {
+            storeCode: "1001",
+            categoryId: values.categoryId ?? 0,
             name: values.name,
-            barcode: values.barcode ?? "",
-            categoryName: values.categoryName ?? "-",
-            price: values.price ? `CNY ${values.price}` : "CNY 0.00",
-            stock: values.stock ?? 0,
-            status: values.status
+            barcode: values.barcode,
+            status: values.status === "Enabled" ? "ENABLED" as const : "DISABLED" as const,
+            skus: (values.skus ?? []).map((sku) => ({
+              skuId: sku.skuId,
+              skuCode: sku.skuCode,
+              name: sku.name,
+              priceCents: Math.round(Number(sku.price ?? "0") * 100),
+              status: sku.status === "Enabled" ? "ENABLED" as const : "DISABLED" as const,
+              available: sku.available
+            }))
           };
+          const saved = selectedProduct
+            ? await updateProduct(selectedProduct.id, payload)
+            : await createProduct(payload);
 
           if (selectedProduct) {
-            setDraftProducts(current.map((item) => (item.id === selectedProduct.id ? nextItem : item)));
+            setProducts(current.map((item) => (item.id === selectedProduct.id ? saved : item)));
           } else {
-            setDraftProducts([nextItem, ...current]);
+            setProducts([saved, ...current]);
           }
         }}
       />
