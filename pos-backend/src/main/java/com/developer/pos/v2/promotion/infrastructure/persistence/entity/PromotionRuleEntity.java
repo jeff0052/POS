@@ -1,7 +1,10 @@
 package com.developer.pos.v2.promotion.infrastructure.persistence.entity;
 
+import com.developer.pos.v2.common.entity.BaseAuditableEntity;
+import com.developer.pos.v2.mcp.ActionContextAuditListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -11,7 +14,8 @@ import java.time.OffsetDateTime;
 
 @Entity(name = "V2PromotionRuleEntity")
 @Table(name = "promotion_rules")
-public class PromotionRuleEntity {
+@EntityListeners(ActionContextAuditListener.class)
+public class PromotionRuleEntity extends BaseAuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
