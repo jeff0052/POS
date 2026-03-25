@@ -137,6 +137,11 @@ class DcsPaymentService @Inject constructor(
             )
         }
 
+        val initResult = ensureCapabilityInitialized()
+        if (!initResult.success) {
+            return@withContext initResult
+        }
+
         val merchantConfigCode = runCatching {
             configProvider?.setMerchantParams(buildMerchantParamsJson())
         }.getOrNull()
@@ -423,6 +428,11 @@ class DcsPaymentService @Inject constructor(
         }
     }
 
+    /**
+     * Connect to DCS service and grab providers.
+     * Following the HdAppProxy pattern: connect → get providers → done.
+     * init/config/sign are deferred to transaction time.
+     */
     private suspend fun connectInternal(): PaymentConnectionStatus = suspendCancellableCoroutine { continuation ->
         val sdk = DCSPaymentApi.getInstance()
         api = sdk
@@ -434,8 +444,7 @@ class DcsPaymentService @Inject constructor(
                 cardProvider = sdk.getDCSCardProvider()
                 queryTransactionProvider = sdk.getDCSQueryTransactionProvider()
 
-                val capability = capabilityProvider
-                if (capability == null || configProvider == null || paymentProvider == null || cardProvider == null || queryTransactionProvider == null) {
+                if (configProvider == null || paymentProvider == null || cardProvider == null || queryTransactionProvider == null) {
                     clearSdkState()
                     if (continuation.isActive) {
                         continuation.resume(
@@ -450,42 +459,16 @@ class DcsPaymentService @Inject constructor(
                     return
                 }
 
-                capability.init(
-                    BuildConfig.DCS_COUNTRY_CODE,
-                    BuildConfig.DCS_CURRENCY_CODE,
-                    object : InitListener.Stub() {
-                        override fun onSuccess() {
-                            if (continuation.isActive) {
-                                continuation.resume(
-                                    PaymentConnectionStatus(
-                                        available = true,
-                                        connected = true,
-                                        providerName = "DCS",
-                                        message = if (hasMerchantConfig()) {
-                                            "DCS connected and initialized"
-                                        } else {
-                                            "DCS connected. Merchant config still needs to be filled."
-                                        }
-                                    )
-                                )
-                            }
-                        }
-
-                        override fun onFailed(code: String?, message: String?) {
-                            clearSdkState()
-                            if (continuation.isActive) {
-                                continuation.resume(
-                                    PaymentConnectionStatus(
-                                        available = true,
-                                        connected = false,
-                                        providerName = "DCS",
-                                        message = message ?: "DCS init failed ($code)"
-                                    )
-                                )
-                            }
-                        }
-                    }
-                )
+                if (continuation.isActive) {
+                    continuation.resume(
+                        PaymentConnectionStatus(
+                            available = true,
+                            connected = true,
+                            providerName = "DCS",
+                            message = "DCS service connected, providers ready."
+                        )
+                    )
+                }
             }
 
             override fun onServiceDisconnected() {
@@ -515,6 +498,46 @@ class DcsPaymentService @Inject constructor(
                 }
             }
         })
+    }
+
+    /**
+     * Initialize DCS capability provider with country/currency codes.
+     * Called once before the first transaction, not during connect.
+     */
+    private var capabilityInitialized = false
+
+    private suspend fun ensureCapabilityInitialized(): PaymentResult {
+        if (capabilityInitialized) return PaymentResult(success = true)
+
+        val capability = capabilityProvider
+            ?: return PaymentResult(success = false, code = "DCS_CAPABILITY_UNAVAILABLE", message = "DCS capability provider is unavailable.")
+
+        return suspendCancellableCoroutine { continuation ->
+            capability.init(
+                BuildConfig.DCS_COUNTRY_CODE,
+                BuildConfig.DCS_CURRENCY_CODE,
+                object : InitListener.Stub() {
+                    override fun onSuccess() {
+                        capabilityInitialized = true
+                        if (continuation.isActive) {
+                            continuation.resume(PaymentResult(success = true))
+                        }
+                    }
+
+                    override fun onFailed(code: String?, message: String?) {
+                        if (continuation.isActive) {
+                            continuation.resume(
+                                PaymentResult(
+                                    success = false,
+                                    code = code ?: "DCS_INIT_FAILED",
+                                    message = message ?: "DCS capability init failed."
+                                )
+                            )
+                        }
+                    }
+                }
+            )
+        }
     }
 
     private suspend fun signIn(): PaymentResult = suspendCancellableCoroutine { continuation ->
@@ -608,28 +631,28 @@ class DcsPaymentService @Inject constructor(
                     finishWithTransactionResult(continuation, result)
                 }
 
-            override fun startRequest(message: String?) = Unit
-        }
+                override fun startRequest(message: String?) = Unit
+            }
 
-        provider.cardSaleTransaction(
-            orderNo,
-            amountCents,
-            0L,
-            object : CheckCardListener.Stub() {
-                override fun onFindMagCard(track2Data: String?) {
-                    runCatching { card.confirmCheckCard(cardFlowListener) }
-                        .onFailure { finishWithFailure(continuation, "DCS_MAG_CARD_FAILED", it.message) }
-                }
+            provider.cardSaleTransaction(
+                orderNo,
+                amountCents,
+                0L,
+                object : CheckCardListener.Stub() {
+                    override fun onFindMagCard(track2Data: String?) {
+                        runCatching { card.confirmCheckCard(cardFlowListener) }
+                            .onFailure { finishWithFailure(continuation, "DCS_MAG_CARD_FAILED", it.message) }
+                    }
 
-                override fun onFindContactlessCard(track2Data: String?) {
-                    runCatching { card.confirmCheckCard(cardFlowListener) }
-                        .onFailure { finishWithFailure(continuation, "DCS_CONTACTLESS_FAILED", it.message) }
-                }
+                    override fun onFindContactlessCard(track2Data: String?) {
+                        runCatching { card.confirmCheckCard(cardFlowListener) }
+                            .onFailure { finishWithFailure(continuation, "DCS_CONTACTLESS_FAILED", it.message) }
+                    }
 
-                override fun onFindContactCard(track2Data: String?) {
-                    runCatching { card.confirmCheckCard(cardFlowListener) }
-                        .onFailure { finishWithFailure(continuation, "DCS_CONTACT_CARD_FAILED", it.message) }
-                }
+                    override fun onFindContactCard(track2Data: String?) {
+                        runCatching { card.confirmCheckCard(cardFlowListener) }
+                            .onFailure { finishWithFailure(continuation, "DCS_CONTACT_CARD_FAILED", it.message) }
+                    }
 
                     override fun onError(code: String?, message: String?) {
                         finishWithFailure(continuation, code ?: "DCS_CHECK_CARD_ERROR", message)
@@ -790,6 +813,7 @@ class DcsPaymentService @Inject constructor(
         paymentProvider = null
         cardProvider = null
         queryTransactionProvider = null
+        capabilityInitialized = false
     }
 
     private fun parseQueryResult(raw: String?, orderNo: String): PaymentResult {
