@@ -1,7 +1,10 @@
 package com.developer.pos.v2.catalog.infrastructure.persistence.entity;
 
+import com.developer.pos.v2.common.entity.BaseAuditableEntity;
+import com.developer.pos.v2.mcp.ActionContextAuditListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -9,7 +12,8 @@ import jakarta.persistence.Table;
 
 @Entity(name = "V2SkuEntity")
 @Table(name = "skus")
-public class SkuEntity {
+@EntityListeners(ActionContextAuditListener.class)
+public class SkuEntity extends BaseAuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

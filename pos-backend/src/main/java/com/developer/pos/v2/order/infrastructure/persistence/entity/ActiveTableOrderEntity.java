@@ -1,10 +1,13 @@
 package com.developer.pos.v2.order.infrastructure.persistence.entity;
 
+import com.developer.pos.v2.common.entity.BaseAuditableEntity;
+import com.developer.pos.v2.mcp.ActionContextAuditListener;
 import com.developer.pos.v2.order.domain.source.OrderSource;
 import com.developer.pos.v2.order.domain.status.ActiveOrderStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
@@ -19,7 +22,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "active_table_orders")
-public class ActiveTableOrderEntity {
+@EntityListeners(ActionContextAuditListener.class)
+public class ActiveTableOrderEntity extends BaseAuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

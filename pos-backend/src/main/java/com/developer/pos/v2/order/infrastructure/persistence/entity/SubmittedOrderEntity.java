@@ -1,8 +1,11 @@
 package com.developer.pos.v2.order.infrastructure.persistence.entity;
 
+import com.developer.pos.v2.common.entity.BaseAuditableEntity;
+import com.developer.pos.v2.mcp.ActionContextAuditListener;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -15,7 +18,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "submitted_orders")
-public class SubmittedOrderEntity {
+@EntityListeners(ActionContextAuditListener.class)
+public class SubmittedOrderEntity extends BaseAuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
