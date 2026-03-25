@@ -15,6 +15,12 @@ management:
       exposure:
         include: health,info
 
+vibecash:
+  api-url: ${VIBECASH_API_URL:https://api.vibecash.dev}
+  secret: ${VIBECASH_SECRET:}
+  webhook-secret: ${VIBECASH_WEBHOOK_SECRET:}
+  currency: ${VIBECASH_CURRENCY:SGD}
+
 ---
 spring:
   config:

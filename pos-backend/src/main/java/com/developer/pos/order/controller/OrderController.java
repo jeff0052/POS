@@ -7,6 +7,7 @@ import com.developer.pos.order.dto.QrOrderSubmitRequest;
 import com.developer.pos.order.dto.QrOrderSubmitResponse;
 import com.developer.pos.order.dto.QrOrderSettleRequest;
 import com.developer.pos.order.dto.QrOrderUpdateRequest;
+import com.developer.pos.order.service.ActiveTableOrderService;
 import com.developer.pos.order.service.OrderService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderService orderService;
+    private final ActiveTableOrderService activeTableOrderService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, ActiveTableOrderService activeTableOrderService) {
         this.orderService = orderService;
+        this.activeTableOrderService = activeTableOrderService;
     }
 
     @GetMapping
@@ -34,7 +37,7 @@ public class OrderController {
 
     @PostMapping("/qr-submit")
     public ApiResponse<QrOrderSubmitResponse> submitQrOrder(@RequestBody QrOrderSubmitRequest request) {
-        return ApiResponse.success(orderService.submitQrOrder(request));
+        return ApiResponse.success(activeTableOrderService.submitQrOrder(request));
     }
 
     @GetMapping("/qr-current")
@@ -42,12 +45,12 @@ public class OrderController {
         @RequestParam String storeCode,
         @RequestParam String tableCode
     ) {
-        return ApiResponse.success(orderService.getCurrentQrOrder(storeCode, tableCode));
+        return ApiResponse.success(activeTableOrderService.getCurrentQrOrder(storeCode, tableCode));
     }
 
     @PutMapping("/qr-current")
     public ApiResponse<QrCurrentOrderResponse> updateCurrentQrOrder(@RequestBody QrOrderUpdateRequest request) {
-        return ApiResponse.success(orderService.updateCurrentQrOrder(request));
+        return ApiResponse.success(activeTableOrderService.updateCurrentQrOrder(request));
     }
 
     @DeleteMapping("/qr-current")
@@ -55,13 +58,13 @@ public class OrderController {
         @RequestParam String storeCode,
         @RequestParam String tableCode
     ) {
-        orderService.clearCurrentQrOrder(storeCode, tableCode);
+        activeTableOrderService.clearCurrentQrOrder(storeCode, tableCode);
         return ApiResponse.success(null);
     }
 
     @PostMapping("/qr-settle")
     public ApiResponse<Boolean> settleCurrentQrOrder(@RequestBody QrOrderSettleRequest request) {
-        orderService.settleCurrentQrOrder(request);
+        activeTableOrderService.settleCurrentQrOrder(request);
         return ApiResponse.success(true);
     }
 }

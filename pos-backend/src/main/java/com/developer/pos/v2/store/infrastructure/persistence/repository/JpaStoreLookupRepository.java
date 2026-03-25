@@ -11,7 +11,7 @@ public interface JpaStoreLookupRepository extends JpaRepository<StoreEntity, Lon
             value = """
                     select
                         s.id as id,
-                        0 as merchant_id,
+                        s.merchant_id as merchant_id,
                         s.store_code as store_code,
                         s.store_name as store_name
                     from stores s

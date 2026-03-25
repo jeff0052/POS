@@ -18,6 +18,25 @@ function getOrderStatusMeta(status: Order["status"]) {
   }
 }
 
+function getPaymentLabel(payment: Order["payment"]) {
+  switch (payment) {
+    case "CARD_TERMINAL":
+      return "Card Terminal";
+    case "WECHAT_QR":
+      return "WeChat QR";
+    case "ALIPAY_QR":
+      return "Alipay QR";
+    case "PAYNOW_QR":
+      return "PayNow QR";
+    case "CASH":
+      return "Cash";
+    case "UNPAID":
+      return "Unpaid";
+    default:
+      return payment;
+  }
+}
+
 export function OrderDetailDrawer({
   order,
   open,
@@ -45,7 +64,7 @@ export function OrderDetailDrawer({
                 {statusMeta?.label}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Payment">{order.payment}</Descriptions.Item>
+            <Descriptions.Item label="Payment">{getPaymentLabel(order.payment)}</Descriptions.Item>
             <Descriptions.Item label="Cashier">{order.cashier}</Descriptions.Item>
             <Descriptions.Item label="Member">
               {order.memberName ? `${order.memberName} / ${order.memberTier ?? "-"}` : "-"}
@@ -59,7 +78,7 @@ export function OrderDetailDrawer({
           </Typography.Title>
           <Descriptions bordered column={1} size="small">
             <Descriptions.Item label="Order No">{order.orderNo}</Descriptions.Item>
-            <Descriptions.Item label="Payment Method">{order.payment}</Descriptions.Item>
+            <Descriptions.Item label="Payment Method">{getPaymentLabel(order.payment)}</Descriptions.Item>
             <Descriptions.Item label="Current Status">{statusMeta?.label ?? order.status}</Descriptions.Item>
             <Descriptions.Item label="Print Status">{order.printStatus}</Descriptions.Item>
             <Descriptions.Item label="Gift Items">

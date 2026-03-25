@@ -38,6 +38,27 @@
 - 销售报表与 GTO
 - 四端角色边界逐步成型
 
+当前进度快照：
+
+- Overall：**约 60% - 65%**
+- `Stage 0 Prototype and Validation`：**Completed**
+- `Stage 1 Store Transaction MVP`：**约 80% - 85%**
+- `Stage 2 Merchant Operations Expansion`：**约 40%**
+- `Stage 3 Platform Control Center`：**约 20%**
+- `Stage 4 Production Hardening`：**约 10%**
+
+当前最强主线：
+
+- Ordering：**100%**
+- QR Ordering：**90%**
+- Cashier Settlement：**85%**
+- SKU / Catalog Admin Foundation：**70%**
+
+当前最主要残余风险：
+
+- Native Android 已完成 compile verification，但支付 provider 仍受 vendor / gateway 条件阻塞
+- Kitchen / KDS、Shift、Refund 仍未进入正式交付阶段
+
 ## 3. Product Evolution Stages
 
 ### Stage 0: Prototype and Validation

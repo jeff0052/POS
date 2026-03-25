@@ -7,7 +7,10 @@ import com.developer.pos.v2.settlement.application.command.CollectCashierSettlem
 import com.developer.pos.v2.settlement.application.dto.CashierSettlementResultDto;
 import com.developer.pos.v2.settlement.application.dto.SettlementPreviewDto;
 import com.developer.pos.v2.settlement.application.service.CashierSettlementApplicationService;
+import com.developer.pos.v2.settlement.application.dto.VibeCashPaymentAttemptDto;
+import com.developer.pos.v2.settlement.application.service.VibeCashPaymentApplicationService;
 import com.developer.pos.v2.settlement.interfaces.rest.request.CollectCashierSettlementRequest;
+import com.developer.pos.v2.settlement.interfaces.rest.request.StartVibeCashPaymentRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,9 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class TableSettlementV2Controller implements V2Api {
 
     private final CashierSettlementApplicationService cashierSettlementApplicationService;
+    private final VibeCashPaymentApplicationService vibeCashPaymentApplicationService;
 
-    public TableSettlementV2Controller(CashierSettlementApplicationService cashierSettlementApplicationService) {
+    public TableSettlementV2Controller(
+            CashierSettlementApplicationService cashierSettlementApplicationService,
+            VibeCashPaymentApplicationService vibeCashPaymentApplicationService
+    ) {
         this.cashierSettlementApplicationService = cashierSettlementApplicationService;
+        this.vibeCashPaymentApplicationService = vibeCashPaymentApplicationService;
     }
 
     @GetMapping("/preview")
@@ -53,6 +61,28 @@ public class TableSettlementV2Controller implements V2Api {
                                 request.collectedAmountCents()
                         )
                 )
+        );
+    }
+
+    @PostMapping("/vibecash")
+    public ApiResponse<VibeCashPaymentAttemptDto> startVibeCashPayment(
+            @PathVariable Long storeId,
+            @PathVariable Long tableId,
+            @Valid @RequestBody StartVibeCashPaymentRequest request
+    ) {
+        return ApiResponse.success(
+                vibeCashPaymentApplicationService.startPayment(storeId, tableId, request.paymentScheme())
+        );
+    }
+
+    @GetMapping("/attempts/{paymentAttemptId}")
+    public ApiResponse<VibeCashPaymentAttemptDto> getVibeCashPaymentAttempt(
+            @PathVariable Long storeId,
+            @PathVariable Long tableId,
+            @PathVariable String paymentAttemptId
+    ) {
+        return ApiResponse.success(
+                vibeCashPaymentApplicationService.getAttempt(storeId, tableId, paymentAttemptId)
         );
     }
 }

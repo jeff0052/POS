@@ -22,6 +22,25 @@ function getOrderStatusMeta(status: Order["status"]) {
   }
 }
 
+function getPaymentLabel(payment: Order["payment"]) {
+  switch (payment) {
+    case "CARD_TERMINAL":
+      return "Card Terminal";
+    case "WECHAT_QR":
+      return "WeChat QR";
+    case "ALIPAY_QR":
+      return "Alipay QR";
+    case "PAYNOW_QR":
+      return "PayNow QR";
+    case "CASH":
+      return "Cash";
+    case "UNPAID":
+      return "Unpaid";
+    default:
+      return payment;
+  }
+}
+
 const columns = [
   { title: "Order No", dataIndex: "orderNo", key: "orderNo" },
   { title: "Table", dataIndex: "tableCode", key: "tableCode" },
@@ -42,7 +61,12 @@ const columns = [
     }
   },
   { title: "Member", dataIndex: "memberName", key: "memberName" },
-  { title: "Payment", dataIndex: "payment", key: "payment" },
+  {
+    title: "Payment",
+    dataIndex: "payment",
+    key: "payment",
+    render: (value: Order["payment"]) => getPaymentLabel(value)
+  },
   { title: "Time", dataIndex: "time", key: "time" }
 ];
 

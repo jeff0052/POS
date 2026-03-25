@@ -2,6 +2,7 @@ package com.developer.pos.v2.report.interfaces.rest;
 
 import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
+import com.developer.pos.v2.report.application.dto.OrderStateMonitorDto;
 import com.developer.pos.v2.report.application.dto.V2DailySummaryDto;
 import com.developer.pos.v2.report.application.dto.V2SalesReportSummaryDto;
 import com.developer.pos.v2.report.application.service.ReportReadService;
@@ -31,5 +32,12 @@ public class ReportV2Controller implements V2Api {
             @RequestParam(defaultValue = "1") Long merchantId
     ) {
         return ApiResponse.success(reportReadService.getSalesSummary(storeId, merchantId));
+    }
+
+    @GetMapping("/order-state-monitor")
+    public ApiResponse<OrderStateMonitorDto> orderStateMonitor(
+            @RequestParam(defaultValue = "101") Long storeId
+    ) {
+        return ApiResponse.success(reportReadService.getOrderStateMonitor(storeId));
     }
 }

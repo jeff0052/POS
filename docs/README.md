@@ -36,6 +36,23 @@
 - `30-kitchen-status-model.md`
 - `31-kitchen-display-flow.md`
 - `32-table-session-and-multi-order-model.md`
+- `33-user-journeys-and-test-runsheet.md`
+- `34-v2-1-design-improvements-from-lessons-learned.md`
+- `35-system-architecture-improvements-proposal.md`
+- `36-external-team-start-package.md`
+- `37-ai-driven-pos-vs-traditional-pos.md`
+- `38-from-55-to-100-execution-path.md`
+- `39-unified-payment-architecture.md`
+- `40-payment-integration-requirements.md`
+- `41-payment-adapter-design.md`
+- `42-current-milestone-v2-and-payments.md`
+- `43-sku-and-menu-configuration-requirements.md`
+- `44-sku-model-detail-decisions.md`
+- `45-sku-status-and-execution-rules.md`
+- `46-sku-configuration-information-architecture.md`
+- `47-v2-sku-data-model-and-api-contract.md`
+- `48-payment-current-status-and-blockers.md`
+- `49-lovable-tablet-frontend-review-and-adoption-guide.md`
 
 建议阅读顺序：
 
@@ -71,3 +88,20 @@
 30. `30-kitchen-status-model.md`
 31. `31-kitchen-display-flow.md`
 32. `32-table-session-and-multi-order-model.md`
+33. `33-user-journeys-and-test-runsheet.md`
+34. `34-v2-1-design-improvements-from-lessons-learned.md`
+35. `35-system-architecture-improvements-proposal.md`
+36. `36-external-team-start-package.md`
+37. `37-ai-driven-pos-vs-traditional-pos.md`
+38. `38-from-55-to-100-execution-path.md`
+39. `39-unified-payment-architecture.md`
+40. `40-payment-integration-requirements.md`
+41. `41-payment-adapter-design.md`
+42. `42-current-milestone-v2-and-payments.md`
+43. `43-sku-and-menu-configuration-requirements.md`
+44. `44-sku-model-detail-decisions.md`
+45. `45-sku-status-and-execution-rules.md`
+46. `46-sku-configuration-information-architecture.md`
+47. `47-v2-sku-data-model-and-api-contract.md`
+48. `48-payment-current-status-and-blockers.md`
+49. `49-lovable-tablet-frontend-review-and-adoption-guide.md`

@@ -95,86 +95,6 @@ input {
   flex-direction: column;
 }
 
-.window-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.header-spacer,
-.header-actions {
-  min-width: 84px;
-  display: flex;
-  align-items: center;
-}
-
-.header-spacer {
-  visibility: hidden;
-}
-
-.window-header strong {
-  font-size: 15px;
-  flex: 1;
-  text-align: center;
-}
-
-.header-actions {
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.incoming-qr-alert {
-  position: absolute;
-  top: 82px;
-  right: 18px;
-  z-index: 20;
-  width: min(420px, calc(100% - 36px));
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: rgba(255, 249, 221, 0.96);
-  border: 1px solid #efd466;
-  box-shadow: 0 18px 40px rgba(48, 57, 78, 0.14);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  backdrop-filter: blur(14px);
-}
-
-.incoming-qr-alert h3 {
-  margin: 2px 0 4px;
-  font-size: 16px;
-  line-height: 1.2;
-}
-
-.incoming-qr-alert p:last-child {
-  margin: 0;
-  font-size: 14px;
-  color: #6f6647;
-}
-
-.incoming-qr-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.incoming-qr-alert .table-tag {
-  color: #8b7427;
-}
-
-.incoming-qr-alert .minor-pill {
-  padding: 9px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid #e2e8f0;
-  color: #56627a;
-  font-weight: 700;
-}
-
 .window-content {
   flex: 1;
   min-height: 0;
@@ -191,6 +111,15 @@ input {
 
 .persistent-nav-top {
   border-bottom: 1px solid var(--line);
+  justify-content: space-between;
+  align-items: center;
+}
+
+.persistent-nav-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .persistent-nav-bottom {
@@ -553,43 +482,7 @@ input {
 }
 
 .floorplan-map {
-  display: grid;
-  grid-template-columns: 78px minmax(0, 1fr);
-  gap: 8px;
-  align-items: stretch;
-}
-
-.floorplan-service-strip {
-  display: grid;
-  gap: 6px;
-  align-content: start;
-}
-
-.service-node {
-  padding: 8px 6px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff, #f4f6fa);
-  border: 1px solid #e5eaf1;
-  text-align: center;
-  box-shadow: var(--shadow-soft);
-}
-
-.service-node span,
-.service-node strong {
   display: block;
-}
-
-.service-node span {
-  font-size: 9px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.service-node strong {
-  margin-top: 5px;
-  font-size: 12px;
-  letter-spacing: -0.04em;
 }
 
 .floorplan-islands {

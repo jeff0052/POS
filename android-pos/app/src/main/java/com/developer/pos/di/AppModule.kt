@@ -90,12 +90,14 @@ object AppModule {
     @Provides
     @Singleton
     fun providePaymentService(
-        @ApplicationContext context: Context,
-        posOrderApi: PosOrderApi
+        dcsPaymentService: DcsPaymentService,
+        vibeCashPaymentService: VibeCashPaymentService,
+        cashPaymentService: CashPaymentService
     ): PaymentService {
-        val dcs = DcsPaymentService(context)
-        val vibecash = VibeCashPaymentService(posOrderApi)
-        val cash = CashPaymentService()
-        return UnifiedPaymentService(dcs, vibecash, cash)
+        return UnifiedPaymentService(
+            dcsPaymentService,
+            vibeCashPaymentService,
+            cashPaymentService
+        )
     }
 }

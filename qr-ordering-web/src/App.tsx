@@ -195,7 +195,6 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState<string>("");
   const [keyword, setKeyword] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [memberBound, setMemberBound] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitResult, setSubmitResult] = useState<QrSubmitResponse | null>(null);
@@ -278,9 +277,7 @@ export default function App() {
   }, [currentOrder, submittedOrders]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const memberDiscount = memberBound
-    ? cart.reduce((sum, item) => sum + Math.max(0, item.price - (item.memberPrice ?? item.price)) * item.quantity, 0)
-    : 0;
+  const memberDiscount = 0;
   const promotionDiscount = subtotal >= 60 ? 8 : 0;
   const payable = subtotal - memberDiscount - promotionDiscount;
   const incrementalSubmissionItems = useMemo(
@@ -566,10 +563,6 @@ export default function App() {
               <span>待收金额</span>
               <strong>{money(submitResult.payableAmountCents / 100)}</strong>
             </article>
-            <article className="metric-card">
-              <span>会员身份</span>
-              <strong>{memberBound ? "待绑定会员" : "散客"}</strong>
-            </article>
           </div>
 
           <button className="primary-button" onClick={() => setSubmitResult(null)}>
@@ -594,17 +587,6 @@ export default function App() {
             <button className="icon-lite">⋯</button>
           </div>
         </header>
-
-        <section className="member-banner">
-          <div>
-            <p className="eyebrow">会员权益</p>
-            <h2>{memberBound ? "Lina Chen · Gold" : "绑定会员"}</h2>
-            <p>{memberBound ? "积分 2860 · 储值 ¥320.00 · 已享会员价" : "绑定手机号后可享会员价、积分累计和储值余额。"}</p>
-          </div>
-          <button className="soft-button" onClick={() => setMemberBound((current) => !current)}>
-            {memberBound ? "切换散客" : "绑定会员"}
-          </button>
-        </section>
 
         {currentOrder || submittedOrders.length > 0 ? (
           <section className="current-order-banner">
@@ -657,8 +639,7 @@ export default function App() {
                     <span>点赞{item.likes ?? 0}</span>
                   </div>
                   <div className="price-row">
-                    <strong>¥{(memberBound && item.memberPrice ? item.memberPrice : item.price).toFixed(0)}</strong>
-                    {memberBound && item.memberPrice ? <span>¥{item.price.toFixed(0)}</span> : null}
+                    <strong>¥{item.price.toFixed(0)}</strong>
                   </div>
                 </div>
                 <button className="floating-add-button" onClick={() => addItem(item)}>
@@ -666,6 +647,12 @@ export default function App() {
                 </button>
               </article>
             ))}
+            {visibleMenu.length === 0 ? (
+              <article className="empty-menu-state">
+                <strong>暂时没有可点菜品</strong>
+                <p>请检查当前门店菜单、分类状态，或稍后刷新再试。</p>
+              </article>
+            ) : null}
           </section>
         </section>
 
@@ -683,10 +670,7 @@ export default function App() {
               <article key={item.id} className="cart-row">
                 <div className="cart-copy">
                   <strong>{item.name}</strong>
-                  <p>
-                    {money(memberBound && item.memberPrice ? item.memberPrice : item.price)} each
-                    {memberBound && item.memberPrice ? " · 会员价" : ""}
-                  </p>
+                  <p>{money(item.price)} each</p>
                 </div>
                 <div className="qty-group">
                   <button onClick={() => changeQty(item.id, -1)}>-</button>

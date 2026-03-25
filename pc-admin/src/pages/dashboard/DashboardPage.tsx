@@ -54,18 +54,18 @@ export function DashboardPage() {
         </Card>
         <Card title="Payment Mix" extra="Preview">
           <Typography.Paragraph style={{ marginBottom: 8 }}>
-            SDK Pay dominates today, cash remains the secondary channel.
+            Card terminal and QR gateway payments dominate today, while cash remains the secondary channel.
           </Typography.Paragraph>
           <Typography.Title level={3} style={{ color: "#0b6e4f", marginBottom: 8 }}>
             83%
           </Typography.Title>
-          <Typography.Text type="secondary">SDK Pay share</Typography.Text>
+          <Typography.Text type="secondary">Digital payment share</Typography.Text>
           <div style={{ marginTop: 20 }}>
             <Typography.Text>CASH</Typography.Text>
             <div style={{ height: 10, background: "#e5e7eb", borderRadius: 999, margin: "6px 0 12px" }}>
               <div style={{ width: "17%", height: "100%", background: "#ce6a1c", borderRadius: 999 }} />
             </div>
-            <Typography.Text>SDK_PAY</Typography.Text>
+            <Typography.Text>CARD / QR</Typography.Text>
             <div style={{ height: 10, background: "#e5e7eb", borderRadius: 999, margin: "6px 0 0" }}>
               <div style={{ width: "83%", height: "100%", background: "#0b6e4f", borderRadius: 999 }} />
             </div>

@@ -28,6 +28,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USERNAME}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      VIBECASH_API_URL: ${VIBECASH_API_URL}
+      VIBECASH_SECRET: ${VIBECASH_SECRET}
+      VIBECASH_WEBHOOK_SECRET: ${VIBECASH_WEBHOOK_SECRET}
+      VIBECASH_CURRENCY: ${VIBECASH_CURRENCY:-SGD}
 
   pc-admin:
     build:

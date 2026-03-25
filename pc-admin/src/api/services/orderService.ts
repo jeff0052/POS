@@ -11,7 +11,7 @@ interface OrderListResponseItem {
     tableCode?: string;
     orderType?: "POS" | "QR";
     orderStatus: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
-    paymentMethod?: "CASH" | "SDK_PAY" | "UNPAID";
+    paymentMethod?: "CASH" | "CARD_TERMINAL" | "WECHAT_QR" | "ALIPAY_QR" | "PAYNOW_QR" | "UNPAID";
     createdAt: string;
     memberName?: string | null;
     memberTier?: string | null;

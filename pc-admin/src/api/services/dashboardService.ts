@@ -12,7 +12,7 @@ type RecentOrderResponseItem = {
   promotionDiscountCents?: number;
   payableAmountCents?: number;
   orderStatus: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
-  paymentMethod?: "CASH" | "SDK_PAY";
+  paymentMethod?: "CASH" | "CARD_TERMINAL" | "WECHAT_QR" | "ALIPAY_QR" | "PAYNOW_QR" | "UNPAID";
   createdAt: number | string;
   cashier?: string;
   printStatus?: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
@@ -55,7 +55,7 @@ export async function getRecentOrders(): Promise<Order[]> {
     orderNo: item.orderNo,
     amount: centsToText(item.paidAmountCents),
     status: item.orderStatus,
-    payment: item.paymentMethod ?? "SDK_PAY",
+    payment: item.paymentMethod ?? "UNPAID",
     time: String(item.createdAt),
     cashier: item.cashier ?? "-",
     printStatus: item.printStatus ?? "NOT_PRINTED",

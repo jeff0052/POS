@@ -338,7 +338,6 @@ input {
   font-weight: 700;
 }
 
-.member-banner,
 .cart-panel {
   margin-top: 16px;
   padding: 16px;
@@ -459,6 +458,26 @@ input {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.empty-menu-state {
+  padding: 22px 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px dashed #ddd1bf;
+  text-align: center;
+}
+
+.empty-menu-state strong {
+  display: block;
+  font-size: 16px;
+}
+
+.empty-menu-state p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .menu-feed-card {

@@ -105,6 +105,7 @@ type TableContextResponse = {
   tableName: string;
   tableStatus: string;
   currentActiveOrder: ActiveTableOrderDto | null;
+  submittedOrders: SubmittedOrderResponse[];
 };
 
 type SettlementPreviewResponse = {
@@ -184,32 +185,69 @@ const categories: Category[] = [
   { id: "popular", name: "主厨推荐", items: 1, color: "green" }
 ];
 
-const tables: TableCard[] = [
-  { id: 1, status: "occupied", guests: 2, area: "Window", total: 48, course: "Sent to kitchen", accent: "sky" },
-  { id: 2, status: "occupied", guests: 4, area: "Main hall", total: 92.5, course: "QR order waiting for cashier", accent: "peach", source: "QR", settlementState: "PENDING_SETTLEMENT", memberName: "Lina Chen" },
-  { id: 3, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
-  { id: 4, status: "reserved", guests: 2, area: "Patio", total: 0, course: "19:00 hold", accent: "lilac" },
-  { id: 5, status: "occupied", guests: 6, area: "Private booth", total: 168, course: "Sent to kitchen", accent: "gold" },
-  { id: 6, status: "available", guests: 0, area: "Window", total: 0, course: "Ready", accent: "mint" },
-  { id: 7, status: "occupied", guests: 3, area: "Chef counter", total: 71, course: "QR order waiting for cashier", accent: "rose", source: "QR", settlementState: "PENDING_SETTLEMENT" },
-  { id: 8, status: "reserved", guests: 5, area: "Main hall", total: 0, course: "19:30 hold", accent: "lilac" },
-  { id: 9, status: "occupied", guests: 4, area: "Main hall", total: 88, course: "Pending settlement", accent: "sky" },
-  { id: 10, status: "available", guests: 0, area: "Patio", total: 0, course: "Ready", accent: "mint" },
-  { id: 11, status: "occupied", guests: 2, area: "Window", total: 46, course: "Sent to kitchen", accent: "peach" },
-  { id: 12, status: "available", guests: 0, area: "Patio", total: 0, course: "Ready", accent: "mint" },
-  { id: 13, status: "occupied", guests: 5, area: "Main hall", total: 124, course: "Sent to kitchen", accent: "gold", source: "QR", settlementState: "SUBMITTED", memberName: "Gold Member" },
-  { id: 14, status: "reserved", guests: 2, area: "Chef counter", total: 0, course: "20:00 hold", accent: "lilac" },
-  { id: 15, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
-  { id: 16, status: "occupied", guests: 4, area: "Private booth", total: 136, course: "Sent to kitchen", accent: "rose" },
-  { id: 17, status: "available", guests: 0, area: "Window", total: 0, course: "Ready", accent: "mint" },
-  { id: 18, status: "reserved", guests: 2, area: "Window", total: 0, course: "19:30 hold", accent: "lilac" },
-  { id: 19, status: "occupied", guests: 3, area: "Patio", total: 63, course: "Sent to kitchen", accent: "peach" },
-  { id: 20, status: "available", guests: 0, area: "Main hall", total: 0, course: "Ready", accent: "mint" },
-  { id: 21, status: "occupied", guests: 4, area: "Main hall", total: 104, course: "Sent to kitchen", accent: "sky" },
-  { id: 22, status: "reserved", guests: 6, area: "Private booth", total: 0, course: "20:15 hold", accent: "lilac" },
-  { id: 23, status: "occupied", guests: 2, area: "Chef counter", total: 58, course: "Pending settlement", accent: "rose" },
-  { id: 24, status: "occupied", guests: 4, area: "Indoor", total: 78.5, course: "Pending settlement", accent: "gold" }
+const tableAreas = [
+  "Window",
+  "Main hall",
+  "Main hall",
+  "Patio",
+  "Private booth",
+  "Window",
+  "Chef counter",
+  "Main hall",
+  "Main hall",
+  "Patio",
+  "Window",
+  "Patio",
+  "Main hall",
+  "Chef counter",
+  "Main hall",
+  "Private booth",
+  "Window",
+  "Window",
+  "Patio",
+  "Main hall",
+  "Main hall",
+  "Private booth",
+  "Chef counter",
+  "Indoor"
 ];
+
+const tableAccents = [
+  "sky",
+  "peach",
+  "mint",
+  "lilac",
+  "gold",
+  "mint",
+  "rose",
+  "lilac",
+  "sky",
+  "mint",
+  "peach",
+  "mint",
+  "gold",
+  "lilac",
+  "mint",
+  "rose",
+  "mint",
+  "lilac",
+  "peach",
+  "mint",
+  "sky",
+  "lilac",
+  "rose",
+  "gold"
+];
+
+const tables: TableCard[] = Array.from({ length: 24 }, (_, index) => ({
+  id: index + 1,
+  status: "available",
+  guests: 0,
+  area: tableAreas[index] ?? "Main hall",
+  total: 0,
+  course: "Ready",
+  accent: tableAccents[index] ?? "mint"
+}));
 
 const reservations: Reservation[] = [
   { id: 1, name: "Olivia Chen", time: "18:45", partySize: 2, status: "checked-in", area: "Window" },
@@ -306,36 +344,12 @@ const menu: MenuItem[] = [
   }
 ];
 
-const initialOrder: OrderItem[] = [
-  { ...menu[0], quantity: 1, note: "少葱" },
-  { ...menu[4], quantity: 2 },
-  { ...menu[3], quantity: 2, note: "少冰" }
-];
+const initialDraftOrders: Record<number, OrderItem[]> = {};
 
-const initialDraftOrders: Record<number, OrderItem[]> = {
-  1: [
-    { ...menu[1], quantity: 1, note: "加蛋" },
-    { ...menu[3], quantity: 2 }
-  ],
-  5: [
-    { ...menu[6], quantity: 2 },
-    { ...menu[7], quantity: 1 }
-  ],
-  6: initialOrder,
-  9: [
-    { ...menu[0], quantity: 2 },
-    { ...menu[5], quantity: 1 }
-  ],
-  11: [
-    { ...menu[4], quantity: 2 },
-    { ...menu[2], quantity: 1 }
-  ]
-};
-
-const DRAFT_ORDERS_STORAGE_KEY = "pos-preview-table-draft-orders-v1";
-const ORDER_STAGES_STORAGE_KEY = "pos-preview-table-order-stages-v1";
+const DRAFT_ORDERS_STORAGE_KEY = "pos-preview-table-draft-orders-v2";
+const ORDER_STAGES_STORAGE_KEY = "pos-preview-table-order-stages-v2";
 const STORE_ID = 101;
-const QR_ORDERING_BASE_URL = import.meta.env.VITE_QR_ORDERING_URL_BASE ?? "http://localhost:4179";
+const QR_ORDERING_BASE_URL = import.meta.env.VITE_QR_ORDERING_URL_BASE ?? "http://localhost:4183";
 
 function toQrOrderResponse(
   context: TableContextResponse,
@@ -669,8 +683,10 @@ function App() {
   const [submittedOrdersByTable, setSubmittedOrdersByTable] = useState<Record<number, SubmittedOrderResponse[]>>({});
   const [tablePaymentPreviews, setTablePaymentPreviews] = useState<Record<number, SettlementPreviewResponse | null>>({});
   const [tableOrderStages, setTableOrderStages] = useState<Record<number, OrderStage>>(loadStoredOrderStages);
+  const [tableBackendIds, setTableBackendIds] = useState<Record<number, number>>({});
   const [qrOrders, setQrOrders] = useState<Record<string, QrCurrentOrderResponse>>({});
   const [recentQrAlert, setRecentQrAlert] = useState<QrCurrentOrderResponse | null>(null);
+  const [isPreparingPayment, setIsPreparingPayment] = useState(false);
   const seenQrOrderNos = useRef<Set<string>>(new Set());
   const pendingQrWrites = useRef<Set<string>>(new Set());
   const draftOrdersRef = useRef<Record<number, OrderItem[]>>(initialDraftOrders);
@@ -679,6 +695,7 @@ function App() {
   const targetTable = tableState.find((table) => table.id === targetTableId) ?? tableState[0];
   const selectedTableCode = `T${selectedTable.id}`;
   const selectedBackendOrder = qrOrders[selectedTableCode];
+  const selectedBackendTableId = tableBackendIds[selectedTable.id] ?? selectedBackendOrder?.tableId ?? selectedTable.id;
   const selectedQrOrder =
     selectedBackendOrder?.orderSource === "QR" && selectedBackendOrder.settlementStatus !== "DRAFT"
       ? selectedBackendOrder
@@ -797,8 +814,30 @@ function App() {
         );
 
         setQrOrders(nextQrOrders);
+        const contextByTableCode = Object.fromEntries(
+          contexts
+            .filter((entry): entry is TableContextResponse => Boolean(entry))
+            .map((entry) => [entry.tableCode, entry])
+        );
+        setTableBackendIds(
+          Object.fromEntries(
+            contexts
+              .filter((entry): entry is TableContextResponse => Boolean(entry))
+              .map((entry) => [Number(entry.tableCode.replace("T", "")), entry.tableId])
+          )
+        );
+        setSubmittedOrdersByTable((current) => ({
+          ...current,
+          ...Object.fromEntries(
+            contexts
+              .filter((entry): entry is TableContextResponse => Boolean(entry))
+              .map((entry) => [Number(entry.tableCode.replace("T", "")), entry.submittedOrders ?? []])
+          )
+        }));
 
-        const newIncomingOrder = Object.values(nextQrOrders).find((entry) => !seenQrOrderNos.current.has(entry.orderNo));
+        const newIncomingOrder = Object.values(nextQrOrders).find(
+          (entry) => entry.orderSource === "QR" && !seenQrOrderNos.current.has(entry.orderNo)
+        );
         if (newIncomingOrder) {
           setRecentQrAlert(newIncomingOrder);
         }
@@ -809,16 +848,50 @@ function App() {
 
         setTableState((current) =>
           current.map((table) => {
+            const context = contextByTableCode[`T${table.id}`];
             const match = nextQrOrders[`T${table.id}`];
+            const backendSubmittedOrders = context?.submittedOrders ?? [];
+            const localDraftItems = draftOrdersRef.current[table.id] ?? [];
             if (!match) {
-              return table.source === "QR"
-                ? {
-                    ...tables.find((baseTable) => baseTable.id === table.id)!,
-                    source: undefined,
-                    settlementState: undefined,
-                    memberName: undefined
-                  }
-                : table;
+              if (backendSubmittedOrders.length > 0) {
+                const submittedTotal = backendSubmittedOrders.reduce(
+                  (sum: number, order: SubmittedOrderResponse) => sum + order.pricing.payableAmountCents / 100,
+                  0
+                );
+                const backendSource = backendSubmittedOrders.some((order) => order.sourceOrderType === "QR") ? "QR" : "POS";
+                const isPaymentPending = context?.tableStatus === "PENDING_SETTLEMENT";
+                return {
+                  ...table,
+                  status: "occupied",
+                  source: backendSource,
+                  settlementState: isPaymentPending ? "PENDING_SETTLEMENT" : "SUBMITTED",
+                  memberName: undefined,
+                  total: Number(submittedTotal.toFixed(2)),
+                  course: isPaymentPending
+                    ? `${backendSubmittedOrders.reduce((sum: number, order: SubmittedOrderResponse) => sum + order.items.length, 0)} items payment pending`
+                    : `${backendSubmittedOrders.length} rounds sent to kitchen`
+                };
+              }
+
+              if (localDraftItems.length > 0) {
+                const draftTotal = localDraftItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+                return {
+                  ...table,
+                  status: "occupied",
+                  source: "POS",
+                  settlementState: "DRAFT",
+                  memberName: undefined,
+                  total: Number(draftTotal.toFixed(2)),
+                  course: "Draft order in progress"
+                };
+              }
+
+              return {
+                ...tables.find((baseTable) => baseTable.id === table.id)!,
+                source: undefined,
+                settlementState: undefined,
+                memberName: undefined
+              };
             }
 
             return {
@@ -842,14 +915,26 @@ function App() {
         setTableOrderStages((current) => ({
           ...current,
           ...Object.fromEntries(
-            Object.values(nextQrOrders).map((entry) => [
-              Number(entry.tableCode.replace("T", "")),
-              entry.settlementStatus === "PENDING_SETTLEMENT"
-                ? "PENDING_SETTLEMENT"
-                : entry.settlementStatus === "SETTLED"
-                  ? "SETTLED"
-                  : "SUBMITTED"
-            ])
+            contexts
+              .filter((entry): entry is TableContextResponse => Boolean(entry))
+              .map((entry) => {
+                const tableId = Number(entry.tableCode.replace("T", ""));
+                const localDraftItems = draftOrdersRef.current[tableId] ?? [];
+                const currentOrder = nextQrOrders[entry.tableCode];
+
+                const stage: OrderStage =
+                  currentOrder?.settlementStatus === "PENDING_SETTLEMENT" || entry.tableStatus === "PENDING_SETTLEMENT"
+                    ? "PENDING_SETTLEMENT"
+                    : currentOrder?.settlementStatus === "SETTLED"
+                      ? "SETTLED"
+                      : (entry.submittedOrders?.length ?? 0) > 0
+                        ? "SUBMITTED"
+                        : localDraftItems.length > 0 || currentOrder?.settlementStatus === "DRAFT"
+                          ? "DRAFT"
+                          : "DRAFT";
+
+                return [tableId, stage];
+              })
           )
         }));
       } catch {
@@ -941,11 +1026,71 @@ function App() {
     window.localStorage.setItem(ORDER_STAGES_STORAGE_KEY, JSON.stringify(tableOrderStages));
   }, [tableOrderStages]);
 
+  useEffect(() => {
+    if (view !== "payment" || isPreparingPayment) {
+      return;
+    }
+
+    if (
+      hasSubmittedRounds &&
+      effectiveDraftOrderItems.length === 0 &&
+      selectedOrderStage !== "PENDING_SETTLEMENT"
+    ) {
+      void moveToSettlement();
+    }
+  }, [
+    view,
+    isPreparingPayment,
+    hasSubmittedRounds,
+    effectiveDraftOrderItems.length,
+    selectedOrderStage,
+    selectedTable.id,
+    selectedTableCode
+  ]);
+
+  useEffect(() => {
+    if (view !== "payment") {
+      return;
+    }
+
+    if (!hasSubmittedRounds || effectiveDraftOrderItems.length > 0 || selectedTablePaymentPreview) {
+      return;
+    }
+
+    let active = true;
+
+    void (async () => {
+      const preview = await fetchTablePaymentPreview(STORE_ID, selectedBackendTableId);
+      if (!active || !preview) {
+        return;
+      }
+
+      setTablePaymentPreviews((current) => ({
+        ...current,
+        [selectedTable.id]: preview
+      }));
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    view,
+    hasSubmittedRounds,
+    effectiveDraftOrderItems.length,
+    selectedTable.id,
+    selectedTablePaymentPreview
+  ]);
+
   const syncTableFromV2 = async (tableCode: string, tableId: number) => {
     const refreshedContext = await fetchTableContext(tableCode);
     if (!refreshedContext) {
       return null;
     }
+    setTableBackendIds((current) => ({
+      ...current,
+      [tableId]: refreshedContext.tableId
+    }));
     const backendSubmittedOrders = await fetchSubmittedOrders(refreshedContext.storeId, refreshedContext.tableId);
     const backendSubmittedRounds = mapSubmittedOrdersToRounds(backendSubmittedOrders, menuByName);
 
@@ -1303,21 +1448,26 @@ function App() {
       return;
     }
 
-    await fetch(
-      `/api/v2/stores/${STORE_ID}/tables/${selectedTable.id}/payment`,
-      { method: "POST" }
-    );
-    const preview = await fetchTablePaymentPreview(STORE_ID, selectedTable.id);
-    setTablePaymentPreviews((current) => ({
-      ...current,
-      [selectedTable.id]: preview
-    }));
-    await syncTableFromV2(selectedTableCode, selectedTable.id);
-    setView("payment");
+    setIsPreparingPayment(true);
+    try {
+      await fetch(
+        `/api/v2/stores/${STORE_ID}/tables/${selectedBackendTableId}/payment`,
+        { method: "POST" }
+      );
+      const preview = await fetchTablePaymentPreview(STORE_ID, selectedBackendTableId);
+      setTablePaymentPreviews((current) => ({
+        ...current,
+        [selectedTable.id]: preview
+      }));
+      await syncTableFromV2(selectedTableCode, selectedTable.id);
+      setView("payment");
+    } finally {
+      setIsPreparingPayment(false);
+    }
   };
 
   const completeSettlement = async () => {
-    await fetch(`/api/v2/stores/${STORE_ID}/tables/${selectedTable.id}/payment/collect`, {
+    await fetch(`/api/v2/stores/${STORE_ID}/tables/${selectedBackendTableId}/payment/collect`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -1351,90 +1501,38 @@ function App() {
 
   const availableTables = tableState.filter((table) => table.status === "available");
 
-  const windowTitle =
-    view === "reservations"
-      ? "Reservations and waitlist"
-      : view === "tables"
-        ? "Table management"
-        : view === "transfer"
-          ? "Transfer table"
-          : view === "ordering"
-            ? "Ordering"
-            : view === "review"
-              ? "Order review"
-              : view === "split"
-                ? "Split bill"
-                : view === "payment"
-                  ? "Payment"
-                  : "Payment success";
-
   return (
     <div className="app-shell">
       <main className="preview-stage">
         <section className="pos-window">
-          <header className="window-header">
-            <div className="header-spacer" />
-            <strong>{windowTitle}</strong>
-            <div className="header-actions">
-              <button
-                className="persistent-nav-button persistent-nav-button-secondary"
-                onClick={() =>
-                  window.open(
-                    `${QR_ORDERING_BASE_URL}/?storeName=Riverside%20Branch&storeCode=1001&table=${encodeURIComponent(selectedTableCode)}`,
-                    "_blank"
-                  )
-                }
-              >
-                打开 {selectedTableCode} 扫码页
-              </button>
-            </div>
-          </header>
-
-          {recentQrAlert ? (
-            <div className="incoming-qr-alert">
-              <div>
-                <p className="table-tag">New QR order pending settlement</p>
-                <h3>
-                  {recentQrAlert.tableCode} · {recentQrAlert.orderNo}
-                </h3>
-                <p>
-                  {recentQrAlert.items.length} items · {formatMoney(recentQrAlert.payableAmountCents / 100)} waiting for cashier
-                </p>
-              </div>
-              <div className="incoming-qr-actions">
-                <button
-                  className="minor-pill"
-                  onClick={() => {
-                    const tableId = Number(recentQrAlert.tableCode.replace("T", ""));
-                    if (!Number.isNaN(tableId)) {
-                      setSelectedTableId(tableId);
-                    }
-                    setView("ordering");
-                    setRecentQrAlert(null);
-                  }}
-                >
-                  Open order
-                </button>
-                <button className="minor-pill" onClick={() => setRecentQrAlert(null)}>
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           <div className="persistent-nav persistent-nav-top">
-            {[
-              ["tables", "Table Management"],
-              ["ordering", "Ordering"]
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                className={`persistent-nav-button ${view === value ? "persistent-nav-button-active" : ""}`}
-                onClick={() => setView(value as View)}
-              >
-                {label}
-              </button>
-            ))}
+            <div className="persistent-nav-group">
+              {[
+                ["tables", "Table Management"],
+                ["reservations", "Reservations"],
+                ["transfer", "Transfer Table"],
+                ["ordering", "Ordering"]
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  className={`persistent-nav-button ${view === value ? "persistent-nav-button-active" : ""}`}
+                  onClick={() => setView(value as View)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              className="persistent-nav-button persistent-nav-button-secondary"
+              onClick={() =>
+                window.open(
+                  `${QR_ORDERING_BASE_URL}/?storeName=Riverside%20Branch&storeCode=1001&table=${encodeURIComponent(selectedTableCode)}`,
+                  "_blank"
+                )
+              }
+            >
+              打开 {selectedTableCode} 扫码页
+            </button>
           </div>
 
           <div className="window-content">
@@ -1555,21 +1653,6 @@ function App() {
                   </div>
 
                   <div className="floorplan-map">
-                    <aside className="floorplan-service-strip">
-                      <div className="service-node">
-                        <span>Host</span>
-                        <strong>Front</strong>
-                      </div>
-                      <div className="service-node">
-                        <span>Pickup</span>
-                        <strong>Pass</strong>
-                      </div>
-                      <div className="service-node">
-                        <span>Cashier</span>
-                        <strong>POS</strong>
-                      </div>
-                    </aside>
-
                     <div className="floorplan-islands">
                       {[tableState.slice(0, 8), tableState.slice(8, 16), tableState.slice(16, 24)].map(
                         (group, index) => (
@@ -1810,10 +1893,6 @@ function App() {
                   <button className="sort-row">
                     <span className="sort-icon" />
                     <span>Add note</span>
-                  </button>
-                  <button className="sort-row">
-                    <span className="sort-icon" />
-                    <span>Apply discount</span>
                   </button>
                   {effectiveDraftOrderItems.length > 0 ? (
                     <button className="sort-row" onClick={sendToKitchen}>
@@ -2273,24 +2352,6 @@ function App() {
               </aside>
             </div>
           )}
-          </div>
-
-          <div className="persistent-nav persistent-nav-bottom">
-            {[
-              ["reservations", "Reservations"],
-              ["transfer", "Transfer Table"],
-              ["split", "Split Bill"]
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                className={`persistent-nav-button persistent-nav-button-secondary ${
-                  view === value ? "persistent-nav-button-active" : ""
-                }`}
-                onClick={() => setView(value as View)}
-              >
-                {label}
-              </button>
-            ))}
           </div>
         </section>
       </main>
