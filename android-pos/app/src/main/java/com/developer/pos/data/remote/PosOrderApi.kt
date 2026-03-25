@@ -2,6 +2,7 @@ package com.developer.pos.data.remote
 
 import com.developer.pos.data.remote.dto.ActiveOrderDto
 import com.developer.pos.data.remote.dto.CashierSettlementResultDto
+import com.developer.pos.data.remote.dto.CollectCashierSettlementRequestDto
 import com.developer.pos.data.remote.dto.DailySummaryDto
 import com.developer.pos.data.remote.dto.MerchantAdminOrderDto
 import com.developer.pos.data.remote.dto.OrderStageTransitionDto

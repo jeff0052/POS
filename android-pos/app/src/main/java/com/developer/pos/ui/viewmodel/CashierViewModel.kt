@@ -50,7 +50,19 @@ class CashierViewModel @Inject constructor(
         paymentErrorMessage,
         paymentActionUrl,
         paymentRequiresCustomerAction
-    ) { products, cart, query, paymentMethod, orderNo, orderStage, sync, providerStatus, isProcessing, paymentError, actionUrl, requiresCustomerAction ->
+    ) { values ->
+        val products = values[0] as List<Product>
+        val cart = values[1] as List<CartItem>
+        val query = values[2] as String
+        val paymentMethod = values[3] as String
+        val orderNo = values[4] as String
+        val orderStage = values[5] as ActiveOrderStage
+        val sync = values[6] as String
+        val providerStatus = values[7] as String
+        val isProcessing = values[8] as Boolean
+        val paymentError = values[9] as String?
+        val actionUrl = values[10] as String?
+        val requiresCustomerAction = values[11] as Boolean
         CashierUiState(
             products = products,
             cartItems = cart,

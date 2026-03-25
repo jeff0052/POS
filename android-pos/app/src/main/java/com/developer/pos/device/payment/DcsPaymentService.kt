@@ -17,6 +17,7 @@ import com.sunmi.dcspayment.lib.DCSPaymentApi
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -41,6 +42,7 @@ data class DcsTransactionLookup(
 
 @Singleton
 class DcsPaymentService @Inject constructor(
+    @ApplicationContext
     private val appContext: Context
 ) : PaymentService {
     private val gson = Gson()
@@ -356,7 +358,7 @@ class DcsPaymentService @Inject constructor(
                         }
                     }
 
-                    override fun startRequest() = Unit
+                    override fun startRequest(message: String?) = Unit
                 })
             }
         }.getOrElse { error ->
@@ -409,7 +411,7 @@ class DcsPaymentService @Inject constructor(
                         }
                     }
 
-                    override fun startRequest() = Unit
+                    override fun startRequest(message: String?) = Unit
                 })
             }
         }.getOrElse { error ->
@@ -558,7 +560,7 @@ class DcsPaymentService @Inject constructor(
                 }
             }
 
-            override fun startRequest() = Unit
+            override fun startRequest(message: String?) = Unit
         })
     }
 
@@ -606,28 +608,28 @@ class DcsPaymentService @Inject constructor(
                     finishWithTransactionResult(continuation, result)
                 }
 
-                override fun startRequest() = Unit
-            }
+            override fun startRequest(message: String?) = Unit
+        }
 
-            provider.cardSaleTransaction(
-                orderNo,
-                amountCents,
-                0L,
-                object : CheckCardListener.Stub() {
-                    override fun onFindMagCard(track2Data: String?) {
-                        runCatching { card.confirmCheckCard(cardFlowListener) }
-                            .onFailure { finishWithFailure(continuation, "DCS_MAG_CARD_FAILED", it.message) }
-                    }
+        provider.cardSaleTransaction(
+            orderNo,
+            amountCents,
+            0L,
+            object : CheckCardListener.Stub() {
+                override fun onFindMagCard(track2Data: String?) {
+                    runCatching { card.confirmCheckCard(cardFlowListener) }
+                        .onFailure { finishWithFailure(continuation, "DCS_MAG_CARD_FAILED", it.message) }
+                }
 
-                    override fun onFindContactlessCard() {
-                        runCatching { card.confirmCheckCard(cardFlowListener) }
-                            .onFailure { finishWithFailure(continuation, "DCS_CONTACTLESS_FAILED", it.message) }
-                    }
+                override fun onFindContactlessCard(track2Data: String?) {
+                    runCatching { card.confirmCheckCard(cardFlowListener) }
+                        .onFailure { finishWithFailure(continuation, "DCS_CONTACTLESS_FAILED", it.message) }
+                }
 
-                    override fun onFindContactCard() {
-                        runCatching { card.confirmCheckCard(cardFlowListener) }
-                            .onFailure { finishWithFailure(continuation, "DCS_CONTACT_CARD_FAILED", it.message) }
-                    }
+                override fun onFindContactCard(track2Data: String?) {
+                    runCatching { card.confirmCheckCard(cardFlowListener) }
+                        .onFailure { finishWithFailure(continuation, "DCS_CONTACT_CARD_FAILED", it.message) }
+                }
 
                     override fun onError(code: String?, message: String?) {
                         finishWithFailure(continuation, code ?: "DCS_CHECK_CARD_ERROR", message)
@@ -637,7 +639,7 @@ class DcsPaymentService @Inject constructor(
                         finishWithTransactionResult(continuation, result)
                     }
 
-                    override fun startRequest() = Unit
+                    override fun startRequest(message: String?) = Unit
                 }
             )
         }
@@ -686,7 +688,7 @@ class DcsPaymentService @Inject constructor(
                 finishWithTransactionResult(continuation, result)
             }
 
-            override fun startRequest() = Unit
+            override fun startRequest(message: String?) = Unit
         }
 
         val listener = object : CheckCardListener.Stub() {
@@ -695,12 +697,12 @@ class DcsPaymentService @Inject constructor(
                     .onFailure { finishWithFailure(continuation, "DCS_MAG_CARD_FAILED", it.message) }
             }
 
-            override fun onFindContactlessCard() {
+            override fun onFindContactlessCard(track2Data: String?) {
                 runCatching { card.confirmCheckCard(cardFlowListener) }
                     .onFailure { finishWithFailure(continuation, "DCS_CONTACTLESS_FAILED", it.message) }
             }
 
-            override fun onFindContactCard() {
+            override fun onFindContactCard(track2Data: String?) {
                 runCatching { card.confirmCheckCard(cardFlowListener) }
                     .onFailure { finishWithFailure(continuation, "DCS_CONTACT_CARD_FAILED", it.message) }
             }
@@ -713,7 +715,7 @@ class DcsPaymentService @Inject constructor(
                 finishWithTransactionResult(continuation, result)
             }
 
-            override fun startRequest() = Unit
+            override fun startRequest(message: String?) = Unit
         }
 
         action(listener)
