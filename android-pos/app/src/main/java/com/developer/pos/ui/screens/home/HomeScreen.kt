@@ -17,9 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.developer.pos.ui.viewmodel.OperationsUiState
 
 @Composable
 fun HomeScreen(
+    uiState: OperationsUiState,
     onStartCashier: () -> Unit,
     onOpenOrders: () -> Unit,
     onOpenSettlement: () -> Unit,
@@ -36,11 +38,23 @@ fun HomeScreen(
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
+        if (uiState.loading) {
+            Text("Loading live store operations...")
+        }
+        uiState.error?.let { error ->
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Today's Revenue")
                 Spacer(modifier = Modifier.height(6.dp))
-                Text("CNY 0.00", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "CNY %.2f".format(uiState.dashboard.totalRevenueCents / 100.0),
+                    style = MaterialTheme.typography.headlineMedium
+                )
             }
         }
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -55,8 +69,14 @@ fun HomeScreen(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("QR Table Orders")
                 Spacer(modifier = Modifier.height(6.dp))
-                Text("3 tables in Pending Settlement")
-                Text("T2 · T7 · T13 synced from QR Ordering")
+                Text("${uiState.dashboard.pendingQrTables.size} tables in Payment Pending")
+                Text(
+                    if (uiState.dashboard.pendingQrTables.isEmpty()) {
+                        "No QR tables waiting for cashier"
+                    } else {
+                        uiState.dashboard.pendingQrTables.joinToString(" · ")
+                    }
+                )
             }
         }
         Spacer(modifier = Modifier.height(8.dp))

@@ -15,6 +15,10 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
+        buildConfigField("String", "DCS_COUNTRY_CODE", "\"SG\"")
+        buildConfigField("String", "DCS_CURRENCY_CODE", "\"702\"")
+        buildConfigField("String", "DCS_MERCHANT_ID", "\"000241017000034\"")
+        buildConfigField("String", "DCS_TERMINAL_ID", "\"A0100133\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -43,6 +47,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -83,6 +88,7 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation(files("libs/DCSPaymentLib-release-v2.0.0.aar"))
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

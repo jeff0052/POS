@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.developer.pos.device.payment.PaymentMethods
 import com.developer.pos.ui.model.ActiveOrderStage
 import com.developer.pos.ui.model.PaymentScenarioStore
 import com.developer.pos.ui.viewmodel.CashierViewModel
@@ -131,25 +133,28 @@ fun PaymentConfirmScreen(
                     if (scenario.source == "QR") "Cashier Payment Method" else "Payment Method",
                     style = MaterialTheme.typography.titleMedium
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row {
-                        RadioButton(
-                            selected = uiState.selectedPaymentMethod == "CASH",
-                            onClick = { viewModel.selectPaymentMethod("CASH") }
-                        )
-                        Text("Cash", modifier = Modifier.padding(top = 12.dp))
-                    }
-                    Row {
-                        RadioButton(
-                            selected = uiState.selectedPaymentMethod == "SDK_PAY",
-                            onClick = { viewModel.selectPaymentMethod("SDK_PAY") }
-                        )
-                        Text("SDK Pay", modifier = Modifier.padding(top = 12.dp))
-                    }
-                }
+                PaymentMethodOptionRow(
+                    selectedMethod = uiState.selectedPaymentMethod,
+                    primaryMethod = PaymentMethods.CASH,
+                    secondaryMethod = PaymentMethods.CARD_TERMINAL,
+                    onSelect = viewModel::selectPaymentMethod
+                )
+                PaymentMethodOptionRow(
+                    selectedMethod = uiState.selectedPaymentMethod,
+                    primaryMethod = PaymentMethods.WECHAT_QR,
+                    secondaryMethod = PaymentMethods.ALIPAY_QR,
+                    onSelect = viewModel::selectPaymentMethod
+                )
+                PaymentMethodOptionRow(
+                    selectedMethod = uiState.selectedPaymentMethod,
+                    primaryMethod = PaymentMethods.PAYNOW_QR,
+                    secondaryMethod = null,
+                    onSelect = viewModel::selectPaymentMethod
+                )
+                Text(
+                    text = "Provider Status (${PaymentMethods.providerName(uiState.selectedPaymentMethod)}): ${uiState.paymentProviderStatus}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
 
@@ -158,7 +163,7 @@ fun PaymentConfirmScreen(
                 if (scenario.source != "QR") {
                     viewModel.moveToPendingSettlement()
                 }
-                viewModel.prepareMockPayment()
+                viewModel.preparePayment()
                 onStartPayment()
             },
             modifier = Modifier.fillMaxWidth(),
@@ -185,5 +190,51 @@ fun PaymentConfirmScreen(
                 Text("Send to Kitchen First")
             }
         }
+    }
+}
+
+@Composable
+private fun PaymentMethodOptionRow(
+    selectedMethod: String,
+    primaryMethod: String,
+    secondaryMethod: String?,
+    onSelect: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        PaymentMethodOption(
+            modifier = Modifier.weight(1f),
+            method = primaryMethod,
+            selectedMethod = selectedMethod,
+            onSelect = onSelect
+        )
+        if (secondaryMethod != null) {
+            PaymentMethodOption(
+                modifier = Modifier.weight(1f),
+                method = secondaryMethod,
+                selectedMethod = selectedMethod,
+                onSelect = onSelect
+            )
+        } else {
+            Spacer(modifier = Modifier.width(0.dp).weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun PaymentMethodOption(
+    modifier: Modifier,
+    method: String,
+    selectedMethod: String,
+    onSelect: (String) -> Unit
+) {
+    Row(modifier = modifier) {
+        RadioButton(
+            selected = selectedMethod == method,
+            onClick = { onSelect(method) }
+        )
+        Text(PaymentMethods.displayName(method), modifier = Modifier.padding(top = 12.dp))
     }
 }

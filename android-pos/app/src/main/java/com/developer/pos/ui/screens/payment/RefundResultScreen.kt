@@ -11,11 +11,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.developer.pos.ui.viewmodel.DcsTerminalUiState
 
 @Composable
 fun RefundResultScreen(
+    uiState: DcsTerminalUiState,
     onFinish: () -> Unit
 ) {
     Column(
@@ -26,10 +29,15 @@ fun RefundResultScreen(
     ) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Refund Success", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Refund No: REF-${System.currentTimeMillis()}")
-                Text("Amount: CNY 28.00")
-                Text("Refund slip printing will be wired after printer SDK integration.")
+                Text(
+                    uiState.lastActionLabel ?: "DCS Result",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (uiState.lastActionSuccess) Color(0xFF147D39) else MaterialTheme.colorScheme.error
+                )
+                Text(uiState.lastActionMessage ?: "No DCS action result is available.")
+                Text("Terminal status: ${uiState.providerStatus}")
+                Text("Slip printing will be wired after printer SDK integration.")
             }
         }
 

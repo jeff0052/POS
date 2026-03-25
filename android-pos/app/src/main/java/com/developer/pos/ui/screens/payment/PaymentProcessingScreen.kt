@@ -16,9 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.developer.pos.device.payment.PaymentMethods
 import com.developer.pos.ui.model.PaymentScenarioStore
 import com.developer.pos.ui.viewmodel.CashierViewModel
-import kotlinx.coroutines.delay
 
 @Composable
 fun PaymentProcessingScreen(
@@ -31,9 +31,10 @@ fun PaymentProcessingScreen(
     val payableAmountCents = if (scenario.payableAmountCents > 0L) scenario.payableAmountCents else uiState.payableAmountCents
 
     LaunchedEffect(Unit) {
-        delay(1200)
-        viewModel.completeMockPayment()
-        onPaymentSuccess()
+        viewModel.startSelectedPayment(
+            onSuccess = onPaymentSuccess,
+            onFailure = onPaymentFailure
+        )
     }
 
     Column(
@@ -48,15 +49,26 @@ fun PaymentProcessingScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 CircularProgressIndicator()
-                Text("Processing Cashier Settlement", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    if (PaymentMethods.isQr(uiState.selectedPaymentMethod)) {
+                        "Preparing QR Payment"
+                    } else {
+                        "Processing Cashier Settlement"
+                    },
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
                 Text("Order No: ${uiState.currentOrderNo}")
-                Text("Payment Method: ${uiState.selectedPaymentMethod}")
+                Text("Payment Method: ${PaymentMethods.displayName(uiState.selectedPaymentMethod)}")
                 Text("Amount: CNY %.2f".format(payableAmountCents / 100.0))
                 Text("Current Stage: ${uiState.activeOrderStage.label}")
-                Text(
-                    "Mock mode is enabled. Payment currently defaults to success until the real SDK is integrated.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text("Provider Status: ${uiState.paymentProviderStatus}", style = MaterialTheme.typography.bodyMedium)
+                uiState.paymentErrorMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+                if (PaymentMethods.isQr(uiState.selectedPaymentMethod)) {
+                    Text("The terminal is creating a VibeCash payment link for the customer.")
+                }
             }
         }
     }

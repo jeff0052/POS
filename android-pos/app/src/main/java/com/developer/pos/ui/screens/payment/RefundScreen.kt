@@ -18,15 +18,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.developer.pos.device.payment.PaymentMethods
+import com.developer.pos.ui.model.BackofficeOrder
+import com.developer.pos.ui.viewmodel.DcsTerminalUiState
 
 @Composable
 fun RefundScreen(
+    order: BackofficeOrder?,
+    uiState: DcsTerminalUiState,
     onBack: () -> Unit,
+    onVoidSale: () -> Unit,
     onSubmitRefund: () -> Unit
 ) {
     val reason = remember { mutableStateOf("") }
+    val currentOrder = order
+    val isCardOrder = currentOrder?.paymentMethod == PaymentMethods.CARD_TERMINAL
 
     Column(
         modifier = Modifier
@@ -44,8 +53,13 @@ fun RefundScreen(
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Order No: POS202603200001")
-                Text("Refund Amount: CNY 28.00")
+                if (currentOrder == null) {
+                    Text("No order selected")
+                } else {
+                    Text("Order No: ${currentOrder.orderNo}")
+                    Text("Payment Method: ${currentOrder.paymentMethod ?: "UNPAID"}")
+                    Text("Refund Amount: CNY %.2f".format(currentOrder.payableAmountCents / 100.0))
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
                     value = reason.value,
@@ -53,14 +67,39 @@ fun RefundScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Refund reason") }
                 )
+                if (!isCardOrder) {
+                    Text(
+                        "DCS refund and void are only available for Card Terminal orders.",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                uiState.lastActionLabel?.let { label ->
+                    Text(
+                        "$label: ${uiState.lastActionMessage ?: if (uiState.lastActionSuccess) "Completed" else "Failed"}",
+                        color = if (uiState.lastActionSuccess) Color(0xFF147D39) else MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
 
-        Button(
-            onClick = onSubmitRefund,
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Submit Refund")
+            OutlinedButton(
+                onClick = onVoidSale,
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.loading && currentOrder != null && isCardOrder
+            ) {
+                Text("Void Sale")
+            }
+            Button(
+                onClick = onSubmitRefund,
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.loading && currentOrder != null && isCardOrder
+            ) {
+                Text(if (uiState.loading) "Processing..." else "Submit Refund")
+            }
         }
     }
 }

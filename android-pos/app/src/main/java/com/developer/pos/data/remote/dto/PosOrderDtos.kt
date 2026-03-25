@@ -73,3 +73,20 @@ data class CashierSettlementResultDto(
     val payableAmountCents: Long,
     val collectedAmountCents: Long
 )
+
+data class StartVibeCashPaymentRequestDto(
+    val paymentScheme: String
+)
+
+data class VibeCashPaymentAttemptDto(
+    val paymentAttemptId: String,
+    val provider: String,
+    val paymentMethod: String,
+    val paymentScheme: String,
+    val attemptStatus: String,
+    val providerStatus: String,
+    val providerPaymentId: String?,
+    val checkoutUrl: String?,
+    val settlementAmountCents: Long,
+    val currencyCode: String
+)

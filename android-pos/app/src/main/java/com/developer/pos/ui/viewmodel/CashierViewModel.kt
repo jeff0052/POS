@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.developer.pos.data.repository.PosOrderRepository
 import com.developer.pos.data.repository.ProductRepository
+import com.developer.pos.device.payment.PaymentMethods
+import com.developer.pos.device.payment.PaymentService
 import com.developer.pos.domain.model.CartItem
 import com.developer.pos.domain.model.Product
 import com.developer.pos.ui.model.ActiveOrderStage
@@ -19,15 +21,21 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class CashierViewModel @Inject constructor(
     private val productRepository: ProductRepository,
-    private val posOrderRepository: PosOrderRepository
+    private val posOrderRepository: PosOrderRepository,
+    private val paymentService: PaymentService
 ) : ViewModel() {
     private val searchQuery = MutableStateFlow("")
     private val cartItems = MutableStateFlow<List<CartItem>>(emptyList())
-    private val selectedPaymentMethod = MutableStateFlow("SDK_PAY")
+    private val selectedPaymentMethod = MutableStateFlow(PaymentMethods.CARD_TERMINAL)
     private val currentOrderNo = MutableStateFlow("POS-DEMO-0001")
     private val activeOrderStage = MutableStateFlow(ActiveOrderStage.DRAFT)
     private val currentActiveOrderId = MutableStateFlow<String?>(null)
     private val syncStatus = MutableStateFlow("Syncing V2 menu")
+    private val paymentProviderStatus = MutableStateFlow("Checking DCS SDK")
+    private val paymentProcessing = MutableStateFlow(false)
+    private val paymentErrorMessage = MutableStateFlow<String?>(null)
+    private val paymentActionUrl = MutableStateFlow<String?>(null)
+    private val paymentRequiresCustomerAction = MutableStateFlow(false)
 
     val uiState: StateFlow<CashierUiState> = combine(
         productRepository.observeProducts(),
@@ -36,8 +44,13 @@ class CashierViewModel @Inject constructor(
         selectedPaymentMethod,
         currentOrderNo,
         activeOrderStage,
-        syncStatus
-    ) { products, cart, query, paymentMethod, orderNo, orderStage, sync ->
+        syncStatus,
+        paymentProviderStatus,
+        paymentProcessing,
+        paymentErrorMessage,
+        paymentActionUrl,
+        paymentRequiresCustomerAction
+    ) { products, cart, query, paymentMethod, orderNo, orderStage, sync, providerStatus, isProcessing, paymentError, actionUrl, requiresCustomerAction ->
         CashierUiState(
             products = products,
             cartItems = cart,
@@ -45,7 +58,12 @@ class CashierViewModel @Inject constructor(
             selectedPaymentMethod = paymentMethod,
             currentOrderNo = orderNo,
             activeOrderStage = orderStage,
-            syncStatus = sync
+            syncStatus = sync,
+            paymentProviderStatus = providerStatus,
+            paymentProcessing = isProcessing,
+            paymentErrorMessage = paymentError,
+            paymentActionUrl = actionUrl,
+            paymentRequiresCustomerAction = requiresCustomerAction
         )
     }.stateIn(
         scope = viewModelScope,
@@ -58,6 +76,7 @@ class CashierViewModel @Inject constructor(
             productRepository.seedIfEmpty()
             syncStatus.value = "V2 menu ready"
         }
+        refreshPaymentProviderStatus()
     }
 
     fun updateSearchQuery(query: String) {
@@ -98,6 +117,9 @@ class CashierViewModel @Inject constructor(
 
     fun selectPaymentMethod(method: String) {
         selectedPaymentMethod.value = method
+        paymentErrorMessage.value = null
+        paymentActionUrl.value = null
+        paymentRequiresCustomerAction.value = false
     }
 
     fun sendToKitchen() {
@@ -129,24 +151,118 @@ class CashierViewModel @Inject constructor(
         }
     }
 
-    fun prepareMockPayment() {
+    fun preparePayment() {
         ensureActiveOrderNo()
         if (activeOrderStage.value != ActiveOrderStage.SETTLED) {
             activeOrderStage.value = ActiveOrderStage.PENDING_SETTLEMENT
         }
+        paymentErrorMessage.value = null
+        paymentActionUrl.value = null
+        paymentRequiresCustomerAction.value = false
     }
 
-    fun completeMockPayment() {
+    fun startSelectedPayment(
+        onSuccess: () -> Unit,
+        onFailure: () -> Unit
+    ) {
         viewModelScope.launch {
+            paymentProcessing.value = true
+            paymentErrorMessage.value = null
+            paymentActionUrl.value = null
+            paymentRequiresCustomerAction.value = false
             runCatching {
+                val paymentMethod = selectedPaymentMethod.value
+                val connectStatus = paymentService.connect(paymentMethod)
+                paymentProviderStatus.value = connectStatus.message
+                if (!connectStatus.available || !connectStatus.connected) {
+                    error(connectStatus.message)
+                }
+
+                val paymentResult = paymentService.startPayment(
+                    orderNo = currentOrderNo.value,
+                    amountCents = uiState.value.payableAmountCents,
+                    paymentMethod = paymentMethod
+                )
+
+                if (paymentResult.pending) {
+                    paymentProcessing.value = false
+                    paymentRequiresCustomerAction.value = true
+                    paymentActionUrl.value = paymentResult.actionUrl
+                    paymentProviderStatus.value = paymentResult.message ?: "Customer payment action required."
+                    paymentErrorMessage.value = paymentResult.actionUrl
+                    syncStatus.value = "Customer action pending"
+                    onFailure()
+                    return@launch
+                }
+
+                if (!paymentResult.success) {
+                    error(paymentResult.message ?: "Payment provider failed")
+                }
+
                 val stage = posOrderRepository.collectPayment(
-                    paymentMethod = selectedPaymentMethod.value,
+                    paymentMethod = paymentMethod,
                     collectedAmountCents = uiState.value.payableAmountCents
                 )
                 activeOrderStage.value = stage
                 syncStatus.value = "Payment collected via V2"
+                paymentProcessing.value = false
+                onSuccess()
             }.onFailure { error ->
+                paymentProcessing.value = false
+                paymentErrorMessage.value = error.message ?: "unknown"
                 syncStatus.value = "Collect failed: ${error.message ?: "unknown"}"
+                onFailure()
+            }
+        }
+    }
+
+    fun clearPaymentFailure() {
+        paymentErrorMessage.value = null
+        paymentActionUrl.value = null
+        paymentRequiresCustomerAction.value = false
+    }
+
+    fun checkSelectedPaymentStatus(
+        onSettled: () -> Unit,
+        onStillPending: () -> Unit,
+        onFailure: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val paymentMethod = selectedPaymentMethod.value
+            runCatching {
+                val result = paymentService.queryPayment(currentOrderNo.value, paymentMethod)
+                when {
+                    result.success -> {
+                        paymentRequiresCustomerAction.value = false
+                        paymentActionUrl.value = null
+                        paymentErrorMessage.value = null
+                        paymentProviderStatus.value = result.message ?: "Payment confirmed."
+                        activeOrderStage.value = ActiveOrderStage.SETTLED
+                        syncStatus.value = "Payment confirmed via ${PaymentMethods.providerName(paymentMethod)}"
+                        onSettled()
+                    }
+
+                    result.pending -> {
+                        paymentRequiresCustomerAction.value = true
+                        paymentActionUrl.value = result.actionUrl
+                        paymentErrorMessage.value = result.actionUrl
+                        paymentProviderStatus.value = result.message ?: "Customer payment still pending."
+                        syncStatus.value = "Customer action pending"
+                        onStillPending()
+                    }
+
+                    else -> {
+                        paymentErrorMessage.value = result.message
+                        paymentProviderStatus.value = result.message ?: "Payment query failed."
+                        syncStatus.value = "Payment query failed"
+                        onFailure()
+                    }
+                }
+            }.onFailure { error ->
+                paymentErrorMessage.value = error.message ?: "Payment query failed"
+                paymentProviderStatus.value = paymentErrorMessage.value ?: "Payment query failed"
+                syncStatus.value = "Payment query failed"
+                onFailure()
             }
         }
     }
@@ -157,6 +273,17 @@ class CashierViewModel @Inject constructor(
         activeOrderStage.value = ActiveOrderStage.DRAFT
         currentActiveOrderId.value = null
         syncStatus.value = "Ready for next V2 order"
+        paymentProcessing.value = false
+        paymentErrorMessage.value = null
+        paymentActionUrl.value = null
+        paymentRequiresCustomerAction.value = false
+    }
+
+    fun refreshPaymentProviderStatus() {
+        viewModelScope.launch {
+            val status = paymentService.connect(selectedPaymentMethod.value)
+            paymentProviderStatus.value = status.message
+        }
     }
 
     private fun ensureActiveOrderNo() {

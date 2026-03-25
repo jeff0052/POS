@@ -2,9 +2,13 @@ package com.developer.pos.data.repository
 
 import com.developer.pos.domain.model.CartItem
 import com.developer.pos.ui.model.ActiveOrderStage
+import com.developer.pos.ui.model.BackofficeDashboard
+import com.developer.pos.ui.model.BackofficeOrder
 import com.developer.pos.ui.model.PaymentScenario
 
 interface PosOrderRepository {
+    suspend fun getDashboard(): BackofficeDashboard
+    suspend fun getMerchantOrders(): List<BackofficeOrder>
     suspend fun syncDraft(cartItems: List<CartItem>): PosDraftState
     suspend fun sendToKitchen(activeOrderId: String): ActiveOrderStage
     suspend fun moveToPaymentPending(): PaymentScenario

@@ -10,6 +10,11 @@ import com.developer.pos.data.repository.PosOrderRepository
 import com.developer.pos.data.repository.ProductRepository
 import com.developer.pos.data.repository.impl.PosOrderRepositoryImpl
 import com.developer.pos.data.repository.impl.ProductRepositoryImpl
+import com.developer.pos.device.payment.CashPaymentService
+import com.developer.pos.device.payment.DcsPaymentService
+import com.developer.pos.device.payment.PaymentService
+import com.developer.pos.device.payment.UnifiedPaymentService
+import com.developer.pos.device.payment.VibeCashPaymentService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -80,5 +85,17 @@ object AppModule {
     @Singleton
     fun providePosOrderRepository(posOrderApi: PosOrderApi): PosOrderRepository {
         return PosOrderRepositoryImpl(posOrderApi)
+    }
+
+    @Provides
+    @Singleton
+    fun providePaymentService(
+        @ApplicationContext context: Context,
+        posOrderApi: PosOrderApi
+    ): PaymentService {
+        val dcs = DcsPaymentService(context)
+        val vibecash = VibeCashPaymentService(posOrderApi)
+        val cash = CashPaymentService()
+        return UnifiedPaymentService(dcs, vibecash, cash)
     }
 }

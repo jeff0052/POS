@@ -2,16 +2,22 @@ package com.developer.pos.ui.viewmodel
 
 import com.developer.pos.domain.model.CartItem
 import com.developer.pos.domain.model.Product
+import com.developer.pos.device.payment.PaymentMethods
 import com.developer.pos.ui.model.ActiveOrderStage
 
 data class CashierUiState(
     val products: List<Product> = emptyList(),
     val cartItems: List<CartItem> = emptyList(),
     val searchQuery: String = "",
-    val selectedPaymentMethod: String = "SDK_PAY",
+    val selectedPaymentMethod: String = PaymentMethods.CARD_TERMINAL,
     val currentOrderNo: String = "POS-DEMO-0001",
     val activeOrderStage: ActiveOrderStage = ActiveOrderStage.DRAFT,
-    val syncStatus: String = "V2 disconnected"
+    val syncStatus: String = "V2 disconnected",
+    val paymentProviderStatus: String = "DCS SDK not checked",
+    val paymentProcessing: Boolean = false,
+    val paymentErrorMessage: String? = null,
+    val paymentActionUrl: String? = null,
+    val paymentRequiresCustomerAction: Boolean = false
 ) {
     val filteredProducts: List<Product>
         get() = if (searchQuery.isBlank()) {

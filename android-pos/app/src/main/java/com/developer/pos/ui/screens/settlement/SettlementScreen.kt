@@ -14,13 +14,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.developer.pos.ui.viewmodel.DcsTerminalUiState
 
 @Composable
 fun SettlementScreen(
-    onBack: () -> Unit
+    uiState: DcsTerminalUiState,
+    onBack: () -> Unit,
+    onRefreshStatus: () -> Unit,
+    onRunSettlement: () -> Unit,
+    onSignOff: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -38,21 +44,49 @@ fun SettlementScreen(
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Today's Cashier Settlement", style = MaterialTheme.typography.titleMedium)
-                Text("CNY 12,680.00", style = MaterialTheme.typography.headlineMedium)
+                Text("DCS Terminal Operations", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (uiState.terminalConnected) "Terminal Connected" else "Terminal Not Ready",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = if (uiState.terminalConnected) Color(0xFF147D39) else MaterialTheme.colorScheme.error
+                )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Settled Orders: 128")
-                Text("Refund Amount: CNY 320.00")
-                Text("Cashier Cash: CNY 2,100.00")
-                Text("Cashier Digital Pay: CNY 10,580.00")
+                Text(uiState.providerStatus)
+                uiState.lastActionLabel?.let { label ->
+                    Text(
+                        "$label: ${uiState.lastActionMessage ?: if (uiState.lastActionSuccess) "Completed" else "Failed"}",
+                        color = if (uiState.lastActionSuccess) Color(0xFF147D39) else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = onRefreshStatus,
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.loading
+            ) {
+                Text("Refresh")
+            }
+            OutlinedButton(
+                onClick = onSignOff,
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.loading
+            ) {
+                Text("Sign Off")
             }
         }
 
         Button(
-            onClick = { },
-            modifier = Modifier.fillMaxWidth()
+            onClick = onRunSettlement,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !uiState.loading
         ) {
-            Text("Close Cashier Shift")
+            Text(if (uiState.loading) "Processing..." else "Run Terminal Settlement")
         }
     }
 }
