@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FounderPOS — AI Restaurant Operating System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #0a0a0a;
+    --white: #fafafa;
+    --gold: #f59e0b;
+    --gold-light: #fbbf24;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-400: #9ca3af;
+    --gray-600: #4b5563;
+    --gray-800: #1f2937;
+    --green: #10b981;
+    --blue: #3b82f6;
+    --purple: #8b5cf6;
+    --red: #ef4444;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--black);
+    color: var(--white);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%);
+    top: -200px;
+    right: -200px;
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 100px;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.85rem;
+    color: var(--gold);
+    margin-bottom: 2rem;
+    letter-spacing: 0.05em;
+  }
+
+  .hero h1 {
+    font-size: clamp(2.5rem, 7vw, 5.5rem);
+    font-weight: 900;
+    line-height: 1.05;
+    margin-bottom: 1.5rem;
+    letter-spacing: -0.03em;
+  }
+
+  .hero h1 .gold { color: var(--gold); }
+
+  .hero p.subtitle {
+    font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+    color: var(--gray-400);
+    max-width: 640px;
+    margin-bottom: 3rem;
+    font-weight: 300;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.9rem 2rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+  }
+
+  .btn-primary {
+    background: var(--gold);
+    color: var(--black);
+  }
+
+  .btn-primary:hover { background: var(--gold-light); transform: translateY(-2px); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--white);
+    border: 1px solid var(--gray-600);
+  }
+
+  .btn-secondary:hover { border-color: var(--white); }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 2rem;
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    animation: bounce 2s infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+  }
+
+  /* ── Sections ── */
+  section {
+    padding: 6rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  .section-desc {
+    font-size: 1.1rem;
+    color: var(--gray-400);
+    max-width: 640px;
+    margin-bottom: 3rem;
+  }
+
+  /* ── Problem ── */
+  .problem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .problem-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 2rem;
+    transition: border-color 0.2s;
+  }
+
+  .problem-card:hover { border-color: rgba(245,158,11,0.3); }
+
+  .problem-card .icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  .problem-card h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .problem-card p {
+    font-size: 0.9rem;
+    color: var(--gray-400);
+  }
+
+  /* ── Comparison ── */
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 2rem;
+    align-items: center;
+    margin-top: 2rem;
+  }
+
+  .comparison-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 2.5rem;
+  }
+
+  .comparison-box.old { opacity: 0.6; }
+
+  .comparison-box.new {
+    border-color: rgba(245,158,11,0.4);
+    background: rgba(245,158,11,0.05);
+  }
+
+  .comparison-box h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+  }
+
+  .comparison-box ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .comparison-box li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    color: var(--gray-400);
+  }
+
+  .comparison-box.new li { color: var(--white); }
+
+  .comparison-arrow {
+    font-size: 2rem;
+    color: var(--gold);
+  }
+
+  @media (max-width: 768px) {
+    .comparison { grid-template-columns: 1fr; }
+    .comparison-arrow { transform: rotate(90deg); text-align: center; }
+  }
+
+  /* ── AI Advisors ── */
+  .advisors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .advisor-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s;
+  }
+
+  .advisor-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(245,158,11,0.4);
+    box-shadow: 0 20px 60px rgba(245,158,11,0.08);
+  }
+
+  .advisor-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    margin: 0 auto 1rem;
+  }
+
+  .advisor-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+
+  .advisor-card p { font-size: 0.85rem; color: var(--gray-400); margin-bottom: 1rem; }
+
+  .advisor-example {
+    background: rgba(245,158,11,0.08);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    color: var(--gold-light);
+    font-style: italic;
+    text-align: left;
+  }
+
+  /* ── Demo ── */
+  .demo-phone {
+    max-width: 420px;
+    margin: 0 auto;
+    background: var(--gray-800);
+    border-radius: 24px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 40px 100px rgba(0,0,0,0.5);
+  }
+
+  .demo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .demo-header h4 { font-size: 0.9rem; color: var(--gray-400); }
+  .demo-header .time { font-size: 0.85rem; color: var(--gold); }
+
+  .demo-greeting {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .demo-summary {
+    font-size: 0.85rem;
+    color: var(--gray-400);
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .demo-action {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    transition: border-color 0.2s;
+  }
+
+  .demo-action:hover { border-color: rgba(245,158,11,0.3); }
+
+  .demo-action-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .demo-action-title { font-size: 0.85rem; font-weight: 600; }
+
+  .demo-action-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+
+  .badge-menu { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .badge-promo { background: rgba(139,92,246,0.15); color: var(--purple); }
+  .badge-agent { background: rgba(16,185,129,0.15); color: var(--green); }
+
+  .demo-action p { font-size: 0.8rem; color: var(--gray-400); }
+
+  .demo-action-btns {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .demo-btn {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .demo-btn-approve { background: var(--gold); color: var(--black); }
+  .demo-btn-reject { background: rgba(255,255,255,0.08); color: var(--gray-400); }
+
+  .demo-auto {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .demo-auto span { color: var(--green); font-weight: 600; }
+
+  /* ── Layers ── */
+  .layer-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .layer {
+    padding: 2rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    position: relative;
+  }
+
+  .layer:first-child { border-radius: 16px 16px 0 0; }
+  .layer:last-child { border-radius: 0 0 16px 16px; }
+
+  .layer-num {
+    position: absolute;
+    left: -1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--gold);
+    color: var(--black);
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .layer h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; }
+  .layer p { font-size: 0.85rem; color: var(--gray-400); }
+
+  .layer-4 { background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.2); }
+  .layer-3 { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.2); }
+  .layer-2 { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+  .layer-1 { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
+
+  /* ── Network ── */
+  .network-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .network-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 2rem;
+  }
+
+  .network-card h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .network-card p { font-size: 0.9rem; color: var(--gray-400); }
+
+  /* ── Roadmap ── */
+  .roadmap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 2rem;
+  }
+
+  .roadmap::before {
+    content: '';
+    position: absolute;
+    left: 0.6rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .roadmap-item {
+    position: relative;
+    padding: 1.5rem 0 1.5rem 1.5rem;
+  }
+
+  .roadmap-dot {
+    position: absolute;
+    left: -1.65rem;
+    top: 1.75rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+  }
+
+  .roadmap-dot.done { background: var(--gold); }
+
+  .roadmap-item h3 { font-size: 1rem; font-weight: 600; }
+
+  .roadmap-item p { font-size: 0.85rem; color: var(--gray-400); }
+
+  .roadmap-item .tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+    font-weight: 600;
+  }
+
+  .tag-done { background: rgba(16,185,129,0.15); color: var(--green); }
+  .tag-next { background: rgba(245,158,11,0.15); color: var(--gold); }
+  .tag-planned { background: rgba(255,255,255,0.08); color: var(--gray-400); }
+
+  /* ── CTA ── */
+  .final-cta {
+    text-align: center;
+    padding: 8rem 2rem;
+    position: relative;
+  }
+
+  .final-cta::before {
+    content: '';
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .final-cta h2 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+  }
+
+  .final-cta p {
+    font-size: 1.1rem;
+    color: var(--gray-400);
+    margin-bottom: 2.5rem;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* ── Stats ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-top: 4rem;
+    text-align: center;
+  }
+
+  .stat h3 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 800;
+    color: var(--gold);
+  }
+
+  .stat p { font-size: 0.85rem; color: var(--gray-400); }
+
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 3rem 2rem;
+    font-size: 0.8rem;
+    color: var(--gray-600);
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge">AI-Powered Restaurant OS</div>
+  <h1>
+    给每家餐厅<br>
+    一个 <span class="gold">AI 合伙人</span>
+  </h1>
+  <p class="subtitle">
+    不是给你一个工具，是给你一个不休息的运营总监。<br>
+    一个人，管好一家餐厅。甚至十家。
+  </p>
+  <div class="hero-cta">
+    <a href="#demo" class="btn btn-primary">看 AI 怎么工作 ↓</a>
+    <a href="#architecture" class="btn btn-secondary">技术架构</a>
+  </div>
+  <div class="scroll-hint">↓ scroll</div>
+</div>
+
+<!-- Problem -->
+<section>
+  <div class="section-label">The Problem</div>
+  <h2 class="section-title">老板不缺工具，缺人</h2>
+  <p class="section-desc">一家餐厅要活下来，老板需要同时是七个角色。但他请不起七个人。</p>
+  <div class="problem-grid">
+    <div class="problem-card">
+      <div class="icon">👨‍🍳</div>
+      <h3>厨师长</h3>
+      <p>管菜品质量、出菜速度、退菜率</p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">📊</div>
+      <h3>数据分析师</h3>
+      <p>看报表、算毛利、找经营异常</p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">📣</div>
+      <h3>营销经理</h3>
+      <p>想促销、做活动、拉回头客</p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">👥</div>
+      <h3>会员运营</h3>
+      <p>管充值、分等级、召回流失客</p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">🗓️</div>
+      <h3>HR</h3>
+      <p>排班、算工时、管权限</p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">💰</div>
+      <h3>会计</h3>
+      <p>对账、报税、管现金流</p>
+    </div>
+  </div>
+</section>
+
+<!-- Comparison -->
+<section>
+  <div class="section-label">The Shift</div>
+  <h2 class="section-title">从用软件，到有合伙人</h2>
+  <div class="comparison">
+    <div class="comparison-box old">
+      <h3>传统 POS</h3>
+      <ul>
+        <li>❌ 老板做所有决策</li>
+        <li>❌ 老板做所有操作</li>
+        <li>❌ 数据看了也不知道怎么用</li>
+        <li>❌ 每天 14 小时不够用</li>
+        <li>❌ 扩店需要复制整个团队</li>
+      </ul>
+    </div>
+    <div class="comparison-arrow">→</div>
+    <div class="comparison-box new">
+      <h3>FounderPOS</h3>
+      <ul>
+        <li>✅ AI 分析数据、发现问题</li>
+        <li>✅ AI 生成方案、自动执行低风险操作</li>
+        <li>✅ 老板只做关键审批</li>
+        <li>✅ 每天 30 分钟看摘要、拍板</li>
+        <li>✅ 一人管十店</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- AI Advisors -->
+<section>
+  <div class="section-label">Five AI Advisors</div>
+  <h2 class="section-title">你的 AI 合伙人有五个脑子</h2>
+  <p class="section-desc">不是五个独立 AI，是一个运营大脑的五个专长。每个都能看数据、想方案、等你拍板。</p>
+  <div class="advisors-grid">
+    <div class="advisor-card">
+      <div class="advisor-avatar" style="background:rgba(59,130,246,0.15)">🍽️</div>
+      <h3>菜单顾问</h3>
+      <p>SKU 销量、毛利、退菜率、出菜时间</p>
+      <div class="advisor-example">"芝士焗饭连续 3 周亏损，建议下架，预计节省 ¥2,400/月"</div>
+    </div>
+    <div class="advisor-card">
+      <div class="advisor-avatar" style="background:rgba(139,92,246,0.15)">📣</div>
+      <h3>营销顾问</h3>
+      <p>客流趋势、促销效果、竞对活动</p>
+      <div class="advisor-example">"周三客流低 40%，建议满 80 减 10，预计提升客流 12%"</div>
+    </div>
+    <div class="advisor-card">
+      <div class="advisor-avatar" style="background:rgba(16,185,129,0.15)">👥</div>
+      <h3>会员顾问</h3>
+      <p>消费频次、充值余额、流失风险</p>
+      <div class="advisor-example">"287 位会员 30 天未到店，推荐充 300 送 50 召回活动"</div>
+    </div>
+    <div class="advisor-card">
+      <div class="advisor-avatar" style="background:rgba(245,158,11,0.15)">📊</div>
+      <h3>经营顾问</h3>
+      <p>日报、周报、毛利分析、异常预警</p>
+      <div class="advisor-example">"本周毛利下降 5%，主因牛肉成本涨 12%，建议调整 3 道菜定价"</div>
+    </div>
+    <div class="advisor-card">
+      <div class="advisor-avatar" style="background:rgba(239,68,68,0.15)">⏱️</div>
+      <h3>出品顾问</h3>
+      <p>平均出菜时间、退菜原因、高峰瓶颈</p>
+      <div class="advisor-example">"午高峰 3 道菜出菜超 15 分钟，建议简化备料流程"</div>
+    </div>
+  </div>
+</section>
+
+<!-- Demo -->
+<section id="demo">
+  <div class="section-label">Daily Experience</div>
+  <h2 class="section-title" style="text-align:center">老板每天早上看到的</h2>
+  <p class="section-desc" style="text-align:center;margin-left:auto;margin-right:auto">打开手机，30 秒了解昨天经营，3 件事需要拍板，其他全自动。</p>
+  <div class="demo-phone">
+    <div class="demo-header">
+      <h4>FounderPOS</h4>
+      <div class="time">09:12 AM</div>
+    </div>
+    <div class="demo-greeting">早上好，老板 ☀️</div>
+    <div class="demo-summary">
+      昨日营收 <strong style="color:var(--white)">SGD 12,800</strong>，比上周三高 15%。<br>
+      客流 186 人次，客单价 SGD 68.8，翻台率 3.2。
+    </div>
+
+    <div class="demo-action">
+      <div class="demo-action-header">
+        <div class="demo-action-title">🍽️ 菜单顾问建议</div>
+        <span class="demo-action-badge badge-menu">菜单</span>
+      </div>
+      <p>「芝士焗饭」连续 3 周亏损，建议下架，每月节省 SGD 320</p>
+      <div class="demo-action-btns">
+        <button class="demo-btn demo-btn-approve">批准下架</button>
+        <button class="demo-btn demo-btn-reject">保留</button>
+      </div>
+    </div>
+
+    <div class="demo-action">
+      <div class="demo-action-header">
+        <div class="demo-action-title">📣 营销顾问建议</div>
+        <span class="demo-action-badge badge-promo">促销</span>
+      </div>
+      <p>明天周三客流预测偏低，建议推「满 80 减 10」，预计提升 12%</p>
+      <div class="demo-action-btns">
+        <button class="demo-btn demo-btn-approve">批准</button>
+        <button class="demo-btn demo-btn-reject">修改金额</button>
+      </div>
+    </div>
+
+    <div class="demo-action">
+      <div class="demo-action-header">
+        <div class="demo-action-title">🤝 企业 Agent 询价</div>
+        <span class="demo-action-badge badge-agent">外部</span>
+      </div>
+      <p>「腾讯深圳」Agent 询问周六 30 人包场，AI 报价 SGD 4,200</p>
+      <div class="demo-action-btns">
+        <button class="demo-btn demo-btn-approve">确认报价</button>
+        <button class="demo-btn demo-btn-reject">改价</button>
+      </div>
+    </div>
+
+    <div class="demo-auto">
+      其他 <span>47 件事</span> 已自动处理 ✓
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section id="architecture">
+  <div class="section-label">Architecture</div>
+  <h2 class="section-title">四层架构</h2>
+  <p class="section-desc">底层是传统交易系统，顶层是自主 Agent 网络。每一层独立可用，上层依赖下层但不侵入。</p>
+  <div class="layer-stack">
+    <div class="layer layer-4">
+      <div class="layer-num">4</div>
+      <h3>Agent Identity + Network</h3>
+      <p>每家餐厅 = 1 Agent + 1 Wallet。对外接预定、包场、供应商询价。餐厅间形成数据网络。</p>
+    </div>
+    <div class="layer layer-3">
+      <div class="layer-num">3</div>
+      <h3>AI Operator</h3>
+      <p>5 个 AI 顾问角色。感知数据 → 分析问题 → 生成方案 → 人类审批 → 自动执行。</p>
+    </div>
+    <div class="layer layer-2">
+      <div class="layer-num">2</div>
+      <h3>MCP Tool Layer</h3>
+      <p>22 个工具覆盖 7 个业务域。人类和 AI 走同一套接口，审计天然统一。</p>
+    </div>
+    <div class="layer layer-1">
+      <div class="layer-num">1</div>
+      <h3>Transaction Foundation</h3>
+      <p>点餐、结账、会员、促销、报表、员工、班次。传统 POS 底座，稳定可审计。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Network -->
+<section>
+  <div class="section-label">The Network Effect</div>
+  <h2 class="section-title">不只是单店 AI，是餐厅网络</h2>
+  <p class="section-desc">当每家餐厅都有 Agent，真正的杠杆不是单店自动化，而是网络。</p>
+  <div class="network-features">
+    <div class="network-card">
+      <h3>🧠 集体智慧</h3>
+      <p>1000 家餐厅的匿名数据，让每家店的 AI 更聪明。"同区域同菜系毛利中位数 62%，你只有 55%"。</p>
+    </div>
+    <div class="network-card">
+      <h3>🤝 Agent 间协作</h3>
+      <p>联合采购压价、满座互相导流、临时工跨店调度。餐厅不再是孤岛。</p>
+    </div>
+    <div class="network-card">
+      <h3>🏦 RWA 发债</h3>
+      <p>基于链上可验证的经营数据发行收益权凭证。餐厅变成可投资的资产，不需要银行审批。</p>
+    </div>
+    <div class="network-card">
+      <h3>📈 一人多店</h3>
+      <p>一个老板管 10 家店。每家店 Agent 独立运营，老板只看汇总 Dashboard 审批。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Stats -->
+<section>
+  <div class="stats-row">
+    <div class="stat">
+      <h3>22</h3>
+      <p>MCP 工具覆盖全业务域</p>
+    </div>
+    <div class="stat">
+      <h3>5</h3>
+      <p>AI 顾问角色</p>
+    </div>
+    <div class="stat">
+      <h3>43</h3>
+      <p>数据库表</p>
+    </div>
+    <div class="stat">
+      <h3>4</h3>
+      <p>层架构，层层可独立运行</p>
+    </div>
+  </div>
+</section>
+
+<!-- Roadmap -->
+<section>
+  <div class="section-label">Roadmap</div>
+  <h2 class="section-title">交付路线</h2>
+  <div class="roadmap">
+    <div class="roadmap-item">
+      <div class="roadmap-dot done"></div>
+      <h3>P0 — MCP Tool Server</h3>
+      <p>22 个工具，AI 能操作 POS 每个模块</p>
+      <span class="tag tag-done">已完成</span>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot done"></div>
+      <h3>P1 — AI Operator</h3>
+      <p>5 个顾问角色 + 推荐引擎 + 审批流</p>
+      <span class="tag tag-done">已完成</span>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot done"></div>
+      <h3>P2 — Agent + Wallet</h3>
+      <p>餐厅 AI 身份 + 钱包 + 对外交互</p>
+      <span class="tag tag-done">已完成</span>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot"></div>
+      <h3>P3 — Agent-to-Agent Protocol</h3>
+      <p>标准化跨餐厅、跨角色交互协议</p>
+      <span class="tag tag-next">下一步</span>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot"></div>
+      <h3>P4 — Restaurant Network</h3>
+      <p>匿名数据共享 + 集体智慧 + 协作</p>
+      <span class="tag tag-planned">规划中</span>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot"></div>
+      <h3>P5 — RWA</h3>
+      <p>经营数据上链 + 收益权凭证 + 发债</p>
+      <span class="tag tag-planned">规划中</span>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA -->
+<div class="final-cta">
+  <h2>不是给餐厅一个工具<br>是给餐厅一个<span style="color:var(--gold)">合伙人</span></h2>
+  <p>FounderPOS — AI Restaurant Operating System</p>
+  <a href="mailto:jeff@ontanetwork.com" class="btn btn-primary">联系我们 →</a>
+</div>
+
+<footer>
+  &copy; 2026 Onta Network · FounderPOS · Built with AI
+</footer>
+
+</body>
+</html>
