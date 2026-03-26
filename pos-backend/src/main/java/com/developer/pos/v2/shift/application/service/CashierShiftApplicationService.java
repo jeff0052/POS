@@ -58,11 +58,15 @@ public class CashierShiftApplicationService implements UseCase {
         }
 
         List<CashierShiftSettlementEntity> settlements = settlementRepository.findByShiftIdOrderBySettledAtAsc(entity.getId());
-        long totalSales = settlements.stream().mapToLong(CashierShiftSettlementEntity::getAmountCents).sum();
+        long totalSales = settlements.stream().filter(s -> s.getAmountCents() >= 0).mapToLong(CashierShiftSettlementEntity::getAmountCents).sum();
+        long totalRefunds = settlements.stream().filter(s -> s.getAmountCents() < 0).mapToLong(s -> Math.abs(s.getAmountCents())).sum();
         long cashSales = settlements.stream()
-                .filter(s -> "CASH".equalsIgnoreCase(s.getPaymentMethod()))
+                .filter(s -> "CASH".equalsIgnoreCase(s.getPaymentMethod()) && s.getAmountCents() >= 0)
                 .mapToLong(CashierShiftSettlementEntity::getAmountCents).sum();
-        long expectedCash = entity.getOpeningCashCents() + cashSales;
+        long cashRefunds = settlements.stream()
+                .filter(s -> "CASH".equalsIgnoreCase(s.getPaymentMethod()) && s.getAmountCents() < 0)
+                .mapToLong(s -> Math.abs(s.getAmountCents())).sum();
+        long expectedCash = entity.getOpeningCashCents() + cashSales - cashRefunds;
 
         entity.setShiftStatus("CLOSED");
         entity.setClosedAt(OffsetDateTime.now());
@@ -70,6 +74,7 @@ public class CashierShiftApplicationService implements UseCase {
         entity.setExpectedCashCents(expectedCash);
         entity.setCashDifferenceCents(command.closingCashCents() - expectedCash);
         entity.setTotalSalesCents(totalSales);
+        entity.setTotalRefundsCents(totalRefunds);
         entity.setTotalTransactionCount(settlements.size());
         entity.setNotes(command.notes());
         CashierShiftEntity saved = shiftRepository.save(entity);

@@ -8,22 +8,23 @@ import java.time.OffsetDateTime;
 public class CashierShiftEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String shiftId;
-    private Long merchantId;
-    private Long storeId;
-    private String cashierStaffId;
-    private String cashierName;
-    private String shiftStatus;
-    private OffsetDateTime openedAt;
-    private OffsetDateTime closedAt;
-    private long openingCashCents;
-    private Long closingCashCents;
-    private Long expectedCashCents;
-    private Long cashDifferenceCents;
-    private long totalSalesCents;
-    private long totalRefundsCents;
-    private int totalTransactionCount;
-    private String notes;
+
+    @Column(name = "shift_id") private String shiftId;
+    @Column(name = "merchant_id") private Long merchantId;
+    @Column(name = "store_id") private Long storeId;
+    @Column(name = "cashier_staff_id") private String cashierStaffId;
+    @Column(name = "cashier_name") private String cashierName;
+    @Column(name = "shift_status") private String shiftStatus;
+    @Column(name = "opened_at") private OffsetDateTime openedAt;
+    @Column(name = "closed_at") private OffsetDateTime closedAt;
+    @Column(name = "opening_cash_cents") private long openingCashCents;
+    @Column(name = "closing_cash_cents") private Long closingCashCents;
+    @Column(name = "expected_cash_cents") private Long expectedCashCents;
+    @Column(name = "cash_difference_cents") private Long cashDifferenceCents;
+    @Column(name = "total_sales_cents") private long totalSalesCents;
+    @Column(name = "total_refunds_cents") private long totalRefundsCents;
+    @Column(name = "total_transaction_count") private int totalTransactionCount;
+    @Column(name = "notes") private String notes;
 
     public Long getId() { return id; }
     public String getShiftId() { return shiftId; }

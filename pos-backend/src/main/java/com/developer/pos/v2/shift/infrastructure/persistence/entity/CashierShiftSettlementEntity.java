@@ -8,11 +8,12 @@ import java.time.OffsetDateTime;
 public class CashierShiftSettlementEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private Long shiftId;
-    private String settlementNo;
-    private String paymentMethod;
-    private long amountCents;
-    private OffsetDateTime settledAt;
+
+    @Column(name = "shift_id") private Long shiftId;
+    @Column(name = "settlement_no") private String settlementNo;
+    @Column(name = "payment_method") private String paymentMethod;
+    @Column(name = "amount_cents") private long amountCents;
+    @Column(name = "settled_at") private OffsetDateTime settledAt;
 
     public Long getId() { return id; }
     public Long getShiftId() { return shiftId; }

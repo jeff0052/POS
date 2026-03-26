@@ -135,21 +135,69 @@ public class GtoExportApplicationService implements UseCase {
 
     @Transactional
     public GtoExportBatchDto retryBatch(String batchId) {
-        GtoExportBatchEntity existing = batchRepository.findByBatchId(batchId)
+        GtoExportBatchEntity batch = batchRepository.findByBatchId(batchId)
                 .orElseThrow(() -> new IllegalArgumentException("GTO batch not found: " + batchId));
 
-        if (!"FAILED".equals(existing.getBatchStatus())) {
-            throw new IllegalStateException("Only FAILED batches can be retried. Current status: " + existing.getBatchStatus());
+        if (!"FAILED".equals(batch.getBatchStatus())) {
+            throw new IllegalStateException("Only FAILED batches can be retried. Current status: " + batch.getBatchStatus());
         }
 
-        batchRepository.delete(existing);
-        batchRepository.flush();
+        batch.getItems().clear();
+        batch.setBatchStatus("GENERATING");
+        batch.setErrorMessage(null);
 
-        return generateBatch(new GenerateGtoBatchCommand(
-                existing.getMerchantId(),
-                existing.getStoreId(),
-                existing.getExportDate()
-        ));
+        try {
+            List<SettlementRecordEntity> settlements = settlementQueryRepository
+                    .findSettledByStoreIdAndDate(batch.getStoreId(), batch.getExportDate().toString());
+
+            Map<String, List<SettlementRecordEntity>> grouped = settlements.stream()
+                    .collect(Collectors.groupingBy(SettlementRecordEntity::getPaymentMethod));
+
+            long batchTotalSales = 0;
+            long batchTotalTax = 0;
+            int batchTotalCount = 0;
+
+            for (Map.Entry<String, List<SettlementRecordEntity>> entry : grouped.entrySet()) {
+                String paymentMethod = entry.getKey();
+                List<SettlementRecordEntity> records = entry.getValue();
+                long saleTotalCents = 0;
+                int saleCount = 0;
+                long refundTotalCents = 0;
+                int refundCount = 0;
+                for (SettlementRecordEntity record : records) {
+                    long amount = record.getCollectedAmountCents();
+                    if (amount >= 0) { saleTotalCents += amount; saleCount++; }
+                    else { refundTotalCents += Math.abs(amount); refundCount++; }
+                }
+                long netTotalCents = saleTotalCents - refundTotalCents;
+                long taxCents = (netTotalCents * 9) / 109;
+
+                GtoExportItemEntity item = new GtoExportItemEntity();
+                item.setBatch(batch);
+                item.setPaymentMethod(paymentMethod);
+                item.setSaleCount(saleCount);
+                item.setSaleTotalCents(saleTotalCents);
+                item.setRefundCount(refundCount);
+                item.setRefundTotalCents(refundTotalCents);
+                item.setNetTotalCents(netTotalCents);
+                item.setTaxCents(taxCents);
+                batch.getItems().add(item);
+                batchTotalSales += netTotalCents;
+                batchTotalTax += taxCents;
+                batchTotalCount += saleCount + refundCount;
+            }
+            batch.setTotalSalesCents(batchTotalSales);
+            batch.setTotalTaxCents(batchTotalTax);
+            batch.setTotalTransactionCount(batchTotalCount);
+            batch.setBatchStatus("COMPLETED");
+            batch.setCompletedAt(LocalDateTime.now());
+        } catch (Exception e) {
+            batch.setBatchStatus("FAILED");
+            batch.setErrorMessage(e.getMessage());
+        }
+
+        GtoExportBatchEntity saved = batchRepository.save(batch);
+        return toDto(saved);
     }
 
     private GtoExportBatchDto toDto(GtoExportBatchEntity batch) {
