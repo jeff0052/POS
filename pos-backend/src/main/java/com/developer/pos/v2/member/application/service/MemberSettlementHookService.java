@@ -11,6 +11,9 @@ import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemb
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+import java.util.UUID;
+
 /**
  * Called after a settlement completes when a member is attached to the order.
  * Handles: lifetime spend tracking, auto points earning, tier auto-upgrade, balance deduction.
@@ -64,6 +67,7 @@ public class MemberSettlementHookService implements UseCase {
             account.setPointsBalance(account.getPointsBalance() + pointsEarned);
 
             MemberPointsLedgerEntity ledger = new MemberPointsLedgerEntity();
+            ledger.setLedgerNo("PL" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
             ledger.setMemberId(memberId);
             ledger.setMerchantId(member.getMerchantId());
             ledger.setChangeType("EARN");
@@ -77,11 +81,19 @@ public class MemberSettlementHookService implements UseCase {
 
         accountRepository.save(account);
 
-        // 4. Auto-upgrade tier
+        // 4. Auto-upgrade tier (never downgrade)
         String newTier = MemberTierPolicy.evaluate(account.getLifetimeSpendCents());
-        if (!newTier.equals(member.getTierCode())) {
+        if (tierRank(newTier) > tierRank(member.getTierCode())) {
             member.setTierCode(newTier);
             memberRepository.save(member);
         }
+    }
+
+    private static final Map<String, Integer> TIER_RANKS = Map.of(
+            "STANDARD", 0, "SILVER", 1, "GOLD", 2, "VIP", 3
+    );
+
+    private int tierRank(String tierCode) {
+        return TIER_RANKS.getOrDefault(tierCode == null ? "" : tierCode.toUpperCase(), 0);
     }
 }
