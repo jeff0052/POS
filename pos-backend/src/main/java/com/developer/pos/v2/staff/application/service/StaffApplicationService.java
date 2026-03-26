@@ -84,16 +84,24 @@ public class StaffApplicationService implements UseCase {
         return toDto(entity);
     }
 
+    private static final int MAX_PIN_ATTEMPTS = 5;
+    private final java.util.concurrent.ConcurrentHashMap<String, Integer> pinFailureCounter = new java.util.concurrent.ConcurrentHashMap<>();
+
     @Transactional(readOnly = true)
     public StaffPinVerificationResult verifyPin(Long storeId, String staffCode, String pin) {
-        StaffEntity entity = staffRepository.findByStoreIdAndStaffCode(storeId, staffCode)
-                .orElseThrow(() -> new IllegalArgumentException("Staff not found: " + staffCode));
-        if (!"ACTIVE".equals(entity.getStaffStatus())) {
-            throw new IllegalStateException("Staff is not active.");
+        String lockKey = storeId + ":" + staffCode;
+        int failures = pinFailureCounter.getOrDefault(lockKey, 0);
+        if (failures >= MAX_PIN_ATTEMPTS) {
+            throw new IllegalStateException("Account locked due to too many failed PIN attempts. Contact manager.");
         }
-        if (!passwordEncoder.matches(pin, entity.getPinHash())) {
-            throw new IllegalArgumentException("Invalid PIN.");
+
+        StaffEntity entity = staffRepository.findByStoreIdAndStaffCode(storeId, staffCode).orElse(null);
+        if (entity == null || !"ACTIVE".equals(entity.getStaffStatus()) || !passwordEncoder.matches(pin, entity.getPinHash())) {
+            pinFailureCounter.merge(lockKey, 1, Integer::sum);
+            throw new IllegalArgumentException("Invalid credentials.");
         }
+
+        pinFailureCounter.remove(lockKey);
         List<String> permissions = getPermissions(entity.getRoleCode());
         return new StaffPinVerificationResult(entity.getStaffId(), entity.getStaffName(), entity.getRoleCode(), permissions);
     }
