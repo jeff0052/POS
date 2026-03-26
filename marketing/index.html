@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,8 +16,17 @@ body {
 }
 
 a { text-decoration: none; color: inherit; }
-
 .container { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
+
+/* ── Lang Toggle ── */
+.lang-toggle {
+  display: flex; gap: 4px; background: rgba(255,255,255,0.08); border-radius: 8px; padding: 2px;
+}
+.lang-toggle button {
+  background: none; border: none; color: #888; padding: 6px 12px; border-radius: 6px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.lang-toggle button.active { background: #ff6b35; color: #fff; }
 
 /* ── Nav ── */
 .nav {
@@ -28,6 +37,7 @@ a { text-decoration: none; color: inherit; }
 }
 .nav-content { max-width: 1200px; margin: 0 auto; padding: 0 40px; display: flex; justify-content: space-between; align-items: center; }
 .logo { font-size: 24px; font-weight: 700; color: #ff6b35; }
+.nav-right { display: flex; align-items: center; gap: 30px; }
 .nav-links { display: flex; gap: 30px; }
 .nav-links a { color: #fff; font-weight: 500; font-size: 14px; transition: color 0.3s; }
 .nav-links a:hover { color: #ff6b35; }
@@ -35,14 +45,11 @@ a { text-decoration: none; color: inherit; }
 /* ── Hero ── */
 .header {
   background: linear-gradient(135deg, #000 0%, #1a1a1a 100%);
-  min-height: 100vh;
-  display: flex; align-items: center;
-  position: relative; overflow: hidden;
-  padding-top: 80px;
+  min-height: 100vh; display: flex; align-items: center;
+  position: relative; overflow: hidden; padding-top: 80px;
 }
 .header::before {
-  content: '';
-  position: absolute; top: -50%; right: -30%;
+  content: ''; position: absolute; top: -50%; right: -30%;
   width: 1000px; height: 1000px;
   background: radial-gradient(circle, rgba(255,107,53,0.08) 0%, transparent 70%);
   pointer-events: none;
@@ -52,12 +59,10 @@ a { text-decoration: none; color: inherit; }
   display: inline-flex; align-items: center; gap: 8px;
   background: rgba(255,107,53,0.1); border: 1px solid rgba(255,107,53,0.3);
   border-radius: 50px; padding: 8px 20px;
-  font-size: 14px; color: #ff6b35; letter-spacing: 0.05em;
-  margin-bottom: 30px;
+  font-size: 14px; color: #ff6b35; letter-spacing: 0.05em; margin-bottom: 30px;
 }
 .hero-content h1 {
-  font-size: 4.5em; font-weight: 700; line-height: 1.1;
-  margin-bottom: 20px;
+  font-size: 4.5em; font-weight: 700; line-height: 1.1; margin-bottom: 20px;
   background: linear-gradient(45deg, #ffffff, #ff6b35);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
@@ -65,32 +70,17 @@ a { text-decoration: none; color: inherit; }
 .hero-buttons { display: flex; gap: 20px; flex-wrap: wrap; }
 
 /* ── Buttons ── */
-.btn-primary {
-  background: linear-gradient(45deg, #ff6b35, #ff8c42);
-  color: #fff; padding: 18px 40px; border: none; border-radius: 50px;
-  font-size: 1.1em; font-weight: 600; cursor: pointer;
-  transition: all 0.3s; display: inline-block;
-}
+.btn-primary { background: linear-gradient(45deg, #ff6b35, #ff8c42); color: #fff; padding: 18px 40px; border: none; border-radius: 50px; font-size: 1.1em; font-weight: 600; cursor: pointer; transition: all 0.3s; display: inline-block; }
 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255,107,53,0.3); }
-.btn-secondary {
-  background: transparent; color: #fff; padding: 18px 40px;
-  border: 2px solid #fff; border-radius: 50px;
-  font-size: 1.1em; font-weight: 600; transition: all 0.3s; display: inline-block;
-}
+.btn-secondary { background: transparent; color: #fff; padding: 18px 40px; border: 2px solid #fff; border-radius: 50px; font-size: 1.1em; font-weight: 600; transition: all 0.3s; display: inline-block; }
 .btn-secondary:hover { background: #fff; color: #ff6b35; }
-.btn-white {
-  background: #fff; color: #ff6b35; padding: 18px 40px; border: none; border-radius: 50px;
-  font-size: 1.1em; font-weight: 700; transition: all 0.3s; display: inline-block; cursor: pointer;
-}
+.btn-white { background: #fff; color: #ff6b35; padding: 18px 40px; border: none; border-radius: 50px; font-size: 1.1em; font-weight: 700; transition: all 0.3s; display: inline-block; cursor: pointer; }
 .btn-white:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
 
 /* ── Section ── */
 .section { padding: 100px 0; }
 .section-title { font-size: 3em; font-weight: 700; margin-bottom: 20px; text-align: center; }
 .section-subtitle { text-align: center; margin-bottom: 60px; max-width: 800px; margin-left: auto; margin-right: auto; font-size: 1.2em; color: #888; }
-.subsection { margin-bottom: 80px; }
-.subsection h3 { font-size: 2.2em; font-weight: 700; color: #ff6b35; margin-bottom: 20px; }
-.subsection p { font-size: 1.1em; color: #ccc; line-height: 1.8; }
 
 /* ── Problem Grid ── */
 .problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; margin: 40px 0; }
@@ -101,20 +91,12 @@ a { text-decoration: none; color: inherit; }
 
 /* ── Value Grid ── */
 .value-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; margin: 40px 0; }
-.value-card {
-  background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-  padding: 30px; border-radius: 15px; border: 1px solid #333;
-  transition: transform 0.3s;
-}
+.value-card { background: linear-gradient(135deg, #1a1a1a, #2a2a2a); padding: 30px; border-radius: 15px; border: 1px solid #333; transition: transform 0.3s; }
 .value-card:hover { transform: translateY(-5px); }
 .value-card .card-icon { font-size: 2.5em; margin-bottom: 15px; }
 .value-card h4 { font-size: 1.3em; margin-bottom: 15px; color: #ff6b35; }
 .value-card p { font-size: 0.95em; color: #ccc; }
-.value-card .example {
-  margin-top: 15px; padding: 12px 16px;
-  background: rgba(255,107,53,0.08); border-radius: 10px;
-  font-size: 0.9em; color: #ff8c42; font-style: italic;
-}
+.value-card .example { margin-top: 15px; padding: 12px 16px; background: rgba(255,107,53,0.08); border-radius: 10px; font-size: 0.9em; color: #ff8c42; font-style: italic; }
 
 /* ── Comparison ── */
 .comparison-table { background: #1a1a1a; border-radius: 20px; overflow: hidden; border: 1px solid #333; margin: 40px 0; }
@@ -124,28 +106,19 @@ a { text-decoration: none; color: inherit; }
 .comparison-table .rwa-column { background: #1a2a1a; color: #fff; font-weight: 600; }
 .comparison-table tr:hover td { background: rgba(255,107,53,0.05); }
 
+/* ── Highlight Box ── */
+.highlight-box { background: linear-gradient(135deg, #1a1a1a, #2a2a2a); padding: 40px; border-radius: 20px; border: 1px solid #333; margin: 30px 0; }
+.highlight-box h4 { color: #ff6b35; margin-bottom: 20px; font-size: 1.4em; }
+.highlight-box p { color: #ccc; font-size: 1.05em; }
+
 /* ── Flow ── */
 .trust-flow { background: #1a1a1a; padding: 50px; border-radius: 20px; margin: 40px 0; border: 1px solid #333; }
 .flow-steps { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; }
 .flow-step { flex: 1; min-width: 180px; text-align: center; position: relative; }
-.flow-step:not(:last-child)::after { content: '→'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: #ff6b35; font-size: 2em; font-weight: bold; }
-.step-icon {
-  width: 80px; height: 80px;
-  background: linear-gradient(45deg, #ff6b35, #ff8c42);
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 20px; font-size: 2em;
-}
+.flow-step:not(:last-child)::after { content: '\2192'; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: #ff6b35; font-size: 2em; font-weight: bold; }
+.step-icon { width: 80px; height: 80px; background: linear-gradient(45deg, #ff6b35, #ff8c42); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 2em; }
 .step-title { color: #fff; font-weight: 600; font-size: 1.1em; }
 .step-desc { color: #ccc; font-size: 0.9em; margin-top: 10px; }
-
-/* ── Highlight Box ── */
-.highlight-box {
-  background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-  padding: 40px; border-radius: 20px; border: 1px solid #333; margin: 30px 0;
-}
-.highlight-box h4 { color: #ff6b35; margin-bottom: 20px; font-size: 1.4em; }
-.highlight-box p { color: #ccc; font-size: 1.05em; }
 
 /* ── Stats ── */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; text-align: center; margin: 60px 0; }
@@ -156,10 +129,7 @@ a { text-decoration: none; color: inherit; }
 
 /* ── Phase / Roadmap ── */
 .phase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 30px; margin: 60px 0; }
-.phase-card {
-  background: #1a1a1a; padding: 40px; border-radius: 20px;
-  border: 1px solid #333; position: relative; overflow: hidden;
-}
+.phase-card { background: #1a1a1a; padding: 40px; border-radius: 20px; border: 1px solid #333; position: relative; overflow: hidden; }
 .phase-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(45deg, #ff6b35, #ff8c42); }
 .phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .phase-title { color: #ff6b35; font-size: 1.3em; font-weight: 700; text-transform: uppercase; }
@@ -170,16 +140,11 @@ a { text-decoration: none; color: inherit; }
 .phase-goal { color: #fff; font-size: 1.2em; font-weight: 600; margin-bottom: 15px; }
 .phase-deliverables { list-style: none; padding: 0; }
 .phase-deliverables li { color: #ccc; margin-bottom: 10px; padding-left: 25px; position: relative; }
-.phase-deliverables li::before { content: '✓'; position: absolute; left: 0; color: #ff6b35; font-weight: bold; }
+.phase-deliverables li::before { content: '\2713'; position: absolute; left: 0; color: #ff6b35; font-weight: bold; }
 
 /* ── Demo Phone ── */
 .demo-wrapper { display: flex; justify-content: center; margin: 60px 0; }
-.demo-phone {
-  width: 100%; max-width: 440px;
-  background: #1a1a1a; border-radius: 24px; padding: 30px;
-  border: 1px solid #333;
-  box-shadow: 0 40px 100px rgba(0,0,0,0.5);
-}
+.demo-phone { width: 100%; max-width: 440px; background: #1a1a1a; border-radius: 24px; padding: 30px; border: 1px solid #333; box-shadow: 0 40px 100px rgba(0,0,0,0.5); }
 .demo-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .demo-top h4 { font-size: 0.9em; color: #888; }
 .demo-top .time { font-size: 0.85em; color: #ff6b35; }
@@ -207,13 +172,7 @@ a { text-decoration: none; color: inherit; }
 .layer-item { padding: 30px 30px 30px 50px; border: 1px solid; position: relative; }
 .layer-item:first-child { border-radius: 16px 16px 0 0; }
 .layer-item:last-child { border-radius: 0 0 16px 16px; }
-.layer-num {
-  position: absolute; left: -16px; top: 50%; transform: translateY(-50%);
-  background: linear-gradient(45deg, #ff6b35, #ff8c42);
-  color: #fff; width: 32px; height: 32px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.85em; font-weight: 700;
-}
+.layer-num { position: absolute; left: -16px; top: 50%; transform: translateY(-50%); background: linear-gradient(45deg, #ff6b35, #ff8c42); color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85em; font-weight: 700; }
 .layer-item h3 { font-size: 1.2em; font-weight: 700; margin-bottom: 4px; }
 .layer-item p { font-size: 0.9em; color: #ccc; }
 .l4 { background: rgba(139,92,246,0.06); border-color: rgba(139,92,246,0.2); }
@@ -238,7 +197,7 @@ a { text-decoration: none; color: inherit; }
 /* ── Responsive ── */
 @media (max-width: 1024px) {
   .flow-steps { flex-direction: column; }
-  .flow-step:not(:last-child)::after { content: '↓'; position: static; display: block; margin: 15px 0; transform: none; }
+  .flow-step:not(:last-child)::after { content: '\2193'; position: static; display: block; margin: 15px 0; transform: none; }
 }
 @media (max-width: 768px) {
   .container { padding: 0 20px; }
@@ -253,478 +212,211 @@ a { text-decoration: none; color: inherit; }
 </head>
 <body>
 
-<!-- Nav -->
 <nav class="nav">
   <div class="nav-content">
     <div class="logo">FounderPOS</div>
-    <div class="nav-links">
-      <a href="#problem">Problem</a>
-      <a href="#advisors">AI Advisors</a>
-      <a href="#demo">Demo</a>
-      <a href="#architecture">Architecture</a>
-      <a href="#network">Network</a>
-      <a href="#roadmap">Roadmap</a>
+    <div class="nav-right">
+      <div class="nav-links">
+        <a href="#problem" data-en="Problem" data-zh="痛点">Problem</a>
+        <a href="#advisors" data-en="AI Advisors" data-zh="AI 顾问">AI Advisors</a>
+        <a href="#demo" data-en="Demo" data-zh="演示">Demo</a>
+        <a href="#architecture" data-en="Architecture" data-zh="架构">Architecture</a>
+        <a href="#network" data-en="Network" data-zh="网络">Network</a>
+        <a href="#roadmap" data-en="Roadmap" data-zh="路线图">Roadmap</a>
+      </div>
+      <div class="lang-toggle">
+        <button id="btn-en" class="active" onclick="setLang('en')">EN</button>
+        <button id="btn-zh" onclick="setLang('zh')">中文</button>
+      </div>
     </div>
   </div>
 </nav>
 
-<!-- Hero -->
 <header class="header">
   <div class="container hero-content">
     <div class="hero-badge">AI-Powered Restaurant Operating System</div>
-    <h1>给每家餐厅<br>一个 AI 合伙人</h1>
-    <p class="subtitle">不是给你一个工具，是给你一个不休息的运营总监。<br>一个人，管好一家餐厅。甚至十家。</p>
+    <h1 data-en="Give Every Restaurant<br>an AI Partner" data-zh="给每家餐厅<br>一个 AI 合伙人">Give Every Restaurant<br>an AI Partner</h1>
+    <p class="subtitle" data-en="Not a tool. A tireless operations director.<br>One person, one restaurant. Or ten." data-zh="不是给你一个工具，是给你一个不休息的运营总监。<br>一个人，管好一家餐厅。甚至十家。">Not a tool. A tireless operations director.<br>One person, one restaurant. Or ten.</p>
     <div class="hero-buttons">
-      <a href="#demo" class="btn-primary">看 AI 怎么工作 ↓</a>
-      <a href="#architecture" class="btn-secondary">技术架构</a>
+      <a href="#demo" class="btn-primary" data-en="See AI in Action ↓" data-zh="看 AI 怎么工作 ↓">See AI in Action ↓</a>
+      <a href="#architecture" class="btn-secondary" data-en="Architecture" data-zh="技术架构">Architecture</a>
     </div>
   </div>
 </header>
 
-<!-- Problem -->
 <section class="section" id="problem">
   <div class="container">
-    <h2 class="section-title">老板不缺工具，缺人</h2>
-    <p class="section-subtitle">一家餐厅要活下来，老板需要同时是七个角色。但他请不起七个人。</p>
+    <h2 class="section-title" data-en="Owners Don't Lack Tools. They Lack People." data-zh="老板不缺工具，缺人">Owners Don't Lack Tools. They Lack People.</h2>
+    <p class="section-subtitle" data-en="To survive, a restaurant owner must be seven roles at once. But can't afford seven people." data-zh="一家餐厅要活下来，老板需要同时是七个角色。但他请不起七个人。">To survive, a restaurant owner must be seven roles at once. But can't afford seven people.</p>
     <div class="problem-grid">
-      <div class="problem-item">
-        <div class="icon">👨‍🍳</div>
-        <h4>厨师长</h4>
-        <p>管菜品质量、出菜速度、退菜率、高峰时段瓶颈</p>
-      </div>
-      <div class="problem-item">
-        <div class="icon">📊</div>
-        <h4>数据分析师</h4>
-        <p>看报表、算毛利、找经营异常、做趋势判断</p>
-      </div>
-      <div class="problem-item">
-        <div class="icon">📣</div>
-        <h4>营销经理</h4>
-        <p>想促销活动、拉新客、做会员回流、评估 ROI</p>
-      </div>
-      <div class="problem-item">
-        <div class="icon">👥</div>
-        <h4>会员运营</h4>
-        <p>管充值活动、等级规则、积分策略、流失预警</p>
-      </div>
-      <div class="problem-item">
-        <div class="icon">🗓️</div>
-        <h4>HR 主管</h4>
-        <p>排班、算工时、管权限、处理临时缺人</p>
-      </div>
-      <div class="problem-item">
-        <div class="icon">💰</div>
-        <h4>财务会计</h4>
-        <p>日结对账、报税（GTO）、管现金流、退款审核</p>
-      </div>
+      <div class="problem-item"><div class="icon">👨‍🍳</div><h4 data-en="Head Chef" data-zh="厨师长">Head Chef</h4><p data-en="Manage food quality, cook times, return rates, peak bottlenecks" data-zh="管菜品质量、出菜速度、退菜率、高峰时段瓶颈">Manage food quality, cook times, return rates, peak bottlenecks</p></div>
+      <div class="problem-item"><div class="icon">📊</div><h4 data-en="Data Analyst" data-zh="数据分析师">Data Analyst</h4><p data-en="Read reports, calculate margins, find anomalies, spot trends" data-zh="看报表、算毛利、找经营异常、做趋势判断">Read reports, calculate margins, find anomalies, spot trends</p></div>
+      <div class="problem-item"><div class="icon">📣</div><h4 data-en="Marketing Manager" data-zh="营销经理">Marketing Manager</h4><p data-en="Plan promotions, acquire customers, run loyalty campaigns, measure ROI" data-zh="想促销活动、拉新客、做会员回流、评估 ROI">Plan promotions, acquire customers, run loyalty campaigns, measure ROI</p></div>
+      <div class="problem-item"><div class="icon">👥</div><h4 data-en="CRM Manager" data-zh="会员运营">CRM Manager</h4><p data-en="Manage top-ups, tier rules, points strategy, churn alerts" data-zh="管充值活动、等级规则、积分策略、流失预警">Manage top-ups, tier rules, points strategy, churn alerts</p></div>
+      <div class="problem-item"><div class="icon">🗓️</div><h4 data-en="HR Lead" data-zh="HR 主管">HR Lead</h4><p data-en="Scheduling, hours tracking, permissions, handling no-shows" data-zh="排班、算工时、管权限、处理临时缺人">Scheduling, hours tracking, permissions, handling no-shows</p></div>
+      <div class="problem-item"><div class="icon">💰</div><h4 data-en="Accountant" data-zh="财务会计">Accountant</h4><p data-en="Daily reconciliation, tax filing (GTO), cash flow, refund audits" data-zh="日结对账、报税（GTO）、管现金流、退款审核">Daily reconciliation, tax filing (GTO), cash flow, refund audits</p></div>
     </div>
-
     <div class="highlight-box">
-      <h4>问题不是缺工具，是缺人</h4>
-      <p>传统 POS 只解决了"收银"。SaaS 分散在十几个系统里。老板每天 14 小时，大部分时间不是在做菜，而是在做运营。他需要的不是更多工具，是一个懂餐饮、能干活、不休息的合伙人。</p>
+      <h4 data-en="The problem isn't tools. It's people." data-zh="问题不是缺工具，是缺人">The problem isn't tools. It's people.</h4>
+      <p data-en="Traditional POS only solves checkout. SaaS is scattered across dozens of systems. Owners work 14-hour days, mostly on operations, not cooking. What they need isn't more tools — it's a partner who understands F&B, works non-stop, and never sleeps." data-zh="传统 POS 只解决了"收银"。SaaS 分散在十几个系统里。老板每天 14 小时，大部分时间不是在做菜，而是在做运营。他需要的不是更多工具，是一个懂餐饮、能干活、不休息的合伙人。">Traditional POS only solves checkout. SaaS is scattered across dozens of systems. Owners work 14-hour days, mostly on operations, not cooking. What they need isn't more tools — it's a partner who understands F&amp;B, works non-stop, and never sleeps.</p>
     </div>
   </div>
 </section>
 
-<!-- Comparison -->
 <section class="section" style="padding-top:0">
   <div class="container">
-    <h2 class="section-title">从用软件到有合伙人</h2>
+    <h2 class="section-title" data-en="From Using Software to Having a Partner" data-zh="从用软件到有合伙人">From Using Software to Having a Partner</h2>
     <div class="comparison-table">
       <table>
-        <thead>
-          <tr>
-            <th>维度</th>
-            <th>传统 POS</th>
-            <th>餐饮 SaaS</th>
-            <th class="rwa-column">FounderPOS</th>
-          </tr>
-        </thead>
+        <thead><tr><th data-en="Dimension" data-zh="维度">Dimension</th><th data-en="Traditional POS" data-zh="传统 POS">Traditional POS</th><th data-en="F&amp;B SaaS" data-zh="餐饮 SaaS">F&amp;B SaaS</th><th class="rwa-column">FounderPOS</th></tr></thead>
         <tbody>
-          <tr>
-            <td><strong>核心价值</strong></td>
-            <td>收银工具</td>
-            <td>管理工具集</td>
-            <td class="rwa-column">AI 运营合伙人</td>
-          </tr>
-          <tr>
-            <td><strong>老板需要做</strong></td>
-            <td>所有决策 + 所有操作</td>
-            <td>所有决策 + 部分操作</td>
-            <td class="rwa-column">只做关键审批</td>
-          </tr>
-          <tr>
-            <td><strong>每天花多久</strong></td>
-            <td>14 小时</td>
-            <td>10 小时</td>
-            <td class="rwa-column">30 分钟看摘要拍板</td>
-          </tr>
-          <tr>
-            <td><strong>数据</strong></td>
-            <td>孤岛</td>
-            <td>系统内闭环</td>
-            <td class="rwa-column">跨店网络 + 链上可验证</td>
-          </tr>
-          <tr>
-            <td><strong>扩店模式</strong></td>
-            <td>复制整个团队</td>
-            <td>复制账号</td>
-            <td class="rwa-column">一人管十店</td>
-          </tr>
-          <tr>
-            <td><strong>护城河</strong></td>
-            <td>无</td>
-            <td>弱（可替换）</td>
-            <td class="rwa-column">网络效应 + 数据飞轮</td>
-          </tr>
+          <tr><td><strong data-en="Core Value" data-zh="核心价值">Core Value</strong></td><td data-en="Checkout tool" data-zh="收银工具">Checkout tool</td><td data-en="Management suite" data-zh="管理工具集">Management suite</td><td class="rwa-column" data-en="AI Operations Partner" data-zh="AI 运营合伙人">AI Operations Partner</td></tr>
+          <tr><td><strong data-en="Owner's Role" data-zh="老板需要做">Owner's Role</strong></td><td data-en="All decisions + all ops" data-zh="所有决策 + 所有操作">All decisions + all ops</td><td data-en="All decisions + some ops" data-zh="所有决策 + 部分操作">All decisions + some ops</td><td class="rwa-column" data-en="Approve key decisions only" data-zh="只做关键审批">Approve key decisions only</td></tr>
+          <tr><td><strong data-en="Daily Time" data-zh="每天花多久">Daily Time</strong></td><td data-en="14 hours" data-zh="14 小时">14 hours</td><td data-en="10 hours" data-zh="10 小时">10 hours</td><td class="rwa-column" data-en="30 min review + approve" data-zh="30 分钟看摘要拍板">30 min review + approve</td></tr>
+          <tr><td><strong data-en="Data" data-zh="数据">Data</strong></td><td data-en="Siloed" data-zh="孤岛">Siloed</td><td data-en="System-locked" data-zh="系统内闭环">System-locked</td><td class="rwa-column" data-en="Cross-store network + on-chain" data-zh="跨店网络 + 链上可验证">Cross-store network + on-chain</td></tr>
+          <tr><td><strong data-en="Scaling" data-zh="扩店模式">Scaling</strong></td><td data-en="Clone entire team" data-zh="复制整个团队">Clone entire team</td><td data-en="Clone accounts" data-zh="复制账号">Clone accounts</td><td class="rwa-column" data-en="One person, ten stores" data-zh="一人管十店">One person, ten stores</td></tr>
+          <tr><td><strong data-en="Moat" data-zh="护城河">Moat</strong></td><td data-en="None" data-zh="无">None</td><td data-en="Weak (replaceable)" data-zh="弱（可替换）">Weak (replaceable)</td><td class="rwa-column" data-en="Network effects + data flywheel" data-zh="网络效应 + 数据飞轮">Network effects + data flywheel</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </section>
 
-<!-- AI Advisors -->
 <section class="section" id="advisors">
   <div class="container">
-    <h2 class="section-title">你的 AI 合伙人有五个脑子</h2>
-    <p class="section-subtitle">不是五个独立 AI，是一个运营大脑的五个专长。每个都能看数据、想方案、等你拍板。</p>
+    <h2 class="section-title" data-en="Your AI Partner Has Five Brains" data-zh="你的 AI 合伙人有五个脑子">Your AI Partner Has Five Brains</h2>
+    <p class="section-subtitle" data-en="Not five separate AIs. One operations brain with five specialties. Each reads data, proposes actions, waits for your approval." data-zh="不是五个独立 AI，是一个运营大脑的五个专长。每个都能看数据、想方案、等你拍板。">Not five separate AIs. One operations brain with five specialties. Each reads data, proposes actions, waits for your approval.</p>
     <div class="value-grid">
-      <div class="value-card">
-        <div class="card-icon">🍽️</div>
-        <h4>菜单顾问</h4>
-        <p>分析 SKU 销量、毛利、退菜率、出菜时间，找出该下架和该主推的菜</p>
-        <div class="example">"芝士焗饭连续 3 周亏损，建议下架，每月节省 SGD 320"</div>
-      </div>
-      <div class="value-card">
-        <div class="card-icon">📣</div>
-        <h4>营销顾问</h4>
-        <p>分析客流趋势、促销效果、竞对活动，自动生成促销方案</p>
-        <div class="example">"周三客流低 40%，建议满 80 减 10，预计提升客流 12%"</div>
-      </div>
-      <div class="value-card">
-        <div class="card-icon">👥</div>
-        <h4>会员顾问</h4>
-        <p>分析消费频次、充值余额、流失风险，设计召回和充值策略</p>
-        <div class="example">"287 位会员 30 天未到店，推荐充 300 送 50 召回活动"</div>
-      </div>
-      <div class="value-card">
-        <div class="card-icon">📊</div>
-        <h4>经营顾问</h4>
-        <p>生成日报、周报、毛利分析，标记异常，给出经营建议</p>
-        <div class="example">"本周毛利下降 5%，主因牛肉成本涨 12%，建议调整 3 道菜定价"</div>
-      </div>
-      <div class="value-card">
-        <div class="card-icon">⏱️</div>
-        <h4>出品顾问</h4>
-        <p>分析出菜时间、退菜原因、高峰瓶颈，优化厨房效率</p>
-        <div class="example">"午高峰 3 道菜出菜超 15 分钟，建议简化备料流程"</div>
-      </div>
+      <div class="value-card"><div class="card-icon">🍽️</div><h4 data-en="Menu Advisor" data-zh="菜单顾问">Menu Advisor</h4><p data-en="Analyzes SKU sales, margins, return rates, cook times. Finds items to delist or promote." data-zh="分析 SKU 销量、毛利、退菜率、出菜时间，找出该下架和该主推的菜">Analyzes SKU sales, margins, return rates, cook times.</p><div class="example" data-en="&quot;Cheese Baked Rice lost money 3 weeks straight. Recommend delisting — saves SGD 320/month&quot;" data-zh="&quot;芝士焗饭连续 3 周亏损，建议下架，每月节省 SGD 320&quot;">"Cheese Baked Rice lost money 3 weeks straight. Recommend delisting — saves SGD 320/month"</div></div>
+      <div class="value-card"><div class="card-icon">📣</div><h4 data-en="Marketing Advisor" data-zh="营销顾问">Marketing Advisor</h4><p data-en="Analyzes traffic trends, promo effectiveness, competitor activity. Auto-generates campaigns." data-zh="分析客流趋势、促销效果、竞对活动，自动生成促销方案">Analyzes traffic trends, promo effectiveness, competitor activity.</p><div class="example" data-en="&quot;Wednesday traffic is 40% low. Suggest spend-80-save-10 promo, estimated 12% uplift&quot;" data-zh="&quot;周三客流低 40%，建议满 80 减 10，预计提升客流 12%&quot;">"Wednesday traffic is 40% low. Suggest spend-80-save-10, estimated 12% uplift"</div></div>
+      <div class="value-card"><div class="card-icon">👥</div><h4 data-en="CRM Advisor" data-zh="会员顾问">CRM Advisor</h4><p data-en="Analyzes visit frequency, balance, churn risk. Designs recall and top-up strategies." data-zh="分析消费频次、充值余额、流失风险，设计召回和充值策略">Analyzes visit frequency, balance, churn risk.</p><div class="example" data-en="&quot;287 members inactive 30+ days. Recommend top-up 300 get 50 recall campaign&quot;" data-zh="&quot;287 位会员 30 天未到店，推荐充 300 送 50 召回活动&quot;">"287 members inactive 30+ days. Recommend top-up 300 get 50 recall"</div></div>
+      <div class="value-card"><div class="card-icon">📊</div><h4 data-en="Operations Advisor" data-zh="经营顾问">Operations Advisor</h4><p data-en="Generates daily/weekly reports, margin analysis, flags anomalies, gives actionable advice." data-zh="生成日报、周报、毛利分析，标记异常，给出经营建议">Generates daily/weekly reports, flags anomalies.</p><div class="example" data-en="&quot;Margins down 5% this week. Main cause: beef cost up 12%. Suggest repricing 3 dishes&quot;" data-zh="&quot;本周毛利下降 5%，主因牛肉成本涨 12%，建议调整 3 道菜定价&quot;">"Margins down 5% this week. Beef cost up 12%. Suggest repricing 3 dishes"</div></div>
+      <div class="value-card"><div class="card-icon">⏱️</div><h4 data-en="Kitchen Advisor" data-zh="出品顾问">Kitchen Advisor</h4><p data-en="Analyzes cook times, return reasons, peak bottlenecks. Optimizes kitchen efficiency." data-zh="分析出菜时间、退菜原因、高峰瓶颈，优化厨房效率">Analyzes cook times, return reasons, peak bottlenecks.</p><div class="example" data-en="&quot;3 dishes exceed 15min at lunch peak. Suggest simplifying prep process&quot;" data-zh="&quot;午高峰 3 道菜出菜超 15 分钟，建议简化备料流程&quot;">"3 dishes exceed 15min at lunch peak. Suggest simplifying prep"</div></div>
     </div>
-
-    <!-- AI Flow -->
     <div class="trust-flow">
-      <h3 style="text-align:center;margin-bottom:40px;color:#ff6b35;font-size:1.4em">AI 运作模式</h3>
+      <h3 style="text-align:center;margin-bottom:40px;color:#ff6b35;font-size:1.4em" data-en="How AI Operates" data-zh="AI 运作模式">How AI Operates</h3>
       <div class="flow-steps">
-        <div class="flow-step">
-          <div class="step-icon">👁️</div>
-          <div class="step-title">Sense</div>
-          <div class="step-desc">通过 22 个 MCP 工具持续感知经营数据</div>
-        </div>
-        <div class="flow-step">
-          <div class="step-icon">🧠</div>
-          <div class="step-title">Think</div>
-          <div class="step-desc">LLM 分析数据，识别问题和机会</div>
-        </div>
-        <div class="flow-step">
-          <div class="step-icon">📋</div>
-          <div class="step-title">Propose</div>
-          <div class="step-desc">生成具体建议方案和草案</div>
-        </div>
-        <div class="flow-step">
-          <div class="step-icon">✅</div>
-          <div class="step-title">Approve</div>
-          <div class="step-desc">推送给老板审批（低风险自动执行）</div>
-        </div>
-        <div class="flow-step">
-          <div class="step-icon">⚡</div>
-          <div class="step-title">Act</div>
-          <div class="step-desc">通过 MCP 工具执行，全程留痕</div>
-        </div>
+        <div class="flow-step"><div class="step-icon">👁️</div><div class="step-title">Sense</div><div class="step-desc" data-en="22 MCP tools continuously monitor business data" data-zh="通过 22 个 MCP 工具持续感知经营数据">22 MCP tools continuously monitor business data</div></div>
+        <div class="flow-step"><div class="step-icon">🧠</div><div class="step-title">Think</div><div class="step-desc" data-en="LLM analyzes data, identifies problems and opportunities" data-zh="LLM 分析数据，识别问题和机会">LLM analyzes data, identifies problems and opportunities</div></div>
+        <div class="flow-step"><div class="step-icon">📋</div><div class="step-title">Propose</div><div class="step-desc" data-en="Generates specific action plans and drafts" data-zh="生成具体建议方案和草案">Generates specific action plans and drafts</div></div>
+        <div class="flow-step"><div class="step-icon">✅</div><div class="step-title">Approve</div><div class="step-desc" data-en="Push to owner for approval (low-risk auto-executes)" data-zh="推送给老板审批（低风险自动执行）">Push to owner for approval (low-risk auto-executes)</div></div>
+        <div class="flow-step"><div class="step-icon">⚡</div><div class="step-title">Act</div><div class="step-desc" data-en="Execute via MCP tools, fully audited" data-zh="通过 MCP 工具执行，全程留痕">Execute via MCP tools, fully audited</div></div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Demo -->
 <section class="section" id="demo" style="background:#111">
   <div class="container">
-    <h2 class="section-title">老板每天早上看到的</h2>
-    <p class="section-subtitle">打开手机，30 秒了解昨天经营，3 件事需要拍板，其他全自动。</p>
+    <h2 class="section-title" data-en="What the Owner Sees Every Morning" data-zh="老板每天早上看到的">What the Owner Sees Every Morning</h2>
+    <p class="section-subtitle" data-en="Open phone. 30 seconds to review yesterday. 3 decisions to make. Everything else handled." data-zh="打开手机，30 秒了解昨天经营，3 件事需要拍板，其他全自动。">Open phone. 30 seconds to review yesterday. 3 decisions to make. Everything else handled.</p>
     <div class="demo-wrapper">
       <div class="demo-phone">
-        <div class="demo-top">
-          <h4>FounderPOS</h4>
-          <div class="time">09:12 AM</div>
-        </div>
-        <div class="demo-greeting">早上好，老板 ☀️</div>
-        <div class="demo-summary">
-          昨日营收 <strong>SGD 12,800</strong>，比上周三高 15%。<br>
-          客流 186 人次，客单价 SGD 68.8，翻台率 3.2。
-        </div>
-
-        <div class="demo-action">
-          <div class="demo-action-head">
-            <div class="demo-action-title">🍽️ 菜单顾问建议</div>
-            <span class="demo-badge badge-menu">菜单</span>
-          </div>
-          <p>「芝士焗饭」连续 3 周亏损，建议下架，每月节省 SGD 320</p>
-          <div class="demo-btns">
-            <button class="dbtn dbtn-yes">批准下架</button>
-            <button class="dbtn dbtn-no">保留</button>
-          </div>
-        </div>
-
-        <div class="demo-action">
-          <div class="demo-action-head">
-            <div class="demo-action-title">📣 营销顾问建议</div>
-            <span class="demo-badge badge-promo">促销</span>
-          </div>
-          <p>明天周三客流预测偏低，建议推「满 80 减 10」，预计提升 12%</p>
-          <div class="demo-btns">
-            <button class="dbtn dbtn-yes">批准</button>
-            <button class="dbtn dbtn-no">修改金额</button>
-          </div>
-        </div>
-
-        <div class="demo-action">
-          <div class="demo-action-head">
-            <div class="demo-action-title">🤝 企业 Agent 询价</div>
-            <span class="demo-badge badge-agent">外部</span>
-          </div>
-          <p>「腾讯深圳」Agent 询问周六 30 人包场，AI 报价 SGD 4,200</p>
-          <div class="demo-btns">
-            <button class="dbtn dbtn-yes">确认报价</button>
-            <button class="dbtn dbtn-no">改价</button>
-          </div>
-        </div>
-
-        <div class="demo-auto">其他 <span>47 件事</span> 已自动处理 ✓</div>
+        <div class="demo-top"><h4>FounderPOS</h4><div class="time">09:12 AM</div></div>
+        <div class="demo-greeting" data-en="Good morning, Boss ☀️" data-zh="早上好，老板 ☀️">Good morning, Boss ☀️</div>
+        <div class="demo-summary" data-en="Yesterday revenue <strong>SGD 12,800</strong>, up 15% vs last Wednesday.<br>186 covers, avg check SGD 68.8, table turns 3.2." data-zh="昨日营收 <strong>SGD 12,800</strong>，比上周三高 15%。<br>客流 186 人次，客单价 SGD 68.8，翻台率 3.2。">Yesterday revenue <strong>SGD 12,800</strong>, up 15% vs last Wednesday.<br>186 covers, avg check SGD 68.8, table turns 3.2.</div>
+        <div class="demo-action"><div class="demo-action-head"><div class="demo-action-title" data-en="🍽️ Menu Advisor" data-zh="🍽️ 菜单顾问建议">🍽️ Menu Advisor</div><span class="demo-badge badge-menu" data-en="Menu" data-zh="菜单">Menu</span></div><p data-en="Cheese Baked Rice lost money 3 weeks. Recommend delisting, saves SGD 320/mo" data-zh="「芝士焗饭」连续 3 周亏损，建议下架，每月节省 SGD 320">Cheese Baked Rice lost money 3 weeks. Recommend delisting, saves SGD 320/mo</p><div class="demo-btns"><button class="dbtn dbtn-yes" data-en="Approve" data-zh="批准下架">Approve</button><button class="dbtn dbtn-no" data-en="Keep" data-zh="保留">Keep</button></div></div>
+        <div class="demo-action"><div class="demo-action-head"><div class="demo-action-title" data-en="📣 Marketing Advisor" data-zh="📣 营销顾问建议">📣 Marketing Advisor</div><span class="demo-badge badge-promo" data-en="Promo" data-zh="促销">Promo</span></div><p data-en="Tomorrow (Wed) traffic predicted low. Suggest spend-80-save-10, est. 12% uplift" data-zh="明天周三客流预测偏低，建议推「满 80 减 10」，预计提升 12%">Tomorrow (Wed) traffic predicted low. Suggest spend-80-save-10, est. 12% uplift</p><div class="demo-btns"><button class="dbtn dbtn-yes" data-en="Approve" data-zh="批准">Approve</button><button class="dbtn dbtn-no" data-en="Edit" data-zh="修改金额">Edit</button></div></div>
+        <div class="demo-action"><div class="demo-action-head"><div class="demo-action-title" data-en="🤝 Corporate Agent Inquiry" data-zh="🤝 企业 Agent 询价">🤝 Corporate Agent Inquiry</div><span class="demo-badge badge-agent" data-en="External" data-zh="外部">External</span></div><p data-en="Tencent SZ Agent asks: Saturday 30-pax venue. AI quoted SGD 4,200" data-zh="「腾讯深圳」Agent 询问周六 30 人包场，AI 报价 SGD 4,200">Tencent SZ Agent asks: Saturday 30-pax venue. AI quoted SGD 4,200</p><div class="demo-btns"><button class="dbtn dbtn-yes" data-en="Confirm" data-zh="确认报价">Confirm</button><button class="dbtn dbtn-no" data-en="Reprice" data-zh="改价">Reprice</button></div></div>
+        <div class="demo-auto" data-en="<span>47 other tasks</span> auto-handled ✓" data-zh="其他 <span>47 件事</span> 已自动处理 ✓"><span>47 other tasks</span> auto-handled ✓</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Architecture -->
 <section class="section" id="architecture">
   <div class="container">
-    <h2 class="section-title">四层架构</h2>
-    <p class="section-subtitle">底层是传统交易系统，顶层是自主 Agent 网络。每一层独立可用，上层依赖下层但不侵入。</p>
+    <h2 class="section-title" data-en="Four-Layer Architecture" data-zh="四层架构">Four-Layer Architecture</h2>
+    <p class="section-subtitle" data-en="Transaction system at the base, autonomous agent network at the top. Each layer works independently." data-zh="底层是传统交易系统，顶层是自主 Agent 网络。每一层独立可用，上层依赖下层但不侵入。">Transaction system at the base, autonomous agent network at the top. Each layer works independently.</p>
     <div class="layer-stack">
-      <div class="layer-item l4">
-        <div class="layer-num">4</div>
-        <h3>Agent Identity + Network</h3>
-        <p>每家餐厅 = 1 Agent + 1 Wallet。对外接预定、包场、供应商询价。餐厅间形成数据网络。</p>
-      </div>
-      <div class="layer-item l3">
-        <div class="layer-num">3</div>
-        <h3>AI Operator</h3>
-        <p>5 个 AI 顾问角色。感知数据 → 分析问题 → 生成方案 → 人类审批 → 自动执行。</p>
-      </div>
-      <div class="layer-item l2">
-        <div class="layer-num">2</div>
-        <h3>MCP Tool Layer</h3>
-        <p>22 个工具覆盖 7 个业务域。人类和 AI 走同一套接口，审计天然统一。</p>
-      </div>
-      <div class="layer-item l1">
-        <div class="layer-num">1</div>
-        <h3>Transaction Foundation</h3>
-        <p>点餐、结账、会员、促销、报表、员工、班次、GTO。传统 POS 底座，稳定可审计。</p>
-      </div>
+      <div class="layer-item l4"><div class="layer-num">4</div><h3>Agent Identity + Network</h3><p data-en="Each restaurant = 1 Agent + 1 Wallet. Accept reservations, venue bookings, supplier quotes. Form a data network." data-zh="每家餐厅 = 1 Agent + 1 Wallet。对外接预定、包场、供应商询价。餐厅间形成数据网络。">Each restaurant = 1 Agent + 1 Wallet. Accept reservations, venue bookings, supplier quotes.</p></div>
+      <div class="layer-item l3"><div class="layer-num">3</div><h3>AI Operator</h3><p data-en="5 AI advisor roles. Sense → Analyze → Propose → Human Approve → Execute." data-zh="5 个 AI 顾问角色。感知数据 → 分析问题 → 生成方案 → 人类审批 → 自动执行。">5 AI advisor roles. Sense → Analyze → Propose → Human Approve → Execute.</p></div>
+      <div class="layer-item l2"><div class="layer-num">2</div><h3>MCP Tool Layer</h3><p data-en="22 tools across 7 domains. Humans and AI use the same interface. Audit is built-in." data-zh="22 个工具覆盖 7 个业务域。人类和 AI 走同一套接口，审计天然统一。">22 tools across 7 domains. Humans and AI use the same interface.</p></div>
+      <div class="layer-item l1"><div class="layer-num">1</div><h3>Transaction Foundation</h3><p data-en="Ordering, checkout, CRM, promotions, reports, staff, shifts, GTO. Stable, auditable POS base." data-zh="点餐、结账、会员、促销、报表、员工、班次、GTO。传统 POS 底座，稳定可审计。">Ordering, checkout, CRM, promotions, reports, staff, shifts, GTO.</p></div>
     </div>
-
     <div class="stats-grid">
-      <div class="stat-item">
-        <span class="stat-number">22</span>
-        <span class="stat-label">MCP 工具</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-number">5</span>
-        <span class="stat-label">AI 顾问角色</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-number">43</span>
-        <span class="stat-label">数据库表</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-number">12</span>
-        <span class="stat-label">业务域</span>
-      </div>
+      <div class="stat-item"><span class="stat-number">22</span><span class="stat-label" data-en="MCP Tools" data-zh="MCP 工具">MCP Tools</span></div>
+      <div class="stat-item"><span class="stat-number">5</span><span class="stat-label" data-en="AI Advisors" data-zh="AI 顾问角色">AI Advisors</span></div>
+      <div class="stat-item"><span class="stat-number">43</span><span class="stat-label" data-en="Database Tables" data-zh="数据库表">Database Tables</span></div>
+      <div class="stat-item"><span class="stat-number">12</span><span class="stat-label" data-en="Business Domains" data-zh="业务域">Business Domains</span></div>
     </div>
   </div>
 </section>
 
-<!-- Network -->
 <section class="section" id="network" style="background:#111">
   <div class="container">
-    <h2 class="section-title">不只是单店 AI，是餐厅网络</h2>
-    <p class="section-subtitle">当每家餐厅都有 Agent + Wallet，真正的杠杆不是单店自动化，而是网络效应。</p>
+    <h2 class="section-title" data-en="Not Just Single-Store AI. A Restaurant Network." data-zh="不只是单店 AI，是餐厅网络">Not Just Single-Store AI. A Restaurant Network.</h2>
+    <p class="section-subtitle" data-en="When every restaurant has an Agent + Wallet, the real leverage isn't automation — it's network effects." data-zh="当每家餐厅都有 Agent + Wallet，真正的杠杆不是单店自动化，而是网络效应。">When every restaurant has an Agent + Wallet, the real leverage is network effects.</p>
     <div class="value-grid">
-      <div class="value-card">
-        <div class="card-icon">🧠</div>
-        <h4>集体智慧</h4>
-        <p>1000 家餐厅的匿名经营数据，让每家店的 AI 更聪明。你不再是一个人在猜。</p>
-        <div class="example">"同区域同菜系毛利中位数 62%，你只有 55%"</div>
-      </div>
-      <div class="value-card">
-        <div class="card-icon">🤝</div>
-        <h4>Agent 间协作</h4>
-        <p>联合采购压价、满座互相导流、临时工跨店调度。餐厅不再是孤岛。</p>
-        <div class="example">"3 家店联合采购牛肉，供应商 Agent 报价低 8%"</div>
-      </div>
-      <div class="value-card">
-        <div class="card-icon">🏦</div>
-        <h4>RWA 发债</h4>
-        <p>基于链上可验证的经营数据发行收益权凭证。餐厅变成可投资的资产。</p>
-        <div class="example">"经营评分 A+，发行 SGD 50,000 收益权，年化 12%"</div>
-      </div>
-      <div class="value-card">
-        <div class="card-icon">📈</div>
-        <h4>一人多店</h4>
-        <p>一个老板管 10 家店。每家店 Agent 独立运营，老板只看汇总 Dashboard。</p>
-        <div class="example">"10 家店今日总营收 SGD 128,000，3 家需要关注"</div>
-      </div>
+      <div class="value-card"><div class="card-icon">🧠</div><h4 data-en="Collective Intelligence" data-zh="集体智慧">Collective Intelligence</h4><p data-en="1,000 restaurants' anonymous data makes every store's AI smarter. You're no longer guessing alone." data-zh="1000 家餐厅的匿名经营数据，让每家店的 AI 更聪明。你不再是一个人在猜。">1,000 restaurants' anonymous data makes every store's AI smarter.</p><div class="example" data-en="&quot;Same-area same-cuisine median margin is 62%. Yours is 55%.&quot;" data-zh="&quot;同区域同菜系毛利中位数 62%，你只有 55%&quot;">"Same-area same-cuisine median margin is 62%. Yours is 55%."</div></div>
+      <div class="value-card"><div class="card-icon">🤝</div><h4 data-en="Agent Collaboration" data-zh="Agent 间协作">Agent Collaboration</h4><p data-en="Joint purchasing, overflow referrals, shared temp staffing. Restaurants are no longer islands." data-zh="联合采购压价、满座互相导流、临时工跨店调度。餐厅不再是孤岛。">Joint purchasing, overflow referrals, shared temp staffing.</p><div class="example" data-en="&quot;3 stores bulk-order beef together. Supplier Agent quotes 8% less.&quot;" data-zh="&quot;3 家店联合采购牛肉，供应商 Agent 报价低 8%&quot;">"3 stores bulk-order beef. Supplier quotes 8% less."</div></div>
+      <div class="value-card"><div class="card-icon">🏦</div><h4 data-en="RWA Financing" data-zh="RWA 发债">RWA Financing</h4><p data-en="Issue revenue tokens backed by on-chain verifiable business data. Restaurants become investable assets." data-zh="基于链上可验证的经营数据发行收益权凭证。餐厅变成可投资的资产。">Issue revenue tokens backed by on-chain verifiable business data.</p><div class="example" data-en="&quot;Rating A+. Issue SGD 50,000 revenue rights at 12% APY.&quot;" data-zh="&quot;经营评分 A+，发行 SGD 50,000 收益权，年化 12%&quot;">"Rating A+. Issue SGD 50,000 revenue rights at 12% APY."</div></div>
+      <div class="value-card"><div class="card-icon">📈</div><h4 data-en="One Person, Ten Stores" data-zh="一人多店">One Person, Ten Stores</h4><p data-en="One owner manages 10 locations. Each store's Agent operates independently. Owner reviews a summary dashboard." data-zh="一个老板管 10 家店。每家店 Agent 独立运营，老板只看汇总 Dashboard。">One owner manages 10 locations via summary dashboard.</p><div class="example" data-en="&quot;10 stores total revenue SGD 128,000 today. 3 need attention.&quot;" data-zh="&quot;10 家店今日总营收 SGD 128,000，3 家需要关注&quot;">"10 stores total SGD 128,000 today. 3 need attention."</div></div>
     </div>
   </div>
 </section>
 
-<!-- Roadmap -->
 <section class="section" id="roadmap">
   <div class="container">
-    <h2 class="section-title">交付路线</h2>
-    <p class="section-subtitle">分阶段交付，每一层独立可用，逐步叠加 AI 能力。</p>
+    <h2 class="section-title" data-en="Delivery Roadmap" data-zh="交付路线">Delivery Roadmap</h2>
+    <p class="section-subtitle" data-en="Phased delivery. Each layer works independently. AI capabilities stack progressively." data-zh="分阶段交付，每一层独立可用，逐步叠加 AI 能力。">Phased delivery. Each layer works independently. AI capabilities stack progressively.</p>
     <div class="phase-grid">
-      <div class="phase-card">
-        <div class="phase-header">
-          <span class="phase-title">P0 — MCP Tool Server</span>
-          <span class="phase-tag tag-done">已完成</span>
-        </div>
-        <div class="phase-goal">AI 能操作 POS 每个模块</div>
-        <ul class="phase-deliverables">
-          <li>22 个 MCP 工具覆盖 7 个业务域</li>
-          <li>统一 ActionContext 审计链路</li>
-          <li>风险分级（LOW / MEDIUM / HIGH）</li>
-        </ul>
-      </div>
-      <div class="phase-card">
-        <div class="phase-header">
-          <span class="phase-title">P1 — AI Operator</span>
-          <span class="phase-tag tag-done">已完成</span>
-        </div>
-        <div class="phase-goal">老板有了 AI 合伙人</div>
-        <ul class="phase-deliverables">
-          <li>5 个 AI 顾问角色</li>
-          <li>推荐引擎 + 审批流</li>
-          <li>Sense → Think → Propose → Approve → Act</li>
-        </ul>
-      </div>
-      <div class="phase-card">
-        <div class="phase-header">
-          <span class="phase-title">P2 — Agent + Wallet</span>
-          <span class="phase-tag tag-done">已完成</span>
-        </div>
-        <div class="phase-goal">餐厅有了对外 AI 身份</div>
-        <ul class="phase-deliverables">
-          <li>Restaurant Agent 注册和管理</li>
-          <li>Wallet 收支和流水</li>
-          <li>外部交互（预定 / 包场 / 询价）</li>
-        </ul>
-      </div>
-      <div class="phase-card">
-        <div class="phase-header">
-          <span class="phase-title">P3 — Agent Protocol</span>
-          <span class="phase-tag tag-next">下一步</span>
-        </div>
-        <div class="phase-goal">标准化跨餐厅交互</div>
-        <ul class="phase-deliverables">
-          <li>Agent-to-Agent 通信协议</li>
-          <li>供应商 / 顾客 / 平台 Agent 对接</li>
-          <li>自动化合作流程</li>
-        </ul>
-      </div>
-      <div class="phase-card">
-        <div class="phase-header">
-          <span class="phase-title">P4 — Restaurant Network</span>
-          <span class="phase-tag tag-planned">规划中</span>
-        </div>
-        <div class="phase-goal">集体智慧 + 协作</div>
-        <ul class="phase-deliverables">
-          <li>匿名经营数据共享</li>
-          <li>联合采购 / 导流 / 共享排班</li>
-          <li>行业基准线和趋势预警</li>
-        </ul>
-      </div>
-      <div class="phase-card">
-        <div class="phase-header">
-          <span class="phase-title">P5 — RWA</span>
-          <span class="phase-tag tag-planned">规划中</span>
-        </div>
-        <div class="phase-goal">餐厅变成可投资资产</div>
-        <ul class="phase-deliverables">
-          <li>经营数据上链（可验证）</li>
-          <li>信用评分模型</li>
-          <li>收益权凭证发行 + 智能合约分润</li>
-        </ul>
-      </div>
+      <div class="phase-card"><div class="phase-header"><span class="phase-title">P0 — MCP Tool Server</span><span class="phase-tag tag-done" data-en="Done" data-zh="已完成">Done</span></div><div class="phase-goal" data-en="AI can operate every POS module" data-zh="AI 能操作 POS 每个模块">AI can operate every POS module</div><ul class="phase-deliverables"><li data-en="22 MCP tools across 7 domains" data-zh="22 个 MCP 工具覆盖 7 个业务域">22 MCP tools across 7 domains</li><li data-en="Unified ActionContext audit trail" data-zh="统一 ActionContext 审计链路">Unified ActionContext audit trail</li><li data-en="Risk levels (LOW / MEDIUM / HIGH)" data-zh="风险分级（LOW / MEDIUM / HIGH）">Risk levels (LOW / MEDIUM / HIGH)</li></ul></div>
+      <div class="phase-card"><div class="phase-header"><span class="phase-title">P1 — AI Operator</span><span class="phase-tag tag-done" data-en="Done" data-zh="已完成">Done</span></div><div class="phase-goal" data-en="Owner gets an AI partner" data-zh="老板有了 AI 合伙人">Owner gets an AI partner</div><ul class="phase-deliverables"><li data-en="5 AI advisor roles" data-zh="5 个 AI 顾问角色">5 AI advisor roles</li><li data-en="Recommendation engine + approval flow" data-zh="推荐引擎 + 审批流">Recommendation engine + approval flow</li><li>Sense → Think → Propose → Approve → Act</li></ul></div>
+      <div class="phase-card"><div class="phase-header"><span class="phase-title">P2 — Agent + Wallet</span><span class="phase-tag tag-done" data-en="Done" data-zh="已完成">Done</span></div><div class="phase-goal" data-en="Restaurant gets an external AI identity" data-zh="餐厅有了对外 AI 身份">Restaurant gets an external AI identity</div><ul class="phase-deliverables"><li data-en="Restaurant Agent registration" data-zh="Restaurant Agent 注册和管理">Restaurant Agent registration</li><li data-en="Wallet income/expense/ledger" data-zh="Wallet 收支和流水">Wallet income/expense/ledger</li><li data-en="External interactions (reservations / venue / quotes)" data-zh="外部交互（预定 / 包场 / 询价）">External interactions</li></ul></div>
+      <div class="phase-card"><div class="phase-header"><span class="phase-title">P3 — Agent Protocol</span><span class="phase-tag tag-next" data-en="Next" data-zh="下一步">Next</span></div><div class="phase-goal" data-en="Standardized cross-restaurant interactions" data-zh="标准化跨餐厅交互">Standardized cross-restaurant interactions</div><ul class="phase-deliverables"><li data-en="Agent-to-Agent communication protocol" data-zh="Agent-to-Agent 通信协议">Agent-to-Agent protocol</li><li data-en="Supplier / Customer / Platform Agent integration" data-zh="供应商 / 顾客 / 平台 Agent 对接">Supplier / Customer / Platform integration</li><li data-en="Automated cooperation workflows" data-zh="自动化合作流程">Automated cooperation workflows</li></ul></div>
+      <div class="phase-card"><div class="phase-header"><span class="phase-title">P4 — Restaurant Network</span><span class="phase-tag tag-planned" data-en="Planned" data-zh="规划中">Planned</span></div><div class="phase-goal" data-en="Collective intelligence + collaboration" data-zh="集体智慧 + 协作">Collective intelligence + collaboration</div><ul class="phase-deliverables"><li data-en="Anonymous business data sharing" data-zh="匿名经营数据共享">Anonymous business data sharing</li><li data-en="Joint purchasing / referrals / shared staffing" data-zh="联合采购 / 导流 / 共享排班">Joint purchasing / referrals / shared staffing</li><li data-en="Industry benchmarks and trend alerts" data-zh="行业基准线和趋势预警">Industry benchmarks and trend alerts</li></ul></div>
+      <div class="phase-card"><div class="phase-header"><span class="phase-title">P5 — RWA</span><span class="phase-tag tag-planned" data-en="Planned" data-zh="规划中">Planned</span></div><div class="phase-goal" data-en="Restaurants become investable assets" data-zh="餐厅变成可投资资产">Restaurants become investable assets</div><ul class="phase-deliverables"><li data-en="On-chain verifiable business data" data-zh="经营数据上链（可验证）">On-chain verifiable business data</li><li data-en="Credit scoring model" data-zh="信用评分模型">Credit scoring model</li><li data-en="Revenue token issuance + smart contract distribution" data-zh="收益权凭证发行 + 智能合约分润">Revenue token issuance + smart contracts</li></ul></div>
     </div>
   </div>
 </section>
 
-<!-- CTA -->
 <section class="cta-section">
   <div class="container">
-    <h2>不是给餐厅一个工具<br>是给餐厅一个合伙人</h2>
+    <h2 data-en="Not giving restaurants a tool.<br>Giving them a partner." data-zh="不是给餐厅一个工具<br>是给餐厅一个合伙人">Not giving restaurants a tool.<br>Giving them a partner.</h2>
     <p>FounderPOS — AI Restaurant Operating System</p>
     <div class="cta-buttons">
-      <a href="mailto:jeff@ontanetwork.com" class="btn-white">联系我们 →</a>
+      <a href="mailto:jeff@ontanetwork.com" class="btn-white" data-en="Contact Us →" data-zh="联系我们 →">Contact Us →</a>
       <a href="https://github.com/jeff0052/POS" class="btn-secondary" target="_blank">GitHub →</a>
     </div>
   </div>
 </section>
 
-<!-- Footer -->
 <footer class="footer">
   <div class="container">
     <div class="footer-grid">
       <div class="footer-section">
         <h4>FounderPOS</h4>
         <p>AI-Powered Restaurant Operating System</p>
-        <p>让每一家餐厅都有一个不休息的 AI 合伙人。</p>
+        <p data-en="Give every restaurant a tireless AI partner." data-zh="让每一家餐厅都有一个不休息的 AI 合伙人。">Give every restaurant a tireless AI partner.</p>
       </div>
       <div class="footer-section">
         <h4>Product</h4>
-        <ul>
-          <li>Transaction Foundation</li>
-          <li>MCP Tool Server (22 tools)</li>
-          <li>AI Operator (5 advisors)</li>
-          <li>Agent + Wallet</li>
-          <li>Restaurant Network</li>
-        </ul>
+        <ul><li>Transaction Foundation</li><li>MCP Tool Server (22 tools)</li><li>AI Operator (5 advisors)</li><li>Agent + Wallet</li><li>Restaurant Network</li></ul>
       </div>
       <div class="footer-section">
         <h4>Tech Stack</h4>
-        <ul>
-          <li>Spring Boot 3.3 + Java 17</li>
-          <li>MySQL 8.4 + Flyway</li>
-          <li>React + TypeScript</li>
-          <li>Docker + Sunmi POS</li>
-        </ul>
+        <ul><li>Spring Boot 3.3 + Java 17</li><li>MySQL 8.4 + Flyway</li><li>React + TypeScript</li><li>Docker + Sunmi POS</li></ul>
       </div>
     </div>
-    <div class="footer-bottom">
-      &copy; 2026 Onta Network &middot; FounderPOS &middot; Built with AI
-    </div>
+    <div class="footer-bottom">&copy; 2026 Onta Network &middot; FounderPOS &middot; Built with AI</div>
   </div>
 </footer>
+
+<script>
+function setLang(lang) {
+  document.querySelectorAll('[data-en]').forEach(el => {
+    el.innerHTML = el.getAttribute('data-' + lang) || el.innerHTML;
+  });
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  localStorage.setItem('lang', lang);
+}
+// Restore saved language, default English
+const saved = localStorage.getItem('lang');
+if (saved === 'zh') setLang('zh');
+</script>
 
 </body>
 </html>
