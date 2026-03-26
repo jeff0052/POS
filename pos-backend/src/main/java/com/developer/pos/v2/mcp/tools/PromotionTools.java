@@ -22,7 +22,7 @@ class ListPromotionRules implements McpTool {
     }
     @Override public Object execute(Map<String, Object> params, ActionContext ctx) {
         Long storeId = ((Number) params.get("storeId")).longValue();
-        return promotionService.listRules(storeId);
+        return promotionService.listActiveRules(storeId);
     }
 }
 

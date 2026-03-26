@@ -5,7 +5,6 @@ import com.developer.pos.v2.mcp.core.McpTool;
 import com.developer.pos.v2.report.application.service.ReportReadService;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -18,15 +17,12 @@ class GetDailySummary implements McpTool {
     @Override public String description() { return "Get daily sales summary for a store (total sales, order count, avg ticket, payment method breakdown)"; }
     @Override public Map<String, Object> inputSchema() {
         return Map.of("type", "object", "properties", Map.of(
-                "storeId", Map.of("type", "number"),
-                "date", Map.of("type", "string", "description", "Date in YYYY-MM-DD format (default: today)")
+                "storeId", Map.of("type", "number")
         ), "required", List.of("storeId"));
     }
     @Override public Object execute(Map<String, Object> params, ActionContext ctx) {
         Long storeId = ((Number) params.get("storeId")).longValue();
-        String dateStr = (String) params.get("date");
-        LocalDate date = dateStr != null ? LocalDate.parse(dateStr) : LocalDate.now();
-        return reportService.getDailySummary(storeId, date);
+        return reportService.getDailySummary(storeId);
     }
 }
 
@@ -36,18 +32,34 @@ class GetSalesSummary implements McpTool {
     GetSalesSummary(ReportReadService s) { this.reportService = s; }
 
     @Override public String name() { return "report.sales_summary"; }
-    @Override public String description() { return "Get sales summary with top-selling items, revenue breakdown for a date range"; }
+    @Override public String description() { return "Get sales summary with top-selling items and revenue breakdown"; }
     @Override public Map<String, Object> inputSchema() {
         return Map.of("type", "object", "properties", Map.of(
                 "storeId", Map.of("type", "number"),
-                "startDate", Map.of("type", "string", "description", "Start date YYYY-MM-DD"),
-                "endDate", Map.of("type", "string", "description", "End date YYYY-MM-DD")
-        ), "required", List.of("storeId", "startDate", "endDate"));
+                "merchantId", Map.of("type", "number")
+        ), "required", List.of("storeId", "merchantId"));
     }
     @Override public Object execute(Map<String, Object> params, ActionContext ctx) {
         Long storeId = ((Number) params.get("storeId")).longValue();
-        LocalDate start = LocalDate.parse((String) params.get("startDate"));
-        LocalDate end = LocalDate.parse((String) params.get("endDate"));
-        return reportService.getSalesSummary(storeId, start, end);
+        Long merchantId = ((Number) params.get("merchantId")).longValue();
+        return reportService.getSalesSummary(storeId, merchantId);
+    }
+}
+
+@Component("reportOrderStateMonitor")
+class GetOrderStateMonitor implements McpTool {
+    private final ReportReadService reportService;
+    GetOrderStateMonitor(ReportReadService s) { this.reportService = s; }
+
+    @Override public String name() { return "report.order_state_monitor"; }
+    @Override public String description() { return "Monitor current order states across all tables — identify stuck or anomalous orders"; }
+    @Override public Map<String, Object> inputSchema() {
+        return Map.of("type", "object", "properties", Map.of(
+                "storeId", Map.of("type", "number")
+        ), "required", List.of("storeId"));
+    }
+    @Override public Object execute(Map<String, Object> params, ActionContext ctx) {
+        Long storeId = ((Number) params.get("storeId")).longValue();
+        return reportService.getOrderStateMonitor(storeId);
     }
 }

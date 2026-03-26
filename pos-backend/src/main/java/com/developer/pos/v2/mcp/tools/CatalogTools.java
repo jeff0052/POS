@@ -17,12 +17,11 @@ class ListProducts implements McpTool {
     @Override public String description() { return "List all products and SKUs for a store, grouped by category"; }
     @Override public Map<String, Object> inputSchema() {
         return Map.of("type", "object", "properties", Map.of(
-                "storeId", Map.of("type", "number", "description", "Store ID")
-        ), "required", List.of("storeId"));
+                "storeCode", Map.of("type", "string", "description", "Store code")
+        ), "required", List.of("storeCode"));
     }
     @Override public Object execute(Map<String, Object> params, ActionContext ctx) {
-        Long storeId = ((Number) params.get("storeId")).longValue();
-        return catalogService.getFullCatalog(storeId);
+        return catalogService.getProducts((String) params.get("storeCode"));
     }
 }
 

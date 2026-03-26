@@ -14,17 +14,15 @@ class SearchMembers implements McpTool {
     SearchMembers(MemberApplicationService memberService) { this.memberService = memberService; }
 
     @Override public String name() { return "member.search"; }
-    @Override public String description() { return "Search members by phone number or name for a merchant"; }
+    @Override public String description() { return "Search members by phone number or name"; }
     @Override public Map<String, Object> inputSchema() {
         return Map.of("type", "object", "properties", Map.of(
-                "merchantId", Map.of("type", "number"),
                 "keyword", Map.of("type", "string", "description", "Phone or name to search")
-        ), "required", List.of("merchantId", "keyword"));
+        ), "required", List.of("keyword"));
     }
     @Override public Object execute(Map<String, Object> params, ActionContext ctx) {
-        Long merchantId = ((Number) params.get("merchantId")).longValue();
         String keyword = (String) params.get("keyword");
-        return memberService.search(merchantId, keyword);
+        return memberService.searchMembers(keyword);
     }
 }
 
@@ -34,7 +32,7 @@ class GetMemberDetail implements McpTool {
     GetMemberDetail(MemberApplicationService memberService) { this.memberService = memberService; }
 
     @Override public String name() { return "member.get_detail"; }
-    @Override public String description() { return "Get full member details including account balance, points, tier, and history"; }
+    @Override public String description() { return "Get full member details including account balance, points, tier"; }
     @Override public Map<String, Object> inputSchema() {
         return Map.of("type", "object", "properties", Map.of(
                 "memberId", Map.of("type", "number")
@@ -42,7 +40,7 @@ class GetMemberDetail implements McpTool {
     }
     @Override public Object execute(Map<String, Object> params, ActionContext ctx) {
         Long memberId = ((Number) params.get("memberId")).longValue();
-        return memberService.getDetail(memberId);
+        return memberService.getMember(memberId);
     }
 }
 
@@ -64,6 +62,7 @@ class RechargeMember implements McpTool {
         Long memberId = ((Number) params.get("memberId")).longValue();
         long amountCents = ((Number) params.get("amountCents")).longValue();
         long bonusCents = params.containsKey("bonusAmountCents") ? ((Number) params.get("bonusAmountCents")).longValue() : 0;
-        return memberService.rechargeMember(memberId, amountCents, bonusCents);
+        String operator = ctx.actorId() != null ? ctx.actorId() : "MCP";
+        return memberService.rechargeMember(memberId, amountCents, bonusCents, operator);
     }
 }
