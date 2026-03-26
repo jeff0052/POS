@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.developer.pos.v2.mcp.McpToolRegistryIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s -- in com.developer.pos.v2.mcp.McpToolRegistryIntegrationTest
