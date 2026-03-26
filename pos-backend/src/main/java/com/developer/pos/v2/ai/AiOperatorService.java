@@ -6,11 +6,8 @@ import com.developer.pos.v2.ai.advisor.AdvisorRole;
 import com.developer.pos.v2.ai.recommendation.AiRecommendationEntity;
 import com.developer.pos.v2.ai.recommendation.JpaAiRecommendationRepository;
 import com.developer.pos.v2.common.application.UseCase;
-import com.developer.pos.v2.mcp.core.ActionContext;
-import com.developer.pos.v2.mcp.core.McpRequest;
-import com.developer.pos.v2.mcp.core.McpResponse;
-import com.developer.pos.v2.mcp.core.McpTool;
-import com.developer.pos.v2.mcp.core.McpToolRegistry;
+import com.developer.pos.v2.mcp.model.ActionContext;
+import com.developer.pos.v2.mcp.McpToolRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -46,7 +43,7 @@ public class AiOperatorService implements UseCase {
     // ── Sense: assemble context for an advisor ──
 
     public AdvisorContext assembleContext(Long merchantId, Long storeId, AdvisorRole role) {
-        ActionContext ctx = ActionContext.ai(role.name(), "AI_AUTO", null, "Scheduled advisor check");
+        ActionContext ctx = new ActionContext(ActionContext.ActorType.AI, role.name(), ActionContext.DecisionSource.AI_AUTO, null, ActionContext.ApprovalStatus.NOT_REQUIRED, "Scheduled advisor check");
 
         Object salesData = callTool("report.daily_summary", Map.of("storeId", storeId), ctx);
         Object orderData = callTool("order.list_all", Map.of("storeId", storeId), ctx);
@@ -140,8 +137,10 @@ public class AiOperatorService implements UseCase {
             return recommendationRepository.save(rec);
         }
 
-        ActionContext ctx = ActionContext.ai(
-                rec.getAdvisorRole(), "AI_RECOMMENDATION", rec.getRecommendationId(), rec.getTitle());
+        ActionContext ctx = new ActionContext(
+                ActionContext.ActorType.AI, rec.getAdvisorRole(),
+                ActionContext.DecisionSource.AI_RECOMMENDATION,
+                rec.getRecommendationId(), ActionContext.ApprovalStatus.APPROVED, rec.getTitle());
 
         Map<String, Object> params = Map.of();
         if (rec.getProposedParamsJson() != null) {
@@ -182,12 +181,14 @@ public class AiOperatorService implements UseCase {
     // ── Internal ──
 
     private Object callTool(String toolName, Map<String, Object> params, ActionContext ctx) {
-        McpTool tool = toolRegistry.get(toolName);
-        if (tool == null) return null;
-        try {
-            return tool.execute(params, ctx);
-        } catch (Exception e) {
-            return Map.of("error", e.getMessage());
-        }
+        return toolRegistry.getTool(toolName)
+                .map(tool -> {
+                    try {
+                        return tool.handler().apply(params);
+                    } catch (Exception e) {
+                        return (Object) Map.of("error", e.getMessage());
+                    }
+                })
+                .orElse(null);
     }
 }
