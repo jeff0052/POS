@@ -51,6 +51,12 @@ public class SettlementRecordEntity extends BaseAuditableEntity {
     @Column(name = "collected_amount_cents", nullable = false)
     private long collectedAmountCents;
 
+    @Column(name = "refunded_amount_cents", nullable = false)
+    private long refundedAmountCents;
+
+    @Column(name = "refund_status")
+    private String refundStatus;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -136,6 +142,22 @@ public class SettlementRecordEntity extends BaseAuditableEntity {
 
     public void setCollectedAmountCents(long collectedAmountCents) {
         this.collectedAmountCents = collectedAmountCents;
+    }
+
+    public long getRefundedAmountCents() {
+        return refundedAmountCents;
+    }
+
+    public void setRefundedAmountCents(long refundedAmountCents) {
+        this.refundedAmountCents = refundedAmountCents;
+    }
+
+    public String getRefundStatus() {
+        return refundStatus;
+    }
+
+    public void setRefundStatus(String refundStatus) {
+        this.refundStatus = refundStatus;
     }
 
     public OffsetDateTime getCreatedAt() {
