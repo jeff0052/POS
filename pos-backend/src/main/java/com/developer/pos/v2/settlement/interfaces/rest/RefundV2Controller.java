@@ -5,6 +5,10 @@ import com.developer.pos.v2.common.interfaces.rest.V2Api;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
 import com.developer.pos.v2.settlement.application.dto.RefundRecordDto;
 import com.developer.pos.v2.settlement.application.service.RefundApplicationService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,7 +25,7 @@ public class RefundV2Controller implements V2Api {
     }
 
     @PostMapping
-    public ApiResponse<RefundRecordDto> createRefund(@RequestBody CreateRefundRequest request) {
+    public ApiResponse<RefundRecordDto> createRefund(@Valid @RequestBody CreateRefundRequest request) {
         CreateRefundCommand command = new CreateRefundCommand(
                 request.settlementId(),
                 request.refundAmountCents(),
@@ -44,16 +48,16 @@ public class RefundV2Controller implements V2Api {
 
     @GetMapping
     public ApiResponse<Page<RefundRecordDto>> listRefunds(
-            @RequestParam Long storeId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam @Positive Long storeId,
+            @RequestParam(defaultValue = "0") @PositiveOrZero int page,
+            @RequestParam(defaultValue = "20") @Positive int size
     ) {
         return ApiResponse.success(refundApplicationService.listRefunds(storeId, page, size));
     }
 
     public record CreateRefundRequest(
-        Long settlementId,
-        long refundAmountCents,
+        @NotNull(message = "settlementId is required") Long settlementId,
+        @PositiveOrZero(message = "refundAmountCents must be >= 0") long refundAmountCents,
         String refundType,
         String refundReason,
         Long operatedBy

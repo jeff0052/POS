@@ -31,7 +31,7 @@ public class RefundApplicationService implements UseCase {
 
     @Transactional
     public RefundRecordDto createRefund(CreateRefundCommand command) {
-        SettlementRecordEntity settlement = settlementRecordRepository.findById(command.settlementId())
+        SettlementRecordEntity settlement = settlementRecordRepository.findByIdForUpdate(command.settlementId())
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + command.settlementId()));
 
         if (!"SETTLED".equals(settlement.getFinalStatus())) {
