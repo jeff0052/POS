@@ -14,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -41,20 +42,19 @@ public class CallbackNotifier {
 
     public void notifyPaymentResult(PaymentIntentEntity intent) {
         try {
-            Map<String, Object> payload = Map.of(
-                    "paymentIntentId", intent.getIntentId(),
-                    "status", intent.getStatus().name(),
-                    "providerCode", intent.getProviderCode() != null ? intent.getProviderCode() : "",
-                    "providerTransactionId", intent.getProviderTransactionId() != null ? intent.getProviderTransactionId() : "",
-                    "amountCents", intent.getAmountCents(),
-                    "currency", intent.getCurrency(),
-                    "paymentMethod", intent.getPaymentMethod(),
-                    "paymentScheme", intent.getPaymentScheme() != null ? intent.getPaymentScheme() : "",
-                    "merchantId", intent.getMerchantId(),
-                    "storeId", intent.getStoreId(),
-                    "tableId", intent.getTableId() != null ? intent.getTableId() : 0,
-                    "sessionRef", intent.getSessionRef() != null ? intent.getSessionRef() : ""
-            );
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("paymentIntentId", intent.getIntentId());
+            payload.put("status", intent.getStatus().name());
+            payload.put("providerCode", intent.getProviderCode() != null ? intent.getProviderCode() : "");
+            payload.put("providerTransactionId", intent.getProviderTransactionId() != null ? intent.getProviderTransactionId() : "");
+            payload.put("amountCents", intent.getAmountCents());
+            payload.put("currency", intent.getCurrency());
+            payload.put("paymentMethod", intent.getPaymentMethod());
+            payload.put("paymentScheme", intent.getPaymentScheme() != null ? intent.getPaymentScheme() : "");
+            payload.put("merchantId", intent.getMerchantId());
+            payload.put("storeId", intent.getStoreId());
+            payload.put("tableId", intent.getTableId() != null ? intent.getTableId() : 0);
+            payload.put("sessionRef", intent.getSessionRef() != null ? intent.getSessionRef() : "");
 
             String json = objectMapper.writeValueAsString(payload);
 
