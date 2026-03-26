@@ -1,0 +1,4 @@
+/app/src/test/java/com/developer/pos/v2/mcp/ActionContextAuditListenerTest.java
+/app/src/test/java/com/developer/pos/v2/mcp/ActionContextHolderTest.java
+/app/src/test/java/com/developer/pos/v2/mcp/McpToolRegistryIntegrationTest.java
+/app/src/test/java/com/developer/pos/v2/mcp/tools/McpToolRegistryTest.java
