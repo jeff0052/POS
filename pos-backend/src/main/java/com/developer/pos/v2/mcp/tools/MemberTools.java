@@ -1,14 +1,13 @@
 package com.developer.pos.v2.mcp.tools;
 
-import com.developer.pos.v2.mcp.ActionLogService;
 import com.developer.pos.v2.mcp.McpToolRegistry;
-import com.developer.pos.v2.mcp.model.ActionContext;
 import com.developer.pos.v2.mcp.model.RiskLevel;
 import com.developer.pos.v2.member.application.service.MemberApplicationService;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -19,18 +18,15 @@ public class MemberTools {
     private final McpToolRegistry registry;
     private final MemberApplicationService memberService;
     private final JpaMemberRepository memberRepository;
-    private final ActionLogService actionLogService;
 
     public MemberTools(
             McpToolRegistry registry,
             MemberApplicationService memberService,
-            JpaMemberRepository memberRepository,
-            ActionLogService actionLogService
+            JpaMemberRepository memberRepository
     ) {
         this.registry = registry;
         this.memberService = memberService;
         this.memberRepository = memberRepository;
-        this.actionLogService = actionLogService;
     }
 
     @PostConstruct
@@ -62,8 +58,11 @@ public class MemberTools {
 
         registry.register(new McpToolRegistry.ToolDefinition(
                 "get_churn_risk_members",
-                "Identify members with zero points and zero cash balance — potential churn risk. " +
-                        "Params: none (analyzes all active members).",
+                // TODO (P1): enhance with churn detection based on last visit date once
+                // a dedicated low-engagement query is added. For now returns all active members
+                // because last-visit-date filtering requires a schema/query change.
+                "List all active members (placeholder — will be enhanced with churn detection " +
+                        "based on last visit date in P1). Params: none.",
                 "member",
                 "ANALYZE",
                 null,
@@ -78,8 +77,6 @@ public class MemberTools {
                                     "tierCode", m.getTierCode()
                             ))
                             .toList();
-                    // TODO: enhance with account balance join once a dedicated low-engagement query
-                    // is added to MemberApplicationService or JpaMemberRepository.
                 }
         ));
 
@@ -89,26 +86,26 @@ public class MemberTools {
                 "member",
                 "ACTION",
                 RiskLevel.MEDIUM,
-                params -> {
-                    Long memberId = toLong(params.get("memberId"));
-                    String tierCode = (String) params.get("tierCode");
-
-                    MemberEntity member = memberRepository.findById(memberId)
-                            .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
-                    String previousTier = member.getTierCode();
-                    member.setTierCode(tierCode.trim().toUpperCase());
-                    memberRepository.save(member);
-
-                    Object result = Map.of(
-                            "memberId", memberId,
-                            "previousTierCode", previousTier,
-                            "newTierCode", member.getTierCode()
-                    );
-                    ActionContext ctx = ActionContext.humanDefault();
-                    actionLogService.log("update_member_tier", ctx, RiskLevel.MEDIUM, params, result);
-                    return result;
-                }
+                this::doUpdateMemberTier
         ));
+    }
+
+    @Transactional
+    public Object doUpdateMemberTier(Map<String, Object> params) {
+        Long memberId = toLong(params.get("memberId"));
+        String tierCode = (String) params.get("tierCode");
+
+        MemberEntity member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+        String previousTier = member.getTierCode();
+        member.setTierCode(tierCode.trim().toUpperCase());
+        memberRepository.save(member);
+
+        return Map.of(
+                "memberId", memberId,
+                "previousTierCode", previousTier,
+                "newTierCode", member.getTierCode()
+        );
     }
 
     private Long toLong(Object value) {

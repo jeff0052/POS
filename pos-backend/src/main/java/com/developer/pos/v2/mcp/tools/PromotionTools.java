@@ -1,8 +1,6 @@
 package com.developer.pos.v2.mcp.tools;
 
-import com.developer.pos.v2.mcp.ActionLogService;
 import com.developer.pos.v2.mcp.McpToolRegistry;
-import com.developer.pos.v2.mcp.model.ActionContext;
 import com.developer.pos.v2.mcp.model.RiskLevel;
 import com.developer.pos.v2.promotion.application.dto.UpsertPromotionRuleDto;
 import com.developer.pos.v2.promotion.application.service.PromotionApplicationService;
@@ -17,16 +15,13 @@ public class PromotionTools {
 
     private final McpToolRegistry registry;
     private final PromotionApplicationService promotionService;
-    private final ActionLogService actionLogService;
 
     public PromotionTools(
             McpToolRegistry registry,
-            PromotionApplicationService promotionService,
-            ActionLogService actionLogService
+            PromotionApplicationService promotionService
     ) {
         this.registry = registry;
         this.promotionService = promotionService;
-        this.actionLogService = actionLogService;
     }
 
     @PostConstruct
@@ -96,10 +91,7 @@ public class PromotionTools {
                             null
                     );
 
-                    Object result = promotionService.createRule(command);
-                    ActionContext ctx = ActionContext.humanDefault();
-                    actionLogService.log("create_promotion_draft", ctx, RiskLevel.MEDIUM, params, result);
-                    return result;
+                    return promotionService.createRule(command);
                 }
         ));
     }

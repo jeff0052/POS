@@ -40,7 +40,7 @@ public class OrderTools {
                 params -> {
                     Long storeId = toLong(params.get("storeId"));
                     return orderReadService.getOrders(storeId).stream()
-                            .filter(o -> !"PAID".equals(o.paymentMethod()))
+                            .filter(o -> !"SETTLED".equals(o.orderStatus()))
                             .toList();
                 }
         ));
