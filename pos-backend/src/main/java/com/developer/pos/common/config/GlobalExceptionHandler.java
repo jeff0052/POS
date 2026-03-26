@@ -68,6 +68,21 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(415, "Unsupported content type");
     }
 
+    // ── 401 / 403 Security ──
+
+    @ExceptionHandler(SecurityException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleSecurity(SecurityException ex) {
+        log.warn("Security violation: {}", ex.getMessage());
+        return ApiResponse.error(403, "Forbidden: " + ex.getMessage());
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ApiResponse<Void> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        return ApiResponse.error(403, "Access denied");
+    }
+
     // ── 409 Conflict (deadlock / duplicate) ──
 
     @ExceptionHandler(CannotAcquireLockException.class)

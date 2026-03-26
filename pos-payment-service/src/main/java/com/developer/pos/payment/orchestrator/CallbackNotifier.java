@@ -21,6 +21,8 @@ import java.util.Map;
 public class CallbackNotifier {
 
     private static final Logger log = LoggerFactory.getLogger(CallbackNotifier.class);
+    private static final int MAX_RETRIES = 3;
+    private static final long[] RETRY_DELAYS_MS = {1000, 3000, 10000};
 
     private final String callbackUrl;
     private final String callbackSecret;
@@ -40,44 +42,69 @@ public class CallbackNotifier {
                 .build();
     }
 
-    public void notifyPaymentResult(PaymentIntentEntity intent) {
-        try {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("paymentIntentId", intent.getIntentId());
-            payload.put("status", intent.getStatus().name());
-            payload.put("providerCode", intent.getProviderCode() != null ? intent.getProviderCode() : "");
-            payload.put("providerTransactionId", intent.getProviderTransactionId() != null ? intent.getProviderTransactionId() : "");
-            payload.put("amountCents", intent.getAmountCents());
-            payload.put("currency", intent.getCurrency());
-            payload.put("paymentMethod", intent.getPaymentMethod());
-            payload.put("paymentScheme", intent.getPaymentScheme() != null ? intent.getPaymentScheme() : "");
-            payload.put("merchantId", intent.getMerchantId());
-            payload.put("storeId", intent.getStoreId());
-            payload.put("tableId", intent.getTableId() != null ? intent.getTableId() : 0);
-            payload.put("sessionRef", intent.getSessionRef() != null ? intent.getSessionRef() : "");
+    /**
+     * Notify POS backend of payment result.
+     * Returns true if POS confirmed settlement success (HTTP 2xx + settlementTriggered=true).
+     * Retries up to 3 times on non-2xx responses.
+     */
+    public boolean notifyPaymentResult(PaymentIntentEntity intent) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("paymentIntentId", intent.getIntentId());
+        payload.put("status", intent.getStatus().name());
+        payload.put("providerCode", intent.getProviderCode() != null ? intent.getProviderCode() : "");
+        payload.put("providerTransactionId", intent.getProviderTransactionId() != null ? intent.getProviderTransactionId() : "");
+        payload.put("amountCents", intent.getAmountCents());
+        payload.put("currency", intent.getCurrency());
+        payload.put("paymentMethod", intent.getPaymentMethod());
+        payload.put("paymentScheme", intent.getPaymentScheme() != null ? intent.getPaymentScheme() : "");
+        payload.put("merchantId", intent.getMerchantId());
+        payload.put("storeId", intent.getStoreId());
+        payload.put("tableId", intent.getTableId() != null ? intent.getTableId() : 0);
+        payload.put("sessionRef", intent.getSessionRef() != null ? intent.getSessionRef() : "");
 
-            String json = objectMapper.writeValueAsString(payload);
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                String json = objectMapper.writeValueAsString(payload);
 
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(callbackUrl))
-                    .header("Content-Type", "application/json")
-                    .timeout(Duration.ofSeconds(15))
-                    .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
+                HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                        .uri(URI.create(callbackUrl))
+                        .header("Content-Type", "application/json")
+                        .timeout(Duration.ofSeconds(15))
+                        .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
 
-            if (callbackSecret != null && !callbackSecret.isBlank()) {
-                String signature = new HmacUtils("HmacSHA256", callbackSecret).hmacHex(json);
-                requestBuilder.header("X-Payment-Signature", signature);
+                if (callbackSecret != null && !callbackSecret.isBlank()) {
+                    String signature = new HmacUtils("HmacSHA256", callbackSecret).hmacHex(json);
+                    requestBuilder.header("X-Payment-Signature", signature);
+                }
+
+                HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    log.info("Payment callback succeeded for intent {} (attempt {})", intent.getIntentId(), attempt + 1);
+                    return true;
+                }
+
+                // Non-2xx means settlement failed on POS side — retry
+                log.warn("Payment callback returned {} for intent {} (attempt {}/{}): {}",
+                        response.statusCode(), intent.getIntentId(), attempt + 1, MAX_RETRIES + 1, response.body());
+
+            } catch (Exception e) {
+                log.error("Payment callback error for intent {} (attempt {}/{}): {}",
+                        intent.getIntentId(), attempt + 1, MAX_RETRIES + 1, e.getMessage());
             }
 
-            HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info("Payment callback sent successfully for intent {} → status {}", intent.getIntentId(), response.statusCode());
-            } else {
-                log.error("Payment callback failed for intent {} → status {}, body: {}", intent.getIntentId(), response.statusCode(), response.body());
+            // Wait before retry (except on last attempt)
+            if (attempt < MAX_RETRIES) {
+                try {
+                    Thread.sleep(RETRY_DELAYS_MS[attempt]);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
-        } catch (Exception e) {
-            log.error("Payment callback error for intent {}: {}", intent.getIntentId(), e.getMessage(), e);
         }
+
+        log.error("Payment callback EXHAUSTED all retries for intent {}. Settlement may not have completed.", intent.getIntentId());
+        return false;
     }
 }

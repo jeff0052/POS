@@ -32,7 +32,9 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers("/api/v1/auth/**", "/api/v2/auth/**").permitAll()
+                .requestMatchers("/api/v1/auth/login", "/api/v2/auth/login").permitAll()
+                .requestMatchers("/api/v1/auth/logout", "/api/v2/auth/logout").permitAll()
+                .requestMatchers("/api/v1/auth/bootstrap", "/api/v2/auth/bootstrap").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 // QR ordering is public (customer-facing)
                 .requestMatchers("/api/v2/qr-ordering/**").permitAll()

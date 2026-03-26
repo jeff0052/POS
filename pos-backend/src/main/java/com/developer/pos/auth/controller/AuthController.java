@@ -31,6 +31,22 @@ public class AuthController {
         return ApiResponse.success(Map.of("success", true));
     }
 
+    /**
+     * Bootstrap: create the first admin user if no users exist.
+     * Only works when auth_users table is empty.
+     */
+    @PostMapping({"/api/v1/auth/bootstrap", "/api/v2/auth/bootstrap"})
+    public ApiResponse<Map<String, String>> bootstrap(@RequestBody Map<String, String> request) {
+        String username = request.get("username");
+        String password = request.get("password");
+        String displayName = request.getOrDefault("displayName", "Platform Admin");
+        if (username == null || password == null || username.isBlank() || password.length() < 8) {
+            throw new IllegalArgumentException("Username required, password must be at least 8 characters");
+        }
+        authService.bootstrapFirstAdmin(username, password, displayName);
+        return ApiResponse.success(Map.of("message", "Admin user created. Please login."));
+    }
+
     @GetMapping({"/api/v1/auth/me", "/api/v2/auth/me"})
     public ApiResponse<AuthUserDto> me() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

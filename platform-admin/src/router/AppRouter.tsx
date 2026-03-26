@@ -7,11 +7,21 @@ import { DevicesPage } from "../pages/DevicesPage";
 import { ConfigurationsPage } from "../pages/ConfigurationsPage";
 import { PlatformUsersPage } from "../pages/PlatformUsersPage";
 import { SupportMonitoringPage } from "../pages/SupportMonitoringPage";
+import LoginPage from "../pages/LoginPage";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem("platform-admin-token");
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+}
 
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<PlatformAdminLayout />}>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<RequireAuth><PlatformAdminLayout /></RequireAuth>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="merchants" element={<MerchantsPage />} />

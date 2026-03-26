@@ -1,6 +1,5 @@
 package com.developer.pos.v2.settlement.interfaces.rest.internal;
 
-import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.settlement.application.command.CollectCashierSettlementCommand;
 import com.developer.pos.v2.settlement.application.service.CashierSettlementApplicationService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,16 +7,14 @@ import org.apache.commons.codec.digest.HmacUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Map;
 
-/**
- * Internal endpoint for the Payment microservice to notify POS backend
- * when a payment succeeds. This triggers the settlement/close-table flow.
- */
 @RestController
 @RequestMapping("/api/v2/internal")
 public class PaymentCallbackController {
@@ -34,11 +31,11 @@ public class PaymentCallbackController {
     }
 
     @PostMapping("/payment-callback")
-    public ApiResponse<Map<String, Object>> handlePaymentCallback(
+    public ResponseEntity<Map<String, Object>> handlePaymentCallback(
             @RequestHeader(value = "X-Payment-Signature", required = false) String signature,
             @RequestBody JsonNode payload
     ) {
-        // Verify HMAC signature if secret is configured
+        // HMAC signature verification — mandatory if secret is configured
         if (callbackSecret != null && !callbackSecret.isBlank()) {
             String payloadText = payload.toString();
             String expectedSignature = new HmacUtils("HmacSHA256", callbackSecret).hmacHex(payloadText);
@@ -47,7 +44,8 @@ public class PaymentCallbackController {
                     signature.getBytes(StandardCharsets.UTF_8)
             )) {
                 log.error("Invalid payment callback signature");
-                throw new SecurityException("Invalid payment callback signature");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Invalid signature", "settlementTriggered", false));
             }
         }
 
@@ -59,39 +57,39 @@ public class PaymentCallbackController {
         String sessionRef = payload.path("sessionRef").asText(null);
         String paymentMethod = payload.path("paymentMethod").asText("UNKNOWN");
 
-        log.info("Payment callback received: intent={}, status={}, amount={}, store={}, table={}",
+        log.info("Payment callback: intent={}, status={}, amount={}, store={}, table={}",
                 paymentIntentId, status, amountCents, storeId, tableId);
 
         if (!"SUCCEEDED".equals(status)) {
-            log.info("Payment status is {}, no settlement triggered", status);
-            return ApiResponse.success(Map.of(
+            return ResponseEntity.ok(Map.of(
                     "acknowledged", true,
                     "settlementTriggered", false,
                     "paymentIntentId", paymentIntentId
             ));
         }
 
-        // Trigger settlement
+        // Trigger settlement — return non-2xx on failure so payment service knows to retry
         try {
             settlementService.collectForTable(
-                    storeId,
-                    tableId,
+                    storeId, tableId,
                     new CollectCashierSettlementCommand(sessionRef, 0L, paymentMethod, amountCents)
             );
 
-            return ApiResponse.success(Map.of(
+            return ResponseEntity.ok(Map.of(
                     "acknowledged", true,
                     "settlementTriggered", true,
                     "paymentIntentId", paymentIntentId
             ));
         } catch (Exception e) {
-            log.error("Settlement failed for payment callback intent={}: {}", paymentIntentId, e.getMessage());
-            return ApiResponse.success(Map.of(
-                    "acknowledged", true,
-                    "settlementTriggered", false,
-                    "error", e.getMessage(),
-                    "paymentIntentId", paymentIntentId
-            ));
+            log.error("Settlement FAILED for callback intent={}: {}", paymentIntentId, e.getMessage());
+            // Return 500 so payment service knows settlement didn't happen
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "acknowledged", true,
+                            "settlementTriggered", false,
+                            "error", e.getMessage() != null ? e.getMessage() : "Settlement failed",
+                            "paymentIntentId", paymentIntentId
+                    ));
         }
     }
 }

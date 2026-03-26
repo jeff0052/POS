@@ -33,6 +33,9 @@ pos:
   callback-secret: ${POS_CALLBACK_SECRET:}
 
 # Provider credentials
+security:
+  service-api-key: ${PAYMENT_SERVICE_API_KEY:}
+
 providers:
   vibecash:
     enabled: ${VIBECASH_ENABLED:false}

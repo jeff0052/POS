@@ -50,6 +50,20 @@ public class AuthService {
         return toDto(user);
     }
 
+    public void bootstrapFirstAdmin(String username, String password, String displayName) {
+        long count = userRepository.count();
+        if (count > 0) {
+            throw new IllegalStateException("Bootstrap not allowed: users already exist");
+        }
+        AuthUserEntity admin = new AuthUserEntity();
+        admin.setUsername(username);
+        admin.setPasswordHash(passwordEncoder.encode(password));
+        admin.setDisplayName(displayName);
+        admin.setRole("PLATFORM_ADMIN");
+        admin.setStatus("ACTIVE");
+        userRepository.save(admin);
+    }
+
     private AuthUserDto toDto(AuthUserEntity user) {
         return new AuthUserDto(
                 user.getId(),

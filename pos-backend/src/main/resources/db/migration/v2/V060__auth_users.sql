@@ -8,22 +8,12 @@ CREATE TABLE IF NOT EXISTS auth_users (
     merchant_id BIGINT NULL,
     store_id BIGINT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+    must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uk_auth_username UNIQUE (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Seed: platform admin (password: admin123)
-INSERT INTO auth_users (username, password_hash, display_name, role, merchant_id, store_id, status)
-SELECT 'admin', '$2b$12$x9Q2FhlaQDprOupevlqxGeHaqb9/IbkjZI.MLvGfuREcKQimB3oqK', 'Platform Admin', 'PLATFORM_ADMIN', NULL, NULL, 'ACTIVE'
-FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM auth_users WHERE username = 'admin');
-
--- Seed: store admin (password: admin123)
-INSERT INTO auth_users (username, password_hash, display_name, role, merchant_id, store_id, status)
-SELECT 'store_admin', '$2b$12$x9Q2FhlaQDprOupevlqxGeHaqb9/IbkjZI.MLvGfuREcKQimB3oqK', 'Store Admin', 'ADMIN', 1, 1, 'ACTIVE'
-FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM auth_users WHERE username = 'store_admin');
-
--- Seed: cashier (password: admin123)
-INSERT INTO auth_users (username, password_hash, display_name, role, merchant_id, store_id, status)
-SELECT 'cashier', '$2b$12$x9Q2FhlaQDprOupevlqxGeHaqb9/IbkjZI.MLvGfuREcKQimB3oqK', 'Cashier', 'CASHIER', 1, 1, 'ACTIVE'
-FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM auth_users WHERE username = 'cashier');
+-- No seed users with default passwords.
+-- Use the bootstrap script or environment-variable-driven init to create the first admin.
+-- See DEPLOY_AWS.md for first-login setup instructions.

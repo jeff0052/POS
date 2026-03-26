@@ -80,7 +80,12 @@ public class PaymentOrchestrator {
 
         // Notify POS if payment already succeeded (cash)
         if (intent.getStatus() == PaymentStatus.SUCCEEDED) {
-            callbackNotifier.notifyPaymentResult(intent);
+            boolean settled = callbackNotifier.notifyPaymentResult(intent);
+            if (!settled) {
+                // Payment succeeded at provider but settlement failed at POS
+                // Keep intent as SUCCEEDED but log for manual reconciliation
+                log.warn("Intent {} payment succeeded but POS settlement callback failed after retries", intent.getIntentId());
+            }
         }
 
         return intent;
@@ -106,7 +111,10 @@ public class PaymentOrchestrator {
         intent.setCompletedAt(OffsetDateTime.now());
         intentRepository.save(intent);
 
-        callbackNotifier.notifyPaymentResult(intent);
+        boolean settled = callbackNotifier.notifyPaymentResult(intent);
+        if (!settled) {
+            log.warn("Intent {} payment succeeded but POS settlement callback failed after retries", intentId);
+        }
         return intent;
     }
 
