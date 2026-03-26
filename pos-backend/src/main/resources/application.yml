@@ -31,10 +31,15 @@ spring:
     activate:
       on-profile: mysql
   datasource:
-    url: jdbc:mysql://localhost:3306/pos_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+    url: jdbc:mysql://localhost:3306/pos_v2_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/v2
+    baseline-on-migrate: true
+    validate-on-migrate: false
   jpa:
     database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
@@ -59,7 +64,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration/v2
-    baseline-on-migrate: false
+    baseline-on-migrate: true
+    validate-on-migrate: false
   jpa:
     database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
