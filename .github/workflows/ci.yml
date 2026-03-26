@@ -84,3 +84,45 @@ jobs:
       - name: Install & Build
         working-directory: qr-ordering-web
         run: npm ci && npm run build
+
+  frontend-platform:
+    name: Platform Admin Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: platform-admin/package-lock.json
+      - name: Install & Build
+        working-directory: platform-admin
+        run: npm ci && npm run build
+
+  payment-service:
+    name: Payment Service Build
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pos_payment_db
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build & Test
+        working-directory: pos-payment-service
+        run: mvn -B -q verify

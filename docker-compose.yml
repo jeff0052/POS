@@ -5,12 +5,11 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: pos_db
+      MYSQL_DATABASE: pos_v2_db
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./mysql/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
       interval: 10s
@@ -30,12 +29,31 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/pos_v2_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
+      JWT_SECRET: local-dev-jwt-secret-must-be-32-chars
+      POS_CALLBACK_SECRET: local-dev-callback-secret
       VIBECASH_API_URL: ${VIBECASH_API_URL:-https://api.vibecash.dev}
       VIBECASH_SECRET: ${VIBECASH_SECRET:-}
       VIBECASH_WEBHOOK_SECRET: ${VIBECASH_WEBHOOK_SECRET:-}
       VIBECASH_CURRENCY: ${VIBECASH_CURRENCY:-SGD}
     ports:
       - "8080:8080"
+
+  pos-payment-service:
+    build:
+      context: ./pos-payment-service
+    container_name: pos-payment-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PAYMENT_DB_URL: jdbc:mysql://mysql:3306/pos_payment_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      PAYMENT_DB_USERNAME: root
+      PAYMENT_DB_PASSWORD: root
+      POS_CALLBACK_URL: http://pos-backend:8080/api/v2/internal/payment-callback
+      POS_CALLBACK_SECRET: local-dev-callback-secret
+    ports:
+      - "8081:8081"
 
   pc-admin:
     build:

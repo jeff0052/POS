@@ -40,7 +40,14 @@ export async function getMemberTiers(): Promise<MemberTier[]> {
     return mockApi.getMemberTiers();
   }
 
-  return mockApi.getMemberTiers();
+  // Member tiers are static business config — return hardcoded for now
+  // TODO: Add /api/v2/member-tiers endpoint when tier management is built
+  return [
+    { code: "STANDARD", name: "Standard", discountPercent: 0, threshold: 0 },
+    { code: "SILVER", name: "Silver", discountPercent: 5, threshold: 50000 },
+    { code: "GOLD", name: "Gold", discountPercent: 10, threshold: 200000 },
+    { code: "VIP", name: "VIP", discountPercent: 15, threshold: 500000 }
+  ];
 }
 
 export async function getMemberDetail(memberId: number): Promise<MemberDetail> {

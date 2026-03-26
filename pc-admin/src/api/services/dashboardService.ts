@@ -3,23 +3,23 @@ import { USE_MOCK_API } from "../config";
 import * as mockApi from "../mockApi";
 import type { DashboardSummary, MemberConsumptionSummary, Order, SalesReportSummary } from "../../types";
 
+// Aligned with backend MerchantAdminOrderDto
 type RecentOrderResponseItem = {
-  id: number;
+  orderId: string;
   orderNo: string;
-  paidAmountCents: number;
-  originalAmountCents?: number;
-  memberDiscountCents?: number;
-  promotionDiscountCents?: number;
-  payableAmountCents?: number;
-  orderStatus: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
-  paymentMethod?: "CASH" | "CARD_TERMINAL" | "WECHAT_QR" | "ALIPAY_QR" | "PAYNOW_QR" | "UNPAID";
-  createdAt: number | string;
-  cashier?: string;
-  printStatus?: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
+  storeId: number;
+  tableId: number;
   tableCode?: string;
-  orderType?: "POS" | "QR";
+  orderType?: string;
+  orderStatus: string;
+  paymentMethod?: string;
+  createdAt: string;
   memberName?: string;
   memberTier?: string;
+  originalAmountCents: number;
+  memberDiscountCents: number;
+  promotionDiscountCents: number;
+  payableAmountCents: number;
   giftItems?: string[];
 };
 
@@ -49,25 +49,25 @@ export async function getRecentOrders(): Promise<Order[]> {
     return mockApi.getOrders();
   }
 
-  const response = await apiGetV2<RecentOrderResponseItem[]>("/admin/orders?storeId=101");
+  const response = await apiGetV2<RecentOrderResponseItem[]>("/admin/orders?storeId=1");
   return response.map((item) => ({
-    id: item.id,
+    id: item.orderId ?? item.orderNo,
     orderNo: item.orderNo,
-    amount: centsToText(item.paidAmountCents),
+    amount: centsToText(item.payableAmountCents),
     status: item.orderStatus,
     payment: item.paymentMethod ?? "UNPAID",
-    time: String(item.createdAt),
-    cashier: item.cashier ?? "-",
-    printStatus: item.printStatus ?? "NOT_PRINTED",
+    time: item.createdAt,
+    cashier: "-",
+    printStatus: "NOT_PRINTED" as const,
     items: [],
     tableCode: item.tableCode,
     orderType: item.orderType,
     memberName: item.memberName,
     memberTier: item.memberTier,
-    originalAmount: item.originalAmountCents ? centsToText(item.originalAmountCents) : undefined,
-    memberDiscount: item.memberDiscountCents ? centsToText(item.memberDiscountCents) : undefined,
-    promotionDiscount: item.promotionDiscountCents ? centsToText(item.promotionDiscountCents) : undefined,
-    payableAmount: item.payableAmountCents ? centsToText(item.payableAmountCents) : undefined,
+    originalAmount: centsToText(item.originalAmountCents),
+    memberDiscount: centsToText(item.memberDiscountCents),
+    promotionDiscount: centsToText(item.promotionDiscountCents),
+    payableAmount: centsToText(item.payableAmountCents),
     giftItems: item.giftItems ?? []
   }));
 }
