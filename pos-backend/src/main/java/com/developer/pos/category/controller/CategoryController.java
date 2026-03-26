@@ -5,6 +5,7 @@ import com.developer.pos.category.service.CategoryService;
 import com.developer.pos.common.response.ApiResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,7 +19,7 @@ public class CategoryController {
     }
 
     @GetMapping
-    public ApiResponse<CategoryListResponse> list() {
-        return ApiResponse.success(categoryService.list());
+    public ApiResponse<CategoryListResponse> list(@RequestParam(defaultValue = "1001") Long storeId) {
+        return ApiResponse.success(categoryService.list(storeId));
     }
 }

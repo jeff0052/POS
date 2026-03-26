@@ -20,16 +20,16 @@ public class StoreService {
         this.storeSettingsRepository = storeSettingsRepository;
     }
 
-    public StoreDto getCurrentStore() {
-        return storeRepository.findById(1001L)
+    public StoreDto getCurrentStore(Long storeId) {
+        return storeRepository.findById(storeId)
             .map(this::toStoreDto)
-            .orElse(new StoreDto(1001L, "Demo Store", "STORE1001", "Shanghai", "13800000000"));
+            .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeId));
     }
 
-    public StoreSettingsDto getCurrentSettings() {
-        return storeSettingsRepository.findByStoreId(1001L)
+    public StoreSettingsDto getCurrentSettings(Long storeId) {
+        return storeSettingsRepository.findByStoreId(storeId)
             .map(this::toSettingsDto)
-            .orElse(new StoreSettingsDto(1001L, "Demo Store", "Thanks for visiting", Collections.emptyMap(), Collections.emptyMap()));
+            .orElse(new StoreSettingsDto(storeId, "Store", "Thanks for visiting", Collections.emptyMap(), Collections.emptyMap()));
     }
 
     public StoreSettingsDto updateSettings(StoreSettingsDto settingsDto) {

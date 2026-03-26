@@ -3,24 +3,27 @@ package com.developer.pos.auth.controller;
 import com.developer.pos.auth.dto.AuthUserDto;
 import com.developer.pos.auth.dto.LoginRequest;
 import com.developer.pos.auth.dto.LoginResponse;
+import com.developer.pos.auth.entity.AuthUserEntity;
+import com.developer.pos.auth.repository.AuthUserRepository;
 import com.developer.pos.auth.service.AuthService;
 import com.developer.pos.common.response.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.Map;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/auth")
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthUserRepository userRepository;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, AuthUserRepository userRepository) {
         this.authService = authService;
+        this.userRepository = userRepository;
     }
 
     @PostMapping("/login")
@@ -35,6 +38,16 @@ public class AuthController {
 
     @GetMapping("/me")
     public ApiResponse<AuthUserDto> me() {
-        return ApiResponse.success(new AuthUserDto(1L, "admin", "Store Admin", "ADMIN", 1001L));
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new IllegalStateException("Not authenticated.");
+        }
+        String userId = auth.getPrincipal().toString();
+        AuthUserEntity user = userRepository.findById(Long.parseLong(userId))
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+        return ApiResponse.success(new AuthUserDto(
+                user.getId(), user.getUsername(), user.getDisplayName(),
+                user.getRole(), user.getMerchantId(), user.getStoreId()
+        ));
     }
 }

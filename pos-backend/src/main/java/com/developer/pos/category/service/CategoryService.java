@@ -16,8 +16,8 @@ public class CategoryService {
         this.categoryRepository = categoryRepository;
     }
 
-    public CategoryListResponse list() {
-        List<CategoryDto> items = categoryRepository.findByStoreIdAndDeletedOrderBySortOrderAsc(1001L, 0)
+    public CategoryListResponse list(Long storeId) {
+        List<CategoryDto> items = categoryRepository.findByStoreIdAndDeletedOrderBySortOrderAsc(storeId, 0)
             .stream()
             .map(this::toDto)
             .toList();

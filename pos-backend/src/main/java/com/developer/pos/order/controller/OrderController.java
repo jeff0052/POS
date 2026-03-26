@@ -31,8 +31,8 @@ public class OrderController {
     }
 
     @GetMapping
-    public ApiResponse<OrderListResponse> list() {
-        return ApiResponse.success(orderService.list());
+    public ApiResponse<OrderListResponse> list(@RequestParam(defaultValue = "1001") Long storeId) {
+        return ApiResponse.success(orderService.list(storeId));
     }
 
     @PostMapping("/qr-submit")

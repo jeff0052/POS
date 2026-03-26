@@ -262,9 +262,10 @@ public class ActiveTableOrderService {
     }
 
     private void persistOrderSummary(String orderNo, long payableAmountCents, LocalDateTime createdAt) {
+        Long storeId = 1001L; // TODO: Remove V1 hardcode — migrate callers to V2 APIs
         OrderEntity entity = new OrderEntity();
         entity.setOrderNo(orderNo);
-        entity.setStoreId(1001L);
+        entity.setStoreId(storeId);
         entity.setCashierId(0L);
         entity.setPaidAmountCents(payableAmountCents);
         entity.setOrderStatus("PENDING_SETTLEMENT");

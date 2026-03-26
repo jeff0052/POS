@@ -5,6 +5,7 @@ public record AuthUserDto(
     String username,
     String displayName,
     String role,
+    Long merchantId,
     Long storeId
 ) {
 }

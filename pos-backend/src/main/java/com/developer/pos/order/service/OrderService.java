@@ -23,8 +23,8 @@ public class OrderService {
         this.activeTableOrderService = activeTableOrderService;
     }
 
-    public OrderListResponse list() {
-        List<TimedOrder> posOrders = orderRepository.findTop50ByStoreIdOrderByCreatedAtDesc(1001L)
+    public OrderListResponse list(Long storeId) {
+        List<TimedOrder> posOrders = orderRepository.findTop50ByStoreIdOrderByCreatedAtDesc(storeId)
             .stream()
             .map(this::toPosDto)
             .map(dto -> new TimedOrder(dto, parseTime(dto.createdAt())))

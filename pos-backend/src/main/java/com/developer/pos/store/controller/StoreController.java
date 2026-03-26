@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -21,13 +22,13 @@ public class StoreController {
     }
 
     @GetMapping
-    public ApiResponse<StoreDto> currentStore() {
-        return ApiResponse.success(storeService.getCurrentStore());
+    public ApiResponse<StoreDto> currentStore(@RequestParam(defaultValue = "1001") Long storeId) {
+        return ApiResponse.success(storeService.getCurrentStore(storeId));
     }
 
     @GetMapping("/settings")
-    public ApiResponse<StoreSettingsDto> settings() {
-        return ApiResponse.success(storeService.getCurrentSettings());
+    public ApiResponse<StoreSettingsDto> settings(@RequestParam(defaultValue = "1001") Long storeId) {
+        return ApiResponse.success(storeService.getCurrentSettings(storeId));
     }
 
     @PutMapping("/settings")

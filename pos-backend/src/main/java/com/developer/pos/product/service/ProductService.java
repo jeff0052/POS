@@ -16,8 +16,8 @@ public class ProductService {
         this.productRepository = productRepository;
     }
 
-    public ProductListResponse list() {
-        List<ProductDto> items = productRepository.findByStoreIdAndDeletedOrderByNameAsc(1001L, 0)
+    public ProductListResponse list(Long storeId) {
+        List<ProductDto> items = productRepository.findByStoreIdAndDeletedOrderByNameAsc(storeId, 0)
             .stream()
             .map(this::toDto)
             .toList();
