@@ -21,6 +21,7 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.entity.Settlem
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementRecordRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
+import com.developer.pos.v2.member.application.service.MemberSettlementHookService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ public class CashierSettlementApplicationService implements UseCase {
     private final ObjectMapper objectMapper;
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
+    private final MemberSettlementHookService memberSettlementHookService;
 
     public CashierSettlementApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -49,7 +51,8 @@ public class CashierSettlementApplicationService implements UseCase {
             JpaPromotionHitRepository promotionHitRepository,
             ObjectMapper objectMapper,
             JpaTableSessionRepository tableSessionRepository,
-            JpaSubmittedOrderRepository submittedOrderRepository
+            JpaSubmittedOrderRepository submittedOrderRepository,
+            MemberSettlementHookService memberSettlementHookService
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.settlementRecordRepository = settlementRecordRepository;
@@ -59,6 +62,7 @@ public class CashierSettlementApplicationService implements UseCase {
         this.objectMapper = objectMapper;
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
+        this.memberSettlementHookService = memberSettlementHookService;
     }
 
     @Transactional(readOnly = true)
@@ -199,11 +203,17 @@ public class CashierSettlementApplicationService implements UseCase {
         settlementRecord.setCollectedAmountCents(command.collectedAmountCents());
         settlementRecordRepository.saveAndFlush(settlementRecord);
 
+        Long memberId = unpaidOrders.stream()
+                .map(SubmittedOrderEntity::getMemberId).filter(id -> id != null).findFirst().orElse(null);
+
         unpaidOrders.forEach(submittedOrder -> {
             submittedOrder.setSettlementStatus("SETTLED");
             submittedOrder.setSettledAt(OffsetDateTime.now());
         });
         submittedOrderRepository.saveAllAndFlush(unpaidOrders);
+
+        memberSettlementHookService.onSettlementCompleted(
+                memberId, payableAmount, settlementRecord.getSettlementNo(), command.paymentMethod());
 
         session.setSessionStatus("CLOSED");
         session.setClosedAt(OffsetDateTime.now());
