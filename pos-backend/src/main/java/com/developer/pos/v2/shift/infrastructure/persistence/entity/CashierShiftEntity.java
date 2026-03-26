@@ -59,4 +59,9 @@ public class CashierShiftEntity {
     public void setTotalTransactionCount(int totalTransactionCount) { this.totalTransactionCount = totalTransactionCount; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    // Aliases for Codex ShiftApplicationService compatibility
+    public String getCashierId() { return cashierStaffId; }
+    public long getOpeningFloatCents() { return openingCashCents; }
+    public Long getClosingCashCents2() { return closingCashCents; }
 }
