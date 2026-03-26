@@ -93,26 +93,20 @@ export interface OrderItem {
 }
 
 export interface Order {
-  id: number;
+  id: number | string;
   orderId?: string;
   orderNo: string;
   amount: string;
-  status: "DRAFT" | "SUBMITTED" | "PENDING_SETTLEMENT" | "PAID" | "REFUNDED";
-  payment:
-    | "CASH"
-    | "CARD_TERMINAL"
-    | "WECHAT_QR"
-    | "ALIPAY_QR"
-    | "PAYNOW_QR"
-    | "UNPAID";
+  status: string;
+  payment: string;
   time: string;
   cashier: string;
-  printStatus: "PRINT_SUCCESS" | "PRINT_FAILED" | "NOT_PRINTED";
-  items: OrderItem[];
+  printStatus?: string;
+  items?: OrderItem[];
   storeId?: number;
   tableId?: number;
   tableCode?: string;
-  orderType?: "POS" | "QR";
+  orderType?: string;
   memberName?: string;
   memberTier?: string;
   originalAmount?: string;
@@ -155,10 +149,13 @@ export interface MemberDetail {
 }
 
 export interface MemberTier {
-  id: number;
+  id?: number;
+  code?: string;
   name: string;
-  upgradeRule: string;
-  benefits: string[];
+  discountPercent?: number;
+  threshold?: number;
+  upgradeRule?: string;
+  benefits?: string[];
 }
 
 export interface RechargeRecord {
@@ -190,15 +187,21 @@ export interface PromotionRule {
 }
 
 export interface GtoBatch {
-  id: number;
-  batchNo: string;
-  businessDate: string;
-  storeName: string;
-  tradeCount: number;
-  netSales: string;
-  discountAmount: string;
-  syncStatus: "PENDING" | "SUCCESS" | "FAILED";
-  exportTime: string;
+  id: number | string;
+  batchNo?: string;
+  exportDate?: string;
+  businessDate?: string;
+  storeName?: string;
+  totalRecords?: number;
+  tradeCount?: number;
+  totalSales?: string;
+  totalTax?: string;
+  createdAt?: string;
+  netSales?: string;
+  discountAmount?: string;
+  syncStatus?: string;
+  status?: string;
+  exportTime?: string;
 }
 
 export interface SalesReportSummary {
