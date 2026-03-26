@@ -1,6 +1,6 @@
 import type { ApiResponse } from "../types";
 
-const API_BASE = "/api/v1";
+const API_BASE = "/api/v2";
 const V2_API_BASE = "/api/v2";
 
 async function request<T>(base: string, path: string, init?: RequestInit): Promise<T> {

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, codex/*, feat/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend Build & Test
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pos_v2_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build & Test
+        working-directory: pos-backend
+        run: mvn -B -q verify
+        env:
+          SPRING_PROFILES_ACTIVE: v2mysql
+          V2_MYSQL_URL: jdbc:mysql://localhost:3306/pos_v2_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          V2_MYSQL_USERNAME: root
+          V2_MYSQL_PASSWORD: root
+
+  frontend-pos:
+    name: POS Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: android-preview-web/package-lock.json
+      - name: Install & Build
+        working-directory: android-preview-web
+        run: npm ci && npm run build
+
+  frontend-admin:
+    name: Admin Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: pc-admin/package-lock.json
+      - name: Install & Build
+        working-directory: pc-admin
+        run: npm ci && npm run build
+
+  frontend-qr:
+    name: QR Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: qr-ordering-web/package-lock.json
+      - name: Install & Build
+        working-directory: qr-ordering-web
+        run: npm ci && npm run build
