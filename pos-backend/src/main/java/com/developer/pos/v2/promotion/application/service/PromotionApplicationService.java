@@ -162,6 +162,7 @@ public class PromotionApplicationService implements UseCase {
                 .filter(rule -> conditions.get(rule.getId()).getThresholdAmountCents() != null)
                 .filter(rule -> pricingBase >= conditions.get(rule.getId()).getThresholdAmountCents())
                 .filter(rule -> isSupportedReward(rewards.get(rule.getId())))
+                .filter(rule -> rule.getMaxUsage() == null || rule.getUsageCount() < rule.getMaxUsage())
                 .max(Comparator
                         .comparingInt((PromotionRuleEntity rule) -> rewardRank(rewards.get(rule.getId())))
                         .thenComparingLong(rule -> rewardValue(rewards.get(rule.getId())))
@@ -184,6 +185,9 @@ public class PromotionApplicationService implements UseCase {
 
             if ("DISCOUNT_AMOUNT".equalsIgnoreCase(reward.getRewardType())) {
                 promotionDiscount = reward.getDiscountAmountCents() == null ? 0 : reward.getDiscountAmountCents();
+            } else if ("DISCOUNT_PERCENT".equalsIgnoreCase(reward.getRewardType())) {
+                int percent = reward.getDiscountPercent() == null ? 0 : reward.getDiscountPercent();
+                promotionDiscount = (pricingBase * percent) / 100;
             } else if ("GIFT_SKU".equalsIgnoreCase(reward.getRewardType()) && reward.getGiftSkuId() != null) {
                 SkuEntity giftSku = skuRepository.findById(reward.getGiftSkuId())
                         .orElseThrow(() -> new IllegalStateException("Gift SKU not found: " + reward.getGiftSkuId()));
@@ -204,6 +208,8 @@ public class PromotionApplicationService implements UseCase {
             hit.setDiscountAmountCents(promotionDiscount);
             hit.setGiftSnapshotJson(giftSnapshotJson);
             promotionHitRepository.save(hit);
+            matchedRule.setUsageCount(matchedRule.getUsageCount() + 1);
+            promotionRuleRepository.save(matchedRule);
         }
 
         activeOrder.setPromotionDiscountCents(promotionDiscount);
@@ -230,6 +236,7 @@ public class PromotionApplicationService implements UseCase {
             return false;
         }
         return "DISCOUNT_AMOUNT".equalsIgnoreCase(reward.getRewardType())
+                || "DISCOUNT_PERCENT".equalsIgnoreCase(reward.getRewardType())
                 || "GIFT_SKU".equalsIgnoreCase(reward.getRewardType());
     }
 
@@ -237,7 +244,9 @@ public class PromotionApplicationService implements UseCase {
         if (reward == null || reward.getRewardType() == null) {
             return 0;
         }
-        return "DISCOUNT_AMOUNT".equalsIgnoreCase(reward.getRewardType()) ? 2 : 1;
+        if ("DISCOUNT_AMOUNT".equalsIgnoreCase(reward.getRewardType())) return 3;
+        if ("DISCOUNT_PERCENT".equalsIgnoreCase(reward.getRewardType())) return 2;
+        return 1;
     }
 
     private long rewardValue(PromotionRuleRewardEntity reward) {
@@ -293,7 +302,7 @@ public class PromotionApplicationService implements UseCase {
         if (!List.of("FULL_REDUCTION", "GIFT_SKU").contains(ruleType)) {
             throw new IllegalArgumentException("Unsupported ruleType: " + command.ruleType());
         }
-        if (!List.of("DISCOUNT_AMOUNT", "GIFT_SKU").contains(rewardType)) {
+        if (!List.of("DISCOUNT_AMOUNT", "DISCOUNT_PERCENT", "GIFT_SKU").contains(rewardType)) {
             throw new IllegalArgumentException("Unsupported rewardType: " + command.rewardType());
         }
         if ("FULL_REDUCTION".equals(ruleType) && (command.thresholdAmountCents() == null || command.thresholdAmountCents() <= 0)) {

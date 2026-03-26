@@ -24,6 +24,9 @@ public class PromotionRuleRewardEntity {
     @Column(name = "discount_amount_cents")
     private Long discountAmountCents;
 
+    @Column(name = "discount_percent")
+    private Integer discountPercent;
+
     @Column(name = "gift_sku_id")
     private Long giftSkuId;
 
@@ -55,6 +58,14 @@ public class PromotionRuleRewardEntity {
 
     public void setDiscountAmountCents(Long discountAmountCents) {
         this.discountAmountCents = discountAmountCents;
+    }
+
+    public Integer getDiscountPercent() {
+        return discountPercent;
+    }
+
+    public void setDiscountPercent(Integer discountPercent) {
+        this.discountPercent = discountPercent;
     }
 
     public Long getGiftSkuId() {
