@@ -49,8 +49,7 @@ public class MerchantOrderReadService implements UseCase {
         List<ActiveTableOrderEntity> activeOrders = activeTableOrderRepository.findAllByStoreIdOrderByIdDesc(storeId);
         List<SubmittedOrderEntity> submittedOrders = submittedOrderRepository.findAllByStoreIdOrderByIdDesc(storeId);
 
-        Map<Long, StoreTableEntity> tablesById = storeTableRepository.findAll().stream()
-                .filter(table -> table.getStoreId().equals(storeId))
+        Map<Long, StoreTableEntity> tablesById = storeTableRepository.findAllByStoreIdOrderByIdAsc(storeId).stream()
                 .collect(Collectors.toMap(StoreTableEntity::getId, Function.identity()));
 
         Map<Long, MemberEntity> membersById = loadMembers(
