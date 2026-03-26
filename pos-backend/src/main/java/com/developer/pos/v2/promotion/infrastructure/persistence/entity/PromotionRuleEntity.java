@@ -38,6 +38,12 @@ public class PromotionRuleEntity {
     @Column(name = "priority", nullable = false)
     private int priority;
 
+    @Column(name = "usage_count", nullable = false)
+    private int usageCount;
+
+    @Column(name = "max_usage")
+    private Integer maxUsage;
+
     @Column(name = "starts_at")
     private OffsetDateTime startsAt;
 
@@ -109,6 +115,22 @@ public class PromotionRuleEntity {
 
     public void setPriority(int priority) {
         this.priority = priority;
+    }
+
+    public int getUsageCount() {
+        return usageCount;
+    }
+
+    public void setUsageCount(int usageCount) {
+        this.usageCount = usageCount;
+    }
+
+    public Integer getMaxUsage() {
+        return maxUsage;
+    }
+
+    public void setMaxUsage(Integer maxUsage) {
+        this.maxUsage = maxUsage;
     }
 
     public OffsetDateTime getStartsAt() {
