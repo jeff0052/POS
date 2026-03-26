@@ -18,6 +18,6 @@ CREATE TABLE auth_users (
 
 -- Seed a default admin user (password: admin123, BCrypt hash)
 INSERT INTO auth_users (user_id, username, password_hash, display_name, role, merchant_id, store_id)
-SELECT 'USR_DEFAULT_ADMIN', 'admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+SELECT 'USR_DEFAULT_ADMIN', 'admin', '$2b$10$TaGgQgnx/NZqhMX3TzxmNeVl7CyG.sqBfhoEajNpuTjKvt.979xka',
        'Default Admin', 'PLATFORM_ADMIN', NULL, NULL
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM auth_users WHERE username = 'admin');
