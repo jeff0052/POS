@@ -6,7 +6,6 @@ import com.developer.pos.v2.mcp.ActionContextHolder;
 import com.developer.pos.v2.mcp.ActionLogService;
 import com.developer.pos.v2.mcp.McpToolRegistry;
 import com.developer.pos.v2.mcp.model.ActionContext;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,16 +21,13 @@ public class McpEndpointController implements V2Api {
     private final McpToolRegistry registry;
     private final ActionContextHolder contextHolder;
     private final ActionLogService actionLogService;
-    private final ObjectMapper objectMapper;
 
     public McpEndpointController(McpToolRegistry registry,
                                  ActionContextHolder contextHolder,
-                                 ActionLogService actionLogService,
-                                 ObjectMapper objectMapper) {
+                                 ActionLogService actionLogService) {
         this.registry = registry;
         this.contextHolder = contextHolder;
         this.actionLogService = actionLogService;
-        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/tools")

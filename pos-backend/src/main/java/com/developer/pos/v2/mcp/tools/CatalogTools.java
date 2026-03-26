@@ -3,9 +3,7 @@ package com.developer.pos.v2.mcp.tools;
 import com.developer.pos.v2.catalog.application.service.AdminCatalogReadService;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.StoreSkuAvailabilityEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaStoreSkuAvailabilityRepository;
-import com.developer.pos.v2.mcp.ActionLogService;
 import com.developer.pos.v2.mcp.McpToolRegistry;
-import com.developer.pos.v2.mcp.model.ActionContext;
 import com.developer.pos.v2.mcp.model.RiskLevel;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
@@ -19,18 +17,15 @@ public class CatalogTools {
     private final McpToolRegistry registry;
     private final AdminCatalogReadService readService;
     private final JpaStoreSkuAvailabilityRepository availabilityRepository;
-    private final ActionLogService actionLogService;
 
     public CatalogTools(
             McpToolRegistry registry,
             AdminCatalogReadService readService,
-            JpaStoreSkuAvailabilityRepository availabilityRepository,
-            ActionLogService actionLogService
+            JpaStoreSkuAvailabilityRepository availabilityRepository
     ) {
         this.registry = registry;
         this.readService = readService;
         this.availabilityRepository = availabilityRepository;
-        this.actionLogService = actionLogService;
     }
 
     @PostConstruct
@@ -66,23 +61,23 @@ public class CatalogTools {
                 "catalog",
                 "ACTION",
                 RiskLevel.MEDIUM,
-                params -> {
-                    Long storeId = toLong(params.get("storeId"));
-                    Long skuId = toLong(params.get("skuId"));
-                    boolean available = Boolean.parseBoolean(String.valueOf(params.get("available")));
-
-                    StoreSkuAvailabilityEntity entity = availabilityRepository
-                            .findByStoreIdAndSkuId(storeId, skuId)
-                            .orElseGet(() -> new StoreSkuAvailabilityEntity(storeId, skuId, available));
-                    entity.updateAvailability(available);
-                    StoreSkuAvailabilityEntity saved = availabilityRepository.save(entity);
-
-                    ActionContext ctx = ActionContext.humanDefault();
-                    actionLogService.log("toggle_sku_availability", ctx, RiskLevel.MEDIUM, params,
-                            Map.of("storeId", storeId, "skuId", skuId, "available", available));
-                    return Map.of("storeId", storeId, "skuId", skuId, "available", saved.isAvailable());
-                }
+                this::doToggleSkuAvailability
         ));
+    }
+
+    @Transactional
+    public Object doToggleSkuAvailability(Map<String, Object> params) {
+        Long storeId = toLong(params.get("storeId"));
+        Long skuId = toLong(params.get("skuId"));
+        boolean available = Boolean.parseBoolean(String.valueOf(params.get("available")));
+
+        StoreSkuAvailabilityEntity entity = availabilityRepository
+                .findByStoreIdAndSkuId(storeId, skuId)
+                .orElseGet(() -> new StoreSkuAvailabilityEntity(storeId, skuId, available));
+        entity.updateAvailability(available);
+        StoreSkuAvailabilityEntity saved = availabilityRepository.save(entity);
+
+        return Map.of("storeId", storeId, "skuId", skuId, "available", saved.isAvailable());
     }
 
     private Long toLong(Object value) {
