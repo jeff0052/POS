@@ -8,7 +8,7 @@ import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ConfigProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/platform">
         <App />
       </BrowserRouter>
     </ConfigProvider>
