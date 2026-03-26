@@ -2,6 +2,8 @@ package com.developer.pos.v2.store.infrastructure.persistence.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -10,6 +12,7 @@ import jakarta.persistence.Table;
 public class StoreEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "merchant_id", nullable = false)
@@ -21,22 +24,20 @@ public class StoreEntity {
     @Column(name = "store_name", nullable = false)
     private String storeName;
 
+    @Column(name = "store_status", nullable = false)
+    private String storeStatus;
+
     protected StoreEntity() {
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
+    public Long getMerchantId() { return merchantId; }
+    public String getStoreCode() { return storeCode; }
+    public String getStoreName() { return storeName; }
+    public String getStoreStatus() { return storeStatus; }
 
-    public Long getMerchantId() {
-        return merchantId;
-    }
-
-    public String getStoreCode() {
-        return storeCode;
-    }
-
-    public String getStoreName() {
-        return storeName;
-    }
+    public void setMerchantId(Long merchantId) { this.merchantId = merchantId; }
+    public void setStoreCode(String storeCode) { this.storeCode = storeCode; }
+    public void setStoreName(String storeName) { this.storeName = storeName; }
+    public void setStoreStatus(String storeStatus) { this.storeStatus = storeStatus; }
 }

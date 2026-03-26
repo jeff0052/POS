@@ -1,14 +1,11 @@
 package com.developer.pos.v2.platform.application.service;
 
 import com.developer.pos.v2.common.application.UseCase;
-import com.developer.pos.v2.platform.application.dto.MerchantSummaryDto;
 import com.developer.pos.v2.platform.application.dto.StoreSummaryDto;
 import com.developer.pos.v2.platform.application.dto.PlatformDashboardDto;
-import com.developer.pos.v2.platform.application.command.CreateMerchantCommand;
 import com.developer.pos.v2.platform.application.command.CreateStoreCommand;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreRepository;
-import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,12 +15,9 @@ import java.util.UUID;
 @Service
 public class PlatformAdminApplicationService implements UseCase {
 
-    private final JpaStoreLookupRepository storeLookupRepository;
     private final JpaStoreRepository storeRepository;
 
-    public PlatformAdminApplicationService(JpaStoreLookupRepository storeLookupRepository,
-                                           JpaStoreRepository storeRepository) {
-        this.storeLookupRepository = storeLookupRepository;
+    public PlatformAdminApplicationService(JpaStoreRepository storeRepository) {
         this.storeRepository = storeRepository;
     }
 
