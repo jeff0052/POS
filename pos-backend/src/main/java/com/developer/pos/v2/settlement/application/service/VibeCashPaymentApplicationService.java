@@ -11,6 +11,7 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.entity.Payment
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaPaymentAttemptRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.codec.digest.HmacUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,6 +23,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +44,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final String apiUrl;
     private final String secret;
+    private final String webhookSecret;
     private final String currencyCode;
 
     public VibeCashPaymentApplicationService(
@@ -50,6 +54,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
             ObjectMapper objectMapper,
             @Value("${vibecash.api-url}") String apiUrl,
             @Value("${vibecash.secret}") String secret,
+            @Value("${vibecash.webhook-secret:}") String webhookSecret,
             @Value("${vibecash.currency}") String currencyCode
     ) {
         this.tableSessionRepository = tableSessionRepository;
@@ -58,6 +63,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
         this.objectMapper = objectMapper;
         this.apiUrl = apiUrl;
         this.secret = secret;
+        this.webhookSecret = webhookSecret;
         this.currencyCode = currencyCode;
     }
 
@@ -149,6 +155,16 @@ public class VibeCashPaymentApplicationService implements UseCase {
 
     @Transactional
     public VibeCashWebhookResultDto handleWebhook(String signature, JsonNode payload) {
+        if (webhookSecret != null && !webhookSecret.isBlank()) {
+            String expectedSignature = new HmacUtils("HmacSHA256", webhookSecret).hmacHex(payload.toString());
+            if (signature == null || !MessageDigest.isEqual(
+                    expectedSignature.getBytes(StandardCharsets.UTF_8),
+                    signature.getBytes(StandardCharsets.UTF_8)
+            )) {
+                throw new SecurityException("Invalid webhook signature");
+            }
+        }
+
         String eventType = payload.path("type").asText(null);
         JsonNode objectNode = payload.path("data").path("object");
         if (objectNode.isMissingNode() || objectNode.isNull()) {

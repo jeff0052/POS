@@ -15,6 +15,10 @@ management:
       exposure:
         include: health,info
 
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5187,http://localhost:5188,http://localhost:4183,http://localhost:4184,http://127.0.0.1:5187,http://127.0.0.1:5188,http://127.0.0.1:4183}
+
 vibecash:
   api-url: ${VIBECASH_API_URL:https://api.vibecash.dev}
   secret: ${VIBECASH_SECRET:}
@@ -40,7 +44,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-    show-sql: true
+    show-sql: false
 
 ---
 spring:
@@ -65,4 +69,4 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-    show-sql: true
+    show-sql: false

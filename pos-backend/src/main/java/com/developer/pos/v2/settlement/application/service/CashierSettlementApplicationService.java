@@ -22,6 +22,7 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.repository.Jpa
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -179,6 +180,11 @@ public class CashierSettlementApplicationService implements UseCase {
         TableSessionEntity session = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
 
+        SettlementRecordEntity existingRecord = settlementRecordRepository.findByActiveOrderId(session.getSessionId()).orElse(null);
+        if (existingRecord != null) {
+            return toSettlementResult(session.getSessionId(), existingRecord);
+        }
+
         List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(session.getId(), "UNPAID");
         if (unpaidOrders.isEmpty()) {
             throw new IllegalStateException("No unpaid submitted orders found for collection.");
@@ -197,7 +203,13 @@ public class CashierSettlementApplicationService implements UseCase {
         settlementRecord.setFinalStatus("SETTLED");
         settlementRecord.setPayableAmountCents(payableAmount);
         settlementRecord.setCollectedAmountCents(command.collectedAmountCents());
-        settlementRecordRepository.saveAndFlush(settlementRecord);
+        try {
+            settlementRecordRepository.saveAndFlush(settlementRecord);
+        } catch (DataIntegrityViolationException exception) {
+            return settlementRecordRepository.findByActiveOrderId(session.getSessionId())
+                    .map(record -> toSettlementResult(session.getSessionId(), record))
+                    .orElseThrow(() -> exception);
+        }
 
         unpaidOrders.forEach(submittedOrder -> {
             submittedOrder.setSettlementStatus("SETTLED");
@@ -219,19 +231,18 @@ public class CashierSettlementApplicationService implements UseCase {
         table.setTableStatus("AVAILABLE");
         storeTableRepository.saveAndFlush(table);
 
-        return new CashierSettlementResultDto(
-                session.getSessionId(),
-                settlementRecord.getSettlementNo(),
-                ActiveOrderStatus.SETTLED.name(),
-                payableAmount,
-                command.collectedAmountCents()
-        );
+        return toSettlementResult(session.getSessionId(), settlementRecord);
     }
 
     @Transactional
     public CashierSettlementResultDto collect(CollectCashierSettlementCommand command) {
         ActiveTableOrderEntity activeOrder = activeTableOrderRepository.findByActiveOrderId(command.activeOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("Active order not found: " + command.activeOrderId()));
+
+        SettlementRecordEntity existingRecord = settlementRecordRepository.findByActiveOrderId(activeOrder.getActiveOrderId()).orElse(null);
+        if (existingRecord != null) {
+            return toSettlementResult(activeOrder.getActiveOrderId(), existingRecord);
+        }
 
         if (activeOrder.getStatus() != ActiveOrderStatus.PENDING_SETTLEMENT) {
             throw new IllegalStateException("Only pending settlement orders can be collected.");
@@ -248,7 +259,13 @@ public class CashierSettlementApplicationService implements UseCase {
         settlementRecord.setFinalStatus("SETTLED");
         settlementRecord.setPayableAmountCents(activeOrder.getPayableAmountCents());
         settlementRecord.setCollectedAmountCents(command.collectedAmountCents());
-        settlementRecordRepository.saveAndFlush(settlementRecord);
+        try {
+            settlementRecordRepository.saveAndFlush(settlementRecord);
+        } catch (DataIntegrityViolationException exception) {
+            return settlementRecordRepository.findByActiveOrderId(activeOrder.getActiveOrderId())
+                    .map(record -> toSettlementResult(activeOrder.getActiveOrderId(), record))
+                    .orElseThrow(() -> exception);
+        }
 
         activeOrder.setStatus(ActiveOrderStatus.SETTLED);
         activeTableOrderRepository.save(activeOrder);
@@ -272,13 +289,7 @@ public class CashierSettlementApplicationService implements UseCase {
         table.setTableStatus("AVAILABLE");
         storeTableRepository.saveAndFlush(table);
 
-        return new CashierSettlementResultDto(
-                activeOrder.getActiveOrderId(),
-                settlementRecord.getSettlementNo(),
-                activeOrder.getStatus().name(),
-                activeOrder.getPayableAmountCents(),
-                command.collectedAmountCents()
-        );
+        return toSettlementResult(activeOrder.getActiveOrderId(), settlementRecord);
     }
 
     private SettlementPreviewDto.GiftItemDto readGiftItem(String snapshot) {
@@ -288,5 +299,15 @@ public class CashierSettlementApplicationService implements UseCase {
         } catch (Exception exception) {
             return new SettlementPreviewDto.GiftItemDto(snapshot, 1);
         }
+    }
+
+    private CashierSettlementResultDto toSettlementResult(String activeOrderId, SettlementRecordEntity settlementRecord) {
+        return new CashierSettlementResultDto(
+                activeOrderId,
+                settlementRecord.getSettlementNo(),
+                ActiveOrderStatus.SETTLED.name(),
+                settlementRecord.getPayableAmountCents(),
+                settlementRecord.getCollectedAmountCents()
+        );
     }
 }

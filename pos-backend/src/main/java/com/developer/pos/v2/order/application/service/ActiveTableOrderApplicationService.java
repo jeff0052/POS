@@ -1,6 +1,7 @@
 package com.developer.pos.v2.order.application.service;
 
-import com.developer.pos.v2.catalog.domain.model.SkuRef;
+import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuEntity;
+import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.member.domain.policy.MemberDiscountPolicy;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
@@ -14,8 +15,6 @@ import com.developer.pos.v2.order.application.dto.SubmittedOrderDto;
 import com.developer.pos.v2.order.application.query.GetActiveTableOrderQuery;
 import com.developer.pos.v2.order.domain.source.OrderSource;
 import com.developer.pos.v2.order.domain.status.ActiveOrderStatus;
-import com.developer.pos.v2.order.domain.model.ActiveTableOrder;
-import com.developer.pos.v2.order.domain.model.ActiveTableOrderItem;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderItemEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
@@ -29,14 +28,12 @@ import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEn
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
-import com.developer.pos.v2.store.domain.model.TableRef;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import java.time.OffsetDateTime;
 
 @Service
 public class ActiveTableOrderApplicationService implements UseCase {
@@ -48,6 +45,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
     private final JpaMemberRepository memberRepository;
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
+    private final JpaSkuRepository skuRepository;
 
     public ActiveTableOrderApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -56,7 +54,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
             JpaStoreTableRepository storeTableRepository,
             JpaMemberRepository memberRepository,
             JpaTableSessionRepository tableSessionRepository,
-            JpaSubmittedOrderRepository submittedOrderRepository
+            JpaSubmittedOrderRepository submittedOrderRepository,
+            JpaSkuRepository skuRepository
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.storeRepository = storeRepository;
@@ -65,6 +64,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         this.memberRepository = memberRepository;
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
+        this.skuRepository = skuRepository;
     }
 
     @Transactional(readOnly = true)
@@ -118,7 +118,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         StoreTableEntity table = storeTableRepository.findByIdAndStoreId(command.tableId(), command.storeId())
                 .orElseThrow(() -> new IllegalArgumentException("Table not found in store: " + command.tableId()));
 
-        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableId(command.storeId(), command.tableId())
+        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableIdForUpdate(command.storeId(), command.tableId())
                 .orElseGet(() -> createEntity(store, table, command));
 
         entity.setOrderSource(command.orderSource());
@@ -166,7 +166,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         StoreTableEntity table = storeTableRepository.findByStoreIdAndTableCode(store.getId(), command.tableCode())
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + command.tableCode()));
 
-        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableId(store.getId(), table.getId())
+        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableIdForUpdate(store.getId(), table.getId())
                 .filter(existing -> existing.getStatus() != ActiveOrderStatus.SETTLED)
                 .orElseGet(() -> createEntity(store, table, new ReplaceActiveTableOrderItemsCommand(
                         store.getId(),
@@ -202,23 +202,16 @@ public class ActiveTableOrderApplicationService implements UseCase {
         ActiveTableOrderEntity saved = activeTableOrderRepository.save(entity);
         table.setTableStatus("DINING");
         storeTableRepository.save(table);
+        List<ActiveTableOrderItemEntity> submittedItems = command.items().stream()
+                .map(this::toPricedQrItem)
+                .toList();
         persistSubmittedOrder(
                 store,
                 table,
                 OrderSource.QR,
                 entity.getMemberId(),
                 entity.getActiveOrderId(),
-                command.items().stream().map(item -> {
-                    ActiveTableOrderItemEntity next = new ActiveTableOrderItemEntity();
-                    next.setSkuId(item.skuId());
-                    next.setSkuCodeSnapshot(item.skuCode());
-                    next.setSkuNameSnapshot(item.skuName());
-                    next.setQuantity(item.quantity());
-                    next.setUnitPriceSnapshotCents(item.unitPriceCents());
-                    next.setItemRemark(item.remark());
-                    next.setLineTotalCents(item.unitPriceCents() * item.quantity());
-                    return next;
-                }).toList(),
+                submittedItems,
                 originalAmount,
                 memberDiscount,
                 entity.getPromotionDiscountCents(),
@@ -360,14 +353,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                     .orElse(null);
 
             if (matched == null) {
-                ActiveTableOrderItemEntity next = new ActiveTableOrderItemEntity();
-                next.setSkuId(incoming.skuId());
-                next.setSkuCodeSnapshot(incoming.skuCode());
-                next.setSkuNameSnapshot(incoming.skuName());
-                next.setQuantity(incoming.quantity());
-                next.setUnitPriceSnapshotCents(incoming.unitPriceCents());
-                next.setItemRemark(incoming.remark());
-                next.setLineTotalCents(incoming.unitPriceCents() * incoming.quantity());
+                ActiveTableOrderItemEntity next = toPricedQrItem(incoming);
                 merged.add(next);
             } else {
                 int nextQuantity = matched.getQuantity() + incoming.quantity();
@@ -377,6 +363,21 @@ public class ActiveTableOrderApplicationService implements UseCase {
         }
 
         return merged;
+    }
+
+    private ActiveTableOrderItemEntity toPricedQrItem(SubmitQrOrderingCommand.SubmitQrOrderingItemInput item) {
+        SkuEntity sku = skuRepository.findById(item.skuId())
+                .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + item.skuId()));
+
+        ActiveTableOrderItemEntity next = new ActiveTableOrderItemEntity();
+        next.setSkuId(sku.getId());
+        next.setSkuCodeSnapshot(sku.getSkuCode());
+        next.setSkuNameSnapshot(sku.getSkuName());
+        next.setQuantity(item.quantity());
+        next.setUnitPriceSnapshotCents(sku.getBasePriceCents());
+        next.setItemRemark(item.remark());
+        next.setLineTotalCents(sku.getBasePriceCents() * item.quantity());
+        return next;
     }
 
     private long resolveMemberDiscount(Long memberId, long originalAmountCents) {
