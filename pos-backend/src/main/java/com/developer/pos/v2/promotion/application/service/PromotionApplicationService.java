@@ -208,8 +208,7 @@ public class PromotionApplicationService implements UseCase {
             hit.setDiscountAmountCents(promotionDiscount);
             hit.setGiftSnapshotJson(giftSnapshotJson);
             promotionHitRepository.save(hit);
-            matchedRule.setUsageCount(matchedRule.getUsageCount() + 1);
-            promotionRuleRepository.save(matchedRule);
+            promotionRuleRepository.incrementUsageCount(matchedRule.getId());
         }
 
         activeOrder.setPromotionDiscountCents(promotionDiscount);
