@@ -50,7 +50,8 @@ public class AuthService {
         return toDto(user);
     }
 
-    public void bootstrapFirstAdmin(String username, String password, String displayName) {
+    @org.springframework.transaction.annotation.Transactional
+    public synchronized void bootstrapFirstAdmin(String username, String password, String displayName) {
         long count = userRepository.count();
         if (count > 0) {
             throw new IllegalStateException("Bootstrap not allowed: users already exist");

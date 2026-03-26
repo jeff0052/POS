@@ -4,6 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -72,13 +74,11 @@ public class SecurityConfig {
         protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
                 throws ServletException, IOException {
 
-            // Skip if no key configured (fail-open only in dev — ProviderConfig enforces in prod)
+            // No key configured — reject all authenticated requests
             if (expectedKey == null || expectedKey.isBlank()) {
-                // In dev mode without key, authenticate as SERVICE
-                SecurityContextHolder.getContext().setAuthentication(
-                        new UsernamePasswordAuthenticationToken("SERVICE", null,
-                                List.of(new SimpleGrantedAuthority("ROLE_SERVICE"))));
-                chain.doFilter(request, response);
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"PAYMENT_SERVICE_API_KEY not configured. Service unavailable.\"}");
                 return;
             }
 

@@ -20,11 +20,15 @@ public class ProviderConfig {
     @PostConstruct
     public void validate() {
         if (callbackSecret == null || callbackSecret.isBlank()) {
-            log.error("POS_CALLBACK_SECRET is not set. Payment callbacks to POS will be unsigned. Set POS_CALLBACK_SECRET for production.");
+            throw new IllegalStateException(
+                    "POS_CALLBACK_SECRET is not set. Payment service cannot start without callback signing secret.");
         }
 
         if (serviceApiKey == null || serviceApiKey.isBlank()) {
-            log.warn("PAYMENT_SERVICE_API_KEY is not set. Payment service endpoints are open. Set PAYMENT_SERVICE_API_KEY for production.");
+            throw new IllegalStateException(
+                    "PAYMENT_SERVICE_API_KEY is not set. Payment service cannot start without API key.");
         }
+
+        log.info("Payment service security validated: callback secret and API key are configured.");
     }
 }

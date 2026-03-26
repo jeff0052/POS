@@ -31,12 +31,27 @@ public class AuthController {
         return ApiResponse.success(Map.of("success", true));
     }
 
+    @org.springframework.beans.factory.annotation.Value("${auth.bootstrap.secret:}")
+    private String bootstrapSecret;
+
     /**
      * Bootstrap: create the first admin user if no users exist.
+     * Requires X-Bootstrap-Secret header matching auth.bootstrap.secret env var.
      * Only works when auth_users table is empty.
      */
     @PostMapping({"/api/v1/auth/bootstrap", "/api/v2/auth/bootstrap"})
-    public ApiResponse<Map<String, String>> bootstrap(@RequestBody Map<String, String> request) {
+    public ApiResponse<Map<String, String>> bootstrap(
+            @RequestHeader(value = "X-Bootstrap-Secret", required = false) String providedSecret,
+            @RequestBody Map<String, String> request
+    ) {
+        // Gate: bootstrap requires a secret to prevent public race condition
+        if (bootstrapSecret == null || bootstrapSecret.isBlank()) {
+            throw new IllegalStateException("Bootstrap is disabled. Set AUTH_BOOTSTRAP_SECRET to enable.");
+        }
+        if (providedSecret == null || !providedSecret.equals(bootstrapSecret)) {
+            throw new SecurityException("Invalid bootstrap secret");
+        }
+
         String username = request.get("username");
         String password = request.get("password");
         String displayName = request.getOrDefault("displayName", "Platform Admin");
