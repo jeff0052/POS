@@ -23,7 +23,10 @@ public record QrMenuDto(
             Long skuId,
             String skuCode,
             String skuName,
-            long unitPriceCents
+            long unitPriceCents,
+            List<AdminCatalogAttributeGroupDto> attributeGroups,
+            List<AdminCatalogModifierGroupDto> modifierGroups,
+            List<AdminCatalogComboSlotDto> comboSlots
     ) {
     }
 }

@@ -11,7 +11,7 @@ export function GtoSyncPage() {
         GTO Sync
       </Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        查看商场 GTO 批量导出、同步状态和失败重试记录。
+        View mall GTO batch exports, sync status, and failed retry history.
       </Typography.Paragraph>
 
       {query.error ? <Alert type="error" message={query.error} /> : null}

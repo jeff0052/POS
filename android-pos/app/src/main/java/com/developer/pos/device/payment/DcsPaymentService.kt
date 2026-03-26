@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.delay
 
 data class DcsTransactionLookup(
     val customerOrderId: String?,
@@ -70,6 +71,7 @@ class DcsPaymentService @Inject constructor(
                 message = "DCS only supports card terminal payments."
             )
         }
+        refreshProvidersFromApi()
         if (lastStatus.connected && paymentProvider != null && cardProvider != null) {
             return@withContext lastStatus
         }
@@ -135,6 +137,30 @@ class DcsPaymentService @Inject constructor(
                 code = "DCS_CONFIG_MISSING",
                 message = "DCS merchant config is missing. Fill BuildConfig DCS_MERCHANT_ID and DCS_TERMINAL_ID before card payments."
             )
+        }
+
+        if (!awaitProvidersReady()) {
+            val reconnectStatus = runCatching {
+                withTimeout(CONNECT_TIMEOUT_MS) {
+                    connectInternal()
+                }
+            }.getOrElse { error ->
+                PaymentConnectionStatus(
+                    available = true,
+                    connected = false,
+                    providerName = "DCS",
+                    message = error.message ?: "Failed to reconnect DCS SDK"
+                )
+            }
+            lastStatus = reconnectStatus
+            if (!reconnectStatus.connected || !awaitProvidersReady()) {
+                return@withContext PaymentResult(
+                    success = false,
+                    code = "DCS_PROVIDER_UNAVAILABLE",
+                    message = reconnectStatus.message.takeUnless { it.isBlank() }
+                        ?: describeProviderState()
+                )
+            }
         }
 
         val merchantConfigCode = runCatching {
@@ -435,7 +461,7 @@ class DcsPaymentService @Inject constructor(
                 queryTransactionProvider = sdk.getDCSQueryTransactionProvider()
 
                 val capability = capabilityProvider
-                if (capability == null || configProvider == null || paymentProvider == null || cardProvider == null || queryTransactionProvider == null) {
+                if (capability == null || configProvider == null || paymentProvider == null || cardProvider == null) {
                     clearSdkState()
                     if (continuation.isActive) {
                         continuation.resume(
@@ -443,7 +469,7 @@ class DcsPaymentService @Inject constructor(
                                 available = true,
                                 connected = false,
                                 providerName = "DCS",
-                                message = "DCS service connected but required providers are missing."
+                                message = describeProviderState()
                             )
                         )
                     }
@@ -792,6 +818,43 @@ class DcsPaymentService @Inject constructor(
         queryTransactionProvider = null
     }
 
+    private fun refreshProvidersFromApi() {
+        val sdk = api ?: return
+        capabilityProvider = capabilityProvider ?: sdk.getDCSCapabilityProvider()
+        configProvider = configProvider ?: sdk.getDCSConfigProvider()
+        paymentProvider = paymentProvider ?: sdk.getDCSPaymentProvider()
+        cardProvider = cardProvider ?: sdk.getDCSCardProvider()
+        queryTransactionProvider = queryTransactionProvider ?: sdk.getDCSQueryTransactionProvider()
+    }
+
+    private suspend fun awaitProvidersReady(timeoutMs: Long = PROVIDER_READY_TIMEOUT_MS): Boolean {
+        val startedAt = System.currentTimeMillis()
+        while (System.currentTimeMillis() - startedAt < timeoutMs) {
+            refreshProvidersFromApi()
+            if (capabilityProvider != null && configProvider != null && paymentProvider != null && cardProvider != null) {
+                return true
+            }
+            delay(PROVIDER_READY_RETRY_MS)
+        }
+        refreshProvidersFromApi()
+        return capabilityProvider != null && configProvider != null && paymentProvider != null && cardProvider != null
+    }
+
+    private fun describeProviderState(): String {
+        val missing = buildList {
+            if (capabilityProvider == null) add("capability")
+            if (configProvider == null) add("config")
+            if (paymentProvider == null) add("payment")
+            if (cardProvider == null) add("card")
+            if (queryTransactionProvider == null) add("query")
+        }
+        return if (missing.isEmpty()) {
+            "DCS providers are ready."
+        } else {
+            "DCS providers are not ready. Missing: ${missing.joinToString(", ")}"
+        }
+    }
+
     private fun parseQueryResult(raw: String?, orderNo: String): PaymentResult {
         if (raw.isNullOrBlank()) {
             return PaymentResult(
@@ -880,7 +943,9 @@ class DcsPaymentService @Inject constructor(
     private fun kotlin.coroutines.CoroutineContext.isActiveLike(): Boolean = this[kotlinx.coroutines.Job]?.isActive != false
 
     private companion object {
-        const val CONNECT_TIMEOUT_MS = 8_000L
+        const val CONNECT_TIMEOUT_MS = 15_000L
         const val PAYMENT_TIMEOUT_MS = 45_000L
+        const val PROVIDER_READY_TIMEOUT_MS = 5_000L
+        const val PROVIDER_READY_RETRY_MS = 250L
     }
 }

@@ -58,7 +58,7 @@ fun RefundScreen(
                 } else {
                     Text("Order No: ${currentOrder.orderNo}")
                     Text("Payment Method: ${currentOrder.paymentMethod ?: "UNPAID"}")
-                    Text("Refund Amount: CNY %.2f".format(currentOrder.payableAmountCents / 100.0))
+                    Text("Refund Amount: SGD %.2f".format(currentOrder.payableAmountCents / 100.0))
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(

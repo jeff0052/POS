@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface JpaProductRepository extends JpaRepository<ProductEntity, Long> {
     List<ProductEntity> findByStoreIdOrderByProductNameAsc(Long storeId);
+
+    List<ProductEntity> findByIdIn(List<Long> ids);
 }

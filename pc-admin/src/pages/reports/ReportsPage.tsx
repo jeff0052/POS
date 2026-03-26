@@ -1,77 +1,116 @@
-import { Alert, Card, Col, Row, Skeleton, Typography } from "antd";
-import { getDashboardSummary, getSalesReportSummary } from "../../api/services/dashboardService";
+import { Alert, Card, Skeleton, Table, Typography } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { getDashboardSummary, getMemberConsumptionSummary, getSalesReportSummary } from "../../api/services/dashboardService";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import type { MemberConsumptionTopMember } from "../../types";
+
+const topMemberColumns: ColumnsType<MemberConsumptionTopMember> = [
+  { title: "Member", dataIndex: "memberName", key: "memberName" },
+  { title: "Tier", dataIndex: "tierCode", key: "tierCode", width: 120 },
+  { title: "Orders", dataIndex: "orderCount", key: "orderCount", width: 100 },
+  { title: "Sales", dataIndex: "totalSales", key: "totalSales", width: 160 },
+  { title: "Recharge", dataIndex: "totalRecharge", key: "totalRecharge", width: 160 },
+  { title: "Member Discount", dataIndex: "memberDiscount", key: "memberDiscount", width: 180 }
+];
 
 export function ReportsPage() {
-  const query = useAsyncData(getDashboardSummary);
+  const summaryQuery = useAsyncData(getDashboardSummary);
   const salesQuery = useAsyncData(getSalesReportSummary);
-  const metrics = query.data
+  const memberQuery = useAsyncData(getMemberConsumptionSummary);
+
+  const metrics = summaryQuery.data
     ? [
-        { label: "Revenue", value: query.data.revenue },
-        { label: "Cash", value: "CNY 2,100.00" },
-        { label: "SDK Pay", value: "CNY 10,580.00" },
-        { label: "Refunds", value: query.data.refunds }
+        { label: "Revenue Today", value: summaryQuery.data.revenue },
+        { label: "Orders Today", value: summaryQuery.data.orders },
+        { label: "Refund Amount", value: summaryQuery.data.refunds },
+        { label: "Active Cashiers", value: summaryQuery.data.cashiers }
       ]
     : [];
 
+  const loading = summaryQuery.loading || salesQuery.loading || memberQuery.loading;
+
   return (
     <div className="page-shell">
-      <Typography.Title className="page-title" level={2}>
-        Reports
-      </Typography.Title>
+      <Typography.Title className="page-title" level={2}>Reports</Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        第一版同时覆盖销售总览、会员消费、充值、促销让利和 GTO 批量同步。
+        Daily operating snapshot for sales, member contribution, recharge behavior, and settlement signals.
       </Typography.Paragraph>
 
-      {query.error ? <Alert type="error" message={query.error} /> : null}
-      {salesQuery.error ? <Alert type="error" message={salesQuery.error} /> : null}
-      {query.loading ? (
-        <Skeleton active paragraph={{ rows: 4 }} />
+      {summaryQuery.error ? <Alert type="error" message={summaryQuery.error} style={{ marginBottom: 16 }} /> : null}
+      {salesQuery.error ? <Alert type="error" message={salesQuery.error} style={{ marginBottom: 16 }} /> : null}
+      {memberQuery.error ? <Alert type="error" message={memberQuery.error} style={{ marginBottom: 16 }} /> : null}
+
+      {loading ? (
+        <Skeleton active paragraph={{ rows: 10 }} />
       ) : (
-        <Row gutter={[16, 16]}>
-          {metrics.map((metric) => (
-            <Col span={6} key={metric.label}>
-              <Card>
-                <Typography.Text type="secondary">{metric.label}</Typography.Text>
-                <Typography.Title level={3} style={{ marginTop: 12, marginBottom: 0 }}>
-                  {metric.value}
-                </Typography.Title>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      )}
-
-      <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
-        <Col span={6}>
-          <Card title="Member Sales">{salesQuery.data?.memberSales ?? "-"}</Card>
-        </Col>
-        <Col span={6}>
-          <Card title="Discounts">{salesQuery.data?.discounts ?? "-"}</Card>
-        </Col>
-        <Col span={6}>
-          <Card title="Recharge">{salesQuery.data?.rechargeSales ?? "-"}</Card>
-        </Col>
-        <Col span={6}>
-          <Card title="Pending GTO">{salesQuery.data?.pendingGtoBatches ?? "-"}</Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
-        <Col span={12}>
-          <Card title="Payment Summary">Chart placeholder</Card>
-        </Col>
-        <Col span={12}>
-          <Card title="Promotion / Table Turnover">
-            <Typography.Paragraph style={{ marginBottom: 8 }}>
-              Table turnover rate: {salesQuery.data?.tableTurnover ?? "-"}
-            </Typography.Paragraph>
-            <Typography.Text type="secondary">
-              这里后续补促销命中统计、满减让利、满赠成本和单桌销售。
-            </Typography.Text>
+        <>
+          <Card className="report-hero-card">
+            <p className="report-eyebrow">Merchant Insights</p>
+            <h3 className="report-hero-title">Today at a glance</h3>
+            <p className="report-hero-copy">
+              Read the store in one pass, then drill into members and recharge performance below.
+            </p>
+            <div className="report-kpi-grid">
+              {metrics.map((metric) => (
+                <div key={metric.label} className="report-kpi-card">
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                </div>
+              ))}
+            </div>
           </Card>
-        </Col>
-      </Row>
+
+          <div className="report-grid report-grid-two">
+            <Card className="report-section-card" title="Sales Overview">
+              <div className="report-stat-grid">
+                <div className="report-stat-card"><span>Total Sales</span><strong>{salesQuery.data?.sales ?? "-"}</strong></div>
+                <div className="report-stat-card"><span>Member Sales</span><strong>{salesQuery.data?.memberSales ?? "-"}</strong></div>
+                <div className="report-stat-card"><span>Recharge Sales</span><strong>{salesQuery.data?.rechargeSales ?? "-"}</strong></div>
+                <div className="report-stat-card"><span>Total Discounts</span><strong>{salesQuery.data?.discounts ?? "-"}</strong></div>
+              </div>
+            </Card>
+
+            <Card className="report-section-card" title="Member Activity">
+              <div className="report-stat-grid">
+                <div className="report-stat-card"><span>Member Sales</span><strong>{memberQuery.data?.totalMemberSales ?? "-"}</strong></div>
+                <div className="report-stat-card"><span>Member Discounts</span><strong>{memberQuery.data?.totalMemberDiscounts ?? "-"}</strong></div>
+                <div className="report-stat-card"><span>Member Orders</span><strong>{memberQuery.data?.memberOrderCount ?? "-"}</strong></div>
+                <div className="report-stat-card"><span>Active Members</span><strong>{memberQuery.data?.activeMemberCount ?? "-"}</strong></div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="report-grid report-grid-two report-grid-tight">
+            <Card className="report-section-card" title="Recharge Overview">
+              <div className="report-list">
+                <div className="report-list-row"><span>Recharge Value</span><strong>{memberQuery.data?.totalRecharge ?? "-"}</strong></div>
+                <div className="report-list-row"><span>Bonus Issued</span><strong>{memberQuery.data?.totalBonus ?? "-"}</strong></div>
+                <div className="report-list-row"><span>Recharge Orders</span><strong>{memberQuery.data?.rechargeOrderCount ?? "-"}</strong></div>
+                <div className="report-list-row"><span>Average Recharge</span><strong>{memberQuery.data?.averageRecharge ?? "-"}</strong></div>
+              </div>
+            </Card>
+
+            <Card className="report-section-card" title="Operational Signals">
+              <div className="report-list">
+                <div className="report-list-row"><span>Table Turnover</span><strong>{salesQuery.data?.tableTurnover ?? "-"}</strong></div>
+                <div className="report-list-row"><span>Pending GTO Batches</span><strong>{salesQuery.data?.pendingGtoBatches ?? "-"}</strong></div>
+                <div className="report-list-row"><span>Report Focus</span><strong>Sales · Members · Recharge</strong></div>
+                <div className="report-list-row"><span>Status</span><strong>Daily Snapshot Ready</strong></div>
+              </div>
+            </Card>
+          </div>
+
+          <Card className="report-section-card report-table-card" title="Top Members by Sales">
+            <Table
+              rowKey="memberId"
+              columns={topMemberColumns}
+              dataSource={memberQuery.data?.topMembers ?? []}
+              pagination={false}
+              locale={{ emptyText: "No member activity yet" }}
+            />
+          </Card>
+        </>
+      )}
     </div>
   );
 }

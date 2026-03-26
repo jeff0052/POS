@@ -1,6 +1,11 @@
 package com.developer.pos.v2.catalog.application.service;
 
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogCategoryDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogAttributeGroupDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogAttributeValueDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogComboSlotDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogModifierGroupDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogModifierOptionDto;
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogProductDto;
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogSkuDto;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ProductCategoryEntity;
@@ -14,6 +19,9 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSto
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,19 +42,22 @@ public class AdminCatalogWriteService implements UseCase {
     private final JpaProductRepository productRepository;
     private final JpaSkuRepository skuRepository;
     private final JpaStoreSkuAvailabilityRepository availabilityRepository;
+    private final ObjectMapper objectMapper;
 
     public AdminCatalogWriteService(
             JpaStoreLookupRepository storeLookupRepository,
             JpaProductCategoryRepository categoryRepository,
             JpaProductRepository productRepository,
             JpaSkuRepository skuRepository,
-            JpaStoreSkuAvailabilityRepository availabilityRepository
+            JpaStoreSkuAvailabilityRepository availabilityRepository,
+            ObjectMapper objectMapper
     ) {
         this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
         this.productRepository = productRepository;
         this.skuRepository = skuRepository;
         this.availabilityRepository = availabilityRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -87,7 +98,10 @@ public class AdminCatalogWriteService implements UseCase {
             String productCode,
             String name,
             String status,
-            List<UpsertSkuCommand> skus
+            List<UpsertSkuCommand> skus,
+            List<UpsertAttributeGroupCommand> attributeGroups,
+            List<UpsertModifierGroupCommand> modifierGroups,
+            List<UpsertComboSlotCommand> comboSlots
     ) {
         if (skus == null || skus.isEmpty()) {
             throw new IllegalArgumentException("At least one SKU is required");
@@ -100,13 +114,30 @@ public class AdminCatalogWriteService implements UseCase {
 
         String normalizedProductCode = normalizeCode(productCode, name, "product");
         ProductEntity entity = productId == null
-                ? new ProductEntity(store.getId(), categoryId, normalizedProductCode, name, normalizeStatus(status))
+                ? new ProductEntity(
+                        store.getId(),
+                        categoryId,
+                        normalizedProductCode,
+                        name,
+                        normalizeStatus(status),
+                        writeJson(attributeGroups),
+                        writeJson(modifierGroups),
+                        writeJson(comboSlots)
+                )
                 : productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
 
         if (productId != null) {
             ensureStoreOwnership(store.getId(), entity.getStoreId(), "Product");
-            entity.update(categoryId, normalizedProductCode, name, normalizeStatus(status));
+            entity.update(
+                    categoryId,
+                    normalizedProductCode,
+                    name,
+                    normalizeStatus(status),
+                    writeJson(attributeGroups),
+                    writeJson(modifierGroups),
+                    writeJson(comboSlots)
+            );
         }
 
         ProductEntity savedProduct = productRepository.save(entity);
@@ -164,8 +195,29 @@ public class AdminCatalogWriteService implements UseCase {
                 999,
                 savedProduct.getProductStatus(),
                 category.getCategoryName(),
-                skuDtos
+                skuDtos,
+                readJson(savedProduct.getAttributeConfigJson(), new TypeReference<List<AdminCatalogAttributeGroupDto>>() {}),
+                readJson(savedProduct.getModifierConfigJson(), new TypeReference<List<AdminCatalogModifierGroupDto>>() {}),
+                readJson(savedProduct.getComboSlotConfigJson(), new TypeReference<List<AdminCatalogComboSlotDto>>() {})
         );
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value == null ? List.of() : value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Failed to serialize catalog config", exception);
+        }
+    }
+
+    private <T> T readJson(String raw, TypeReference<T> typeReference) {
+        try {
+            return raw == null || raw.isBlank()
+                    ? objectMapper.readValue("[]", typeReference)
+                    : objectMapper.readValue(raw, typeReference);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Failed to parse catalog config", exception);
+        }
     }
 
     private StoreEntity findStore(String storeCode) {
@@ -216,6 +268,54 @@ public class AdminCatalogWriteService implements UseCase {
             long priceCents,
             String status,
             boolean available
+    ) {
+    }
+
+    public record UpsertAttributeGroupCommand(
+            String code,
+            String name,
+            String selectionMode,
+            boolean required,
+            Integer minSelect,
+            Integer maxSelect,
+            List<UpsertAttributeValueCommand> values
+    ) {
+    }
+
+    public record UpsertAttributeValueCommand(
+            String code,
+            String label,
+            long priceDeltaCents,
+            boolean defaultSelected,
+            String kitchenLabel
+    ) {
+    }
+
+    public record UpsertModifierGroupCommand(
+            String code,
+            String name,
+            Integer freeQuantity,
+            Integer minSelect,
+            Integer maxSelect,
+            List<UpsertModifierOptionCommand> options
+    ) {
+    }
+
+    public record UpsertModifierOptionCommand(
+            String code,
+            String label,
+            long priceDeltaCents,
+            boolean defaultSelected,
+            String kitchenLabel
+    ) {
+    }
+
+    public record UpsertComboSlotCommand(
+            String code,
+            String name,
+            Integer minSelect,
+            Integer maxSelect,
+            List<String> allowedSkuCodes
     ) {
     }
 }

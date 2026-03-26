@@ -56,10 +56,24 @@ public class ReservationApplicationService implements UseCase {
     public ReservationDto update(Long storeId, Long reservationId, String guestName, String reservationTime, int partySize, String reservationStatus, String area) {
         ReservationEntity entity = reservationRepository.findByIdAndStoreId(reservationId, storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found: " + reservationId));
+        String nextStatus = reservationStatus.toUpperCase();
+
+        if ("CHECKED_IN".equalsIgnoreCase(entity.getReservationStatus())
+                && entity.getTableId() != null
+                && !"CHECKED_IN".equals(nextStatus)) {
+            storeTableRepository.findByIdAndStoreId(entity.getTableId(), storeId).ifPresent(table -> {
+                if ("RESERVED".equalsIgnoreCase(table.getTableStatus())) {
+                    table.setTableStatus("AVAILABLE");
+                    storeTableRepository.save(table);
+                }
+            });
+            entity.setTableId(null);
+        }
+
         entity.setGuestName(guestName);
         entity.setReservationTime(reservationTime);
         entity.setPartySize(partySize);
-        entity.setReservationStatus(reservationStatus.toUpperCase());
+        entity.setReservationStatus(nextStatus);
         entity.setArea(area);
         return toDto(reservationRepository.save(entity));
     }

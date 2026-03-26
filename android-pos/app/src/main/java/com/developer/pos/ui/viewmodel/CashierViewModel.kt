@@ -208,7 +208,15 @@ class CashierViewModel @Inject constructor(
                 }
 
                 if (!paymentResult.success) {
-                    error(paymentResult.message ?: "Payment provider failed")
+                    val failureMessage = buildString {
+                        append(paymentResult.code ?: "PAYMENT_PROVIDER_FAILED")
+                        paymentResult.message?.takeIf { it.isNotBlank() }?.let {
+                            append(": ")
+                            append(it)
+                        }
+                    }
+                    paymentProviderStatus.value = failureMessage
+                    error(failureMessage)
                 }
 
                 val stage = posOrderRepository.collectPayment(

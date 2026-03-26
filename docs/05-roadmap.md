@@ -40,7 +40,7 @@
 
 当前进度快照：
 
-- Overall：**约 60% - 65%**
+- Overall：**约 65% - 70%**
 - `Stage 0 Prototype and Validation`：**Completed**
 - `Stage 1 Store Transaction MVP`：**约 80% - 85%**
 - `Stage 2 Merchant Operations Expansion`：**约 40%**
@@ -52,12 +52,14 @@
 - Ordering：**100%**
 - QR Ordering：**90%**
 - Cashier Settlement：**85%**
-- SKU / Catalog Admin Foundation：**70%**
+- SKU / Catalog Admin Foundation：**85%**
 
 当前最主要残余风险：
 
 - Native Android 已完成 compile verification，但支付 provider 仍受 vendor / gateway 条件阻塞
 - Kitchen / KDS、Shift、Refund 仍未进入正式交付阶段
+- Reservations / Transfer Table 目前在 preview 可用，但尚未后端正式化
+- CRM 仍需从基础可用推进到详情、编辑与规则完整
 
 ## 3. Product Evolution Stages
 
@@ -208,6 +210,11 @@
 - 等级
 - 权益
 
+当前状态补充：
+
+- 基础会员创建、搜索、充值、积分调整已经可用
+- 下一步重点是会员详情、基础资料编辑、tier rules 后端化
+
 ### Phase 4: SKU / Catalog Foundation
 
 目标：
@@ -222,6 +229,12 @@
 - 规格选项
 - 门店可售范围
 - 价格快照基础
+
+当前状态补充：
+
+- 分类、商品、SKU 基础管理已完成
+- 商品级 `attribute / modifier / combo slot` 配置已落地
+- QR ordering 与 POS preview 已开始消费 SKU 配置
 
 ### Phase 5: Promotion Rule Center
 
@@ -251,6 +264,12 @@
 - 会员消费报表
 - 充值报表
 - 单桌销售和翻台表现
+
+当前状态补充：
+
+- 结账与优惠拆解已有基础
+- 报表仍需继续增强
+- Refund 主线仍未补齐
 
 ### Phase 7: GTO Batch Sync
 

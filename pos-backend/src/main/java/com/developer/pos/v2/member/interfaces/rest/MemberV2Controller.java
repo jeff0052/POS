@@ -15,10 +15,12 @@ import com.developer.pos.v2.member.interfaces.rest.request.BindMemberActiveOrder
 import com.developer.pos.v2.member.interfaces.rest.request.CreateMemberRequest;
 import com.developer.pos.v2.member.interfaces.rest.request.MemberPointsAdjustmentRequest;
 import com.developer.pos.v2.member.interfaces.rest.request.MemberRechargeRequest;
+import com.developer.pos.v2.member.interfaces.rest.request.UpdateMemberRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -49,6 +51,22 @@ public class MemberV2Controller implements V2Api {
     @GetMapping("/{memberId}")
     public ApiResponse<MemberDetailDto> getMember(@PathVariable Long memberId) {
         return ApiResponse.success(memberApplicationService.getMember(memberId));
+    }
+
+    @PutMapping("/{memberId}")
+    public ApiResponse<MemberDetailDto> updateMember(
+            @PathVariable Long memberId,
+            @Valid @RequestBody UpdateMemberRequest request
+    ) {
+        return ApiResponse.success(
+                memberApplicationService.updateMember(
+                        memberId,
+                        request.name(),
+                        request.phone(),
+                        request.tierCode(),
+                        request.memberStatus()
+                )
+        );
     }
 
     @GetMapping("/recharge-records")

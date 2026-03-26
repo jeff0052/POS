@@ -1,19 +1,16 @@
 package com.developer.pos
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.os.Bundle
-import android.view.WindowManager
 import android.view.ViewGroup
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
+import android.view.WindowManager
 import android.webkit.WebChromeClient
-import android.webkit.WebSettings
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,15 +19,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.developer.pos.ui.theme.DeveloperPosTheme
@@ -43,35 +41,38 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             DeveloperPosTheme {
-                WebViewApp(BuildConfig.WEBVIEW_URL)
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    WebViewShell(url = BuildConfig.WEBVIEW_URL)
+                }
             }
         }
     }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
-@androidx.compose.runtime.Composable
-private fun WebViewApp(url: String) {
-    var webView: WebView? by remember { mutableStateOf(null) }
+@Composable
+private fun WebViewShell(url: String) {
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
-
-    BackHandler(enabled = webView?.canGoBack() == true) {
-        webView?.goBack()
-    }
+    var reloadTrigger by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
                 WebView(context).apply {
-                    webView = this
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.loadsImagesAutomatically = true
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    webChromeClient = WebChromeClient()
                     webViewClient = object : WebViewClient() {
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                             isLoading = true
                             loadError = null
                         }
@@ -83,7 +84,7 @@ private fun WebViewApp(url: String) {
                         override fun onReceivedError(
                             view: WebView?,
                             request: WebResourceRequest?,
-                            error: WebResourceError?
+                            error: android.webkit.WebResourceError?
                         ) {
                             if (request?.isForMainFrame == true) {
                                 isLoading = false
@@ -91,31 +92,19 @@ private fun WebViewApp(url: String) {
                             }
                         }
                     }
-                    webChromeClient = WebChromeClient()
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.databaseEnabled = true
-                    settings.cacheMode = WebSettings.LOAD_DEFAULT
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    settings.useWideViewPort = true
-                    settings.loadWithOverviewMode = true
-                    settings.builtInZoomControls = false
-                    settings.displayZoomControls = false
                     loadUrl(url)
                 }
             },
-            update = {
-                if (it.url != url) {
-                    it.loadUrl(url)
+            update = { webView ->
+                if (reloadTrigger > 0 || webView.url != url) {
+                    webView.loadUrl(url)
                 }
             }
         )
 
         if (isLoading) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator()
@@ -123,37 +112,32 @@ private fun WebViewApp(url: String) {
         }
 
         loadError?.let { message ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFFF7F4ED)),
-                contentAlignment = Alignment.Center
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "POS Preview Unavailable",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = Color(0xFF1F2A44)
-                    )
-                    Text(
-                        text = "Make sure the preview server is running at $url.\n$message",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF5C6784),
-                        textAlign = TextAlign.Center
-                    )
-                    Button(onClick = {
-                        loadError = null
-                        isLoading = true
-                        webView?.reload()
-                    }) {
-                        Text("Retry")
-                    }
+                Text(
+                    text = "Unable to load UNIWEB POS",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                Text(
+                    text = message,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 16.dp),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Button(onClick = { reloadTrigger += 1 }) {
+                    Text("Retry")
                 }
             }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            isLoading = false
         }
     }
 }

@@ -23,9 +23,9 @@ export const mockUser: AuthUser = {
 };
 
 export const mockDashboardSummary: DashboardSummary = {
-  revenue: "CNY 12,680.00",
+  revenue: "SGD 12,680.00",
   orders: "128",
-  refunds: "CNY 320.00",
+  refunds: "SGD 320.00",
   cashiers: "3"
 };
 
@@ -41,7 +41,7 @@ export const mockProducts: Product[] = [
     categoryId: 1,
     name: "Coke",
     barcode: "692000000001",
-    price: "CNY 5.00",
+    price: "SGD 5.00",
     stock: 100,
     status: "Enabled",
     categoryName: "Drinks",
@@ -50,18 +50,21 @@ export const mockProducts: Product[] = [
         id: 101,
         code: "coke-default",
         name: "Coke Default",
-        price: "CNY 5.00",
+        price: "SGD 5.00",
         status: "Enabled",
         available: true
       }
-    ]
+    ],
+    attributeGroups: [],
+    modifierGroups: [],
+    comboSlots: []
   },
   {
     id: 2,
     categoryId: 2,
     name: "Fried Rice",
     barcode: "692000000002",
-    price: "CNY 18.00",
+    price: "SGD 18.00",
     stock: 40,
     status: "Enabled",
     categoryName: "Meals",
@@ -70,11 +73,14 @@ export const mockProducts: Product[] = [
         id: 201,
         code: "fried-rice-default",
         name: "Fried Rice Default",
-        price: "CNY 18.00",
+        price: "SGD 18.00",
         status: "Enabled",
         available: true
       }
-    ]
+    ],
+    attributeGroups: [],
+    modifierGroups: [],
+    comboSlots: []
   }
 ];
 
@@ -82,7 +88,7 @@ export const mockOrders: Order[] = [
   {
     id: 1,
     orderNo: "POS202603200001",
-    amount: "CNY 28.00",
+    amount: "SGD 28.00",
     status: "PAID",
     payment: "CARD_TERMINAL",
     time: "2026-03-20 09:21",
@@ -92,23 +98,23 @@ export const mockOrders: Order[] = [
     orderType: "POS",
     memberName: "Lina Chen",
     memberTier: "Gold",
-    originalAmount: "CNY 32.00",
-    memberDiscount: "CNY 2.00",
-    promotionDiscount: "CNY 2.00",
-    payableAmount: "CNY 28.00",
+    originalAmount: "SGD 32.00",
+    memberDiscount: "SGD 2.00",
+    promotionDiscount: "SGD 2.00",
+    payableAmount: "SGD 28.00",
     giftItems: ["Peach Soda"],
     items: [
       {
         productName: "Fried Rice",
         quantity: 1,
-        amount: "CNY 18.00",
-        originalAmount: "CNY 20.00",
+        amount: "SGD 18.00",
+        originalAmount: "SGD 20.00",
         memberBenefit: "Gold member price"
       },
       {
         productName: "Coke",
         quantity: 2,
-        amount: "CNY 10.00",
+        amount: "SGD 10.00",
         promotionBenefit: "Buy 2 discount"
       }
     ]
@@ -116,7 +122,7 @@ export const mockOrders: Order[] = [
   {
     id: 2,
     orderNo: "POS202603200002",
-    amount: "CNY 12.00",
+    amount: "SGD 12.00",
     status: "DRAFT",
     payment: "CASH",
     time: "2026-03-20 09:34",
@@ -124,11 +130,11 @@ export const mockOrders: Order[] = [
     printStatus: "NOT_PRINTED",
     tableCode: "T8",
     orderType: "QR",
-    originalAmount: "CNY 12.00",
-    memberDiscount: "CNY 0.00",
-    promotionDiscount: "CNY 0.00",
-    payableAmount: "CNY 12.00",
-    items: [{ productName: "Milk Tea", quantity: 1, amount: "CNY 12.00" }]
+    originalAmount: "SGD 12.00",
+    memberDiscount: "SGD 0.00",
+    promotionDiscount: "SGD 0.00",
+    payableAmount: "SGD 12.00",
+    items: [{ productName: "Milk Tea", quantity: 1, amount: "SGD 12.00" }]
   }
 ];
 
@@ -137,7 +143,7 @@ export const mockRefunds: RefundRecord[] = [
     id: 1,
     refundNo: "REF202603200001",
     orderNo: "POS202603200001",
-    refundAmount: "CNY 28.00",
+    refundAmount: "SGD 28.00",
     status: "SUCCESS",
     time: "2026-03-20 10:03",
     operator: "Amy"
@@ -146,7 +152,7 @@ export const mockRefunds: RefundRecord[] = [
     id: 2,
     refundNo: "REF202603200002",
     orderNo: "POS202603200018",
-    refundAmount: "CNY 12.00",
+    refundAmount: "SGD 12.00",
     status: "PROCESSING",
     time: "2026-03-20 14:22",
     operator: "Tom"
@@ -160,9 +166,9 @@ export const mockMembers: Member[] = [
     phone: "13800000001",
     tierName: "Gold",
     points: 2860,
-    balance: "CNY 320.00",
-    totalSpent: "CNY 8,620.00",
-    totalRecharge: "CNY 2,000.00",
+    balance: "SGD 320.00",
+    totalSpent: "SGD 8,620.00",
+    totalRecharge: "SGD 2,000.00",
     status: "ACTIVE"
   },
   {
@@ -171,17 +177,17 @@ export const mockMembers: Member[] = [
     phone: "13800000002",
     tierName: "Silver",
     points: 940,
-    balance: "CNY 88.00",
-    totalSpent: "CNY 2,480.00",
-    totalRecharge: "CNY 500.00",
+    balance: "SGD 88.00",
+    totalSpent: "SGD 2,480.00",
+    totalRecharge: "SGD 500.00",
     status: "ACTIVE"
   }
 ];
 
 export const mockMemberTiers: MemberTier[] = [
-  { id: 1, name: "Silver", upgradeRule: "Spend over CNY 2,000", benefits: ["95折", "基础积分"] },
-  { id: 2, name: "Gold", upgradeRule: "Spend over CNY 8,000", benefits: ["9折", "会员价", "充值赠送"] },
-  { id: 3, name: "Diamond", upgradeRule: "Spend over CNY 20,000", benefits: ["88折", "专属套餐", "双倍积分"] }
+  { id: 1, name: "Silver", upgradeRule: "Spend over SGD 2,000", benefits: ["5% off", "Base points"] },
+  { id: 2, name: "Gold", upgradeRule: "Spend over SGD 8,000", benefits: ["10% off", "Member pricing", "Recharge bonus"] },
+  { id: 3, name: "Diamond", upgradeRule: "Spend over SGD 20,000", benefits: ["12% off", "Exclusive set menu", "Double points"] }
 ];
 
 export const mockRechargeRecords: RechargeRecord[] = [
@@ -189,8 +195,8 @@ export const mockRechargeRecords: RechargeRecord[] = [
     id: 1,
     memberName: "Lina Chen",
     memberPhone: "13800000001",
-    amount: "CNY 500.00",
-    bonusAmount: "CNY 80.00",
+    amount: "SGD 500.00",
+    bonusAmount: "SGD 80.00",
     status: "SUCCESS",
     time: "2026-03-20 13:10"
   },
@@ -198,8 +204,8 @@ export const mockRechargeRecords: RechargeRecord[] = [
     id: 2,
     memberName: "Eric Wang",
     memberPhone: "13800000002",
-    amount: "CNY 200.00",
-    bonusAmount: "CNY 20.00",
+    amount: "SGD 200.00",
+    bonusAmount: "SGD 20.00",
     status: "SUCCESS",
     time: "2026-03-19 19:20"
   }
@@ -230,7 +236,7 @@ export const mockPromotionRules: PromotionRule[] = [
     name: "Lunch full reduction",
     type: "FULL_REDUCTION",
     status: "ACTIVE",
-    ruleSummary: "Spend CNY 100 save CNY 10",
+    ruleSummary: "Spend SGD 100 save SGD 10",
     priority: 10
   },
   {
@@ -238,7 +244,7 @@ export const mockPromotionRules: PromotionRule[] = [
     name: "Gold member fried rice price",
     type: "MEMBER_PRICE",
     status: "ACTIVE",
-    ruleSummary: "Gold members get CNY 18 fried rice",
+    ruleSummary: "Gold members get SGD 18 fried rice",
     priority: 20
   },
   {
@@ -246,7 +252,7 @@ export const mockPromotionRules: PromotionRule[] = [
     name: "Recharge bonus 500+80",
     type: "RECHARGE_BONUS",
     status: "ACTIVE",
-    ruleSummary: "Recharge CNY 500 get CNY 80 bonus",
+    ruleSummary: "Recharge SGD 500 get SGD 80 bonus",
     priority: 30
   }
 ];
@@ -258,8 +264,8 @@ export const mockGtoBatches: GtoBatch[] = [
     businessDate: "2026-03-20",
     storeName: "Riverside Branch",
     tradeCount: 128,
-    netSales: "CNY 12,680.00",
-    discountAmount: "CNY 860.00",
+    netSales: "SGD 12,680.00",
+    discountAmount: "SGD 860.00",
     syncStatus: "SUCCESS",
     exportTime: "2026-03-20 23:59"
   },
@@ -269,18 +275,18 @@ export const mockGtoBatches: GtoBatch[] = [
     businessDate: "2026-03-21",
     storeName: "Riverside Branch",
     tradeCount: 132,
-    netSales: "CNY 13,240.00",
-    discountAmount: "CNY 910.00",
+    netSales: "SGD 13,240.00",
+    discountAmount: "SGD 910.00",
     syncStatus: "PENDING",
     exportTime: "2026-03-21 23:59"
   }
 ];
 
 export const mockSalesReportSummary: SalesReportSummary = {
-  sales: "CNY 12,680.00",
-  discounts: "CNY 860.00",
-  memberSales: "CNY 4,220.00",
-  rechargeSales: "CNY 700.00",
+  sales: "SGD 12,680.00",
+  discounts: "SGD 860.00",
+  memberSales: "SGD 4,220.00",
+  rechargeSales: "SGD 700.00",
   tableTurnover: "4.6",
   pendingGtoBatches: "1"
 };

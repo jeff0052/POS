@@ -6,6 +6,49 @@ type CategoryMeta = {
   icon: string;
 };
 
+type AttributeValue = {
+  code?: string;
+  label: string;
+  priceDeltaCents: number;
+  defaultSelected: boolean;
+  kitchenLabel?: string;
+};
+
+type AttributeGroup = {
+  code?: string;
+  name: string;
+  selectionMode: "SINGLE" | "MULTIPLE";
+  required: boolean;
+  minSelect?: number;
+  maxSelect?: number;
+  values: AttributeValue[];
+};
+
+type ModifierOption = {
+  code?: string;
+  label: string;
+  priceDeltaCents: number;
+  defaultSelected: boolean;
+  kitchenLabel?: string;
+};
+
+type ModifierGroup = {
+  code?: string;
+  name: string;
+  freeQuantity?: number;
+  minSelect?: number;
+  maxSelect?: number;
+  options: ModifierOption[];
+};
+
+type ComboSlot = {
+  code?: string;
+  name: string;
+  minSelect?: number;
+  maxSelect?: number;
+  allowedSkuCodes: string[];
+};
+
 type MenuItem = {
   id: number;
   productCode: string;
@@ -20,10 +63,16 @@ type MenuItem = {
   sales?: number;
   likes?: number;
   image: string;
+  attributeGroups: AttributeGroup[];
+  modifierGroups: ModifierGroup[];
+  comboSlots: ComboSlot[];
 };
 
 type CartItem = MenuItem & {
+  cartLineId: string;
+  selectionKey: string;
   quantity: number;
+  remark: string;
 };
 
 type ApiResponse<T> = {
@@ -129,6 +178,9 @@ type QrMenuResponse = {
       skuCode: string;
       skuName: string;
       unitPriceCents: number;
+      attributeGroups?: AttributeGroup[];
+      modifierGroups?: ModifierGroup[];
+      comboSlots?: ComboSlot[];
     }>;
   }>;
 };
@@ -146,26 +198,28 @@ const menuImagePool = [
 ];
 
 function money(value: number) {
-  return new Intl.NumberFormat("zh-CN", {
+  return new Intl.NumberFormat("en-SG", {
     style: "currency",
-    currency: "CNY",
+    currency: "SGD",
+    currencyDisplay: "code",
     minimumFractionDigits: 2
   }).format(value);
 }
 
 function buildIncrementalSubmissionItems(
   cart: CartItem[],
-  existingItems: Array<{ skuId: number; quantity: number }>
+  existingItems: Array<{ skuId: number; remark?: string | null; quantity: number }>
 ): SubmitItemPayload[] {
-  const existingQuantities = new Map<number, number>();
+  const existingQuantities = new Map<string, number>();
 
   existingItems.forEach((item) => {
-    existingQuantities.set(item.skuId, (existingQuantities.get(item.skuId) ?? 0) + item.quantity);
+    const key = `${item.skuId}::${item.remark ?? ""}`;
+    existingQuantities.set(key, (existingQuantities.get(key) ?? 0) + item.quantity);
   });
 
   return cart
     .map((item) => {
-      const existingQuantity = existingQuantities.get(item.skuId) ?? 0;
+      const existingQuantity = existingQuantities.get(`${item.skuId}::${item.remark ?? ""}`) ?? 0;
       const nextQuantity = item.quantity - existingQuantity;
 
       if (nextQuantity <= 0) {
@@ -178,10 +232,94 @@ function buildIncrementalSubmissionItems(
         skuName: item.name,
         quantity: nextQuantity,
         unitPriceCents: Math.round(item.price * 100),
-        remark: ""
+        remark: item.remark
       } satisfies SubmitItemPayload;
     })
     .filter((item): item is SubmitItemPayload => Boolean(item));
+}
+
+function hasCustomizations(item: MenuItem) {
+  return item.attributeGroups.length > 0 || item.modifierGroups.length > 0 || item.comboSlots.length > 0;
+}
+
+function buildSelectionSummary(
+  item: MenuItem,
+  attributeSelections: Record<number, string[]>,
+  modifierSelections: Record<number, string[]>,
+  comboSelections: Record<number, string[]>
+) {
+  const parts: string[] = [];
+
+  item.attributeGroups.forEach((group, index) => {
+    const selected = attributeSelections[index] ?? [];
+    if (selected.length > 0) {
+      parts.push(`${group.name}:${selected.join("/")}`);
+    }
+  });
+  item.modifierGroups.forEach((group, index) => {
+    const selected = modifierSelections[index] ?? [];
+    if (selected.length > 0) {
+      parts.push(`${group.name}:${selected.join("/")}`);
+    }
+  });
+  item.comboSlots.forEach((slot, index) => {
+    const selected = comboSelections[index] ?? [];
+    if (selected.length > 0) {
+      parts.push(`${slot.name}:${selected.join("/")}`);
+    }
+  });
+
+  return parts.join("; ");
+}
+
+function calculateCustomizationPrice(
+  item: MenuItem,
+  attributeSelections: Record<number, string[]>,
+  modifierSelections: Record<number, string[]>
+) {
+  let deltaCents = 0;
+
+  item.attributeGroups.forEach((group, index) => {
+    const selected = new Set(attributeSelections[index] ?? []);
+    group.values.forEach((value) => {
+      if (selected.has(value.label)) {
+        deltaCents += value.priceDeltaCents;
+      }
+    });
+  });
+
+  item.modifierGroups.forEach((group, index) => {
+    const selected = modifierSelections[index] ?? [];
+    const freeQuantity = group.freeQuantity ?? 0;
+    group.options.forEach((option) => {
+      const occurrences = selected.filter((value) => value === option.label).length;
+      deltaCents += Math.max(0, occurrences - freeQuantity) * option.priceDeltaCents;
+    });
+  });
+
+  return deltaCents / 100;
+}
+
+function buildDefaultAttributeSelections(item: MenuItem) {
+  return Object.fromEntries(
+    item.attributeGroups.map((group, index) => [
+      index,
+      group.values.filter((value) => value.defaultSelected).map((value) => value.label)
+    ])
+  ) as Record<number, string[]>;
+}
+
+function buildDefaultModifierSelections(item: MenuItem) {
+  return Object.fromEntries(
+    item.modifierGroups.map((group, index) => [
+      index,
+      group.options.filter((option) => option.defaultSelected).map((option) => option.label)
+    ])
+  ) as Record<number, string[]>;
+}
+
+function createCartLineId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function App() {
@@ -200,6 +338,10 @@ export default function App() {
   const [submitResult, setSubmitResult] = useState<QrSubmitResponse | null>(null);
   const [currentOrder, setCurrentOrder] = useState<ActiveOrderDto | null>(null);
   const [submittedOrders, setSubmittedOrders] = useState<SubmittedOrderDto[]>([]);
+  const [configuringItem, setConfiguringItem] = useState<MenuItem | null>(null);
+  const [attributeSelections, setAttributeSelections] = useState<Record<number, string[]>>({});
+  const [modifierSelections, setModifierSelections] = useState<Record<number, string[]>>({});
+  const [comboSelections, setComboSelections] = useState<Record<number, string[]>>({});
 
   const hydrateCartFromActiveOrder = (
     activeOrder: ActiveOrderDto | null,
@@ -219,7 +361,10 @@ export default function App() {
       if (matchedMenuItem) {
         return {
           ...matchedMenuItem,
-          quantity: item.quantity
+          quantity: item.quantity,
+          cartLineId: `${item.skuId}-${index}`,
+          selectionKey: `${item.skuId}::${item.remark ?? ""}`,
+          remark: item.remark ?? ""
         };
       }
 
@@ -231,9 +376,15 @@ export default function App() {
         name: item.skuName,
         category: activeCategoryValue || categorySource[0]?.id || "",
         price: item.unitPriceCents / 100,
-        description: "当前桌台订单",
+        description: "Current table order",
         image: menuImagePool[index % menuImagePool.length],
-        quantity: item.quantity
+        quantity: item.quantity,
+        cartLineId: `${item.skuId}-${index}`,
+        selectionKey: `${item.skuId}::${item.remark ?? ""}`,
+        remark: item.remark ?? "",
+        attributeGroups: [],
+        modifierGroups: [],
+        comboSlots: []
       };
     });
   };
@@ -254,6 +405,7 @@ export default function App() {
       submittedOrders.flatMap((order) =>
         order.items.map((item) => ({
           skuId: item.skuId,
+          remark: item.remark,
           quantity: item.quantity
         }))
       ),
@@ -283,6 +435,13 @@ export default function App() {
   const incrementalSubmissionItems = useMemo(
     () => buildIncrementalSubmissionItems(cart, existingSubmittedItems),
     [cart, existingSubmittedItems]
+  );
+  const configuringPrice = useMemo(
+    () =>
+      configuringItem
+        ? configuringItem.price + calculateCustomizationPrice(configuringItem, attributeSelections, modifierSelections)
+        : 0,
+    [attributeSelections, configuringItem, modifierSelections]
   );
 
   useEffect(() => {
@@ -332,7 +491,10 @@ export default function App() {
               description: category.categoryName,
               sales: 100 + itemIndex * 17,
               likes: 300 + categoryIndex * 41 + itemIndex * 13,
-              image: menuImagePool[(categoryIndex + itemIndex) % menuImagePool.length]
+              image: menuImagePool[(categoryIndex + itemIndex) % menuImagePool.length],
+              attributeGroups: item.attributeGroups ?? [],
+              modifierGroups: item.modifierGroups ?? [],
+              comboSlots: item.comboSlots ?? []
             }))
           );
           setCategories(nextCategories);
@@ -392,23 +554,155 @@ export default function App() {
     );
   }, [activeCategory, categories, currentOrder, currentTableItems, currentTablePayable, menu, submittedOrders, tableCode]);
 
-  const addItem = (item: MenuItem) => {
+  const commitConfiguredItem = (
+    item: MenuItem,
+    nextAttributeSelections: Record<number, string[]>,
+    nextModifierSelections: Record<number, string[]>,
+    nextComboSelections: Record<number, string[]>
+  ) => {
+    const summary = buildSelectionSummary(item, nextAttributeSelections, nextModifierSelections, nextComboSelections);
+    const nextPrice = item.price + calculateCustomizationPrice(item, nextAttributeSelections, nextModifierSelections);
+    const selectionKey = `${item.skuId}::${summary}`;
+
     setCart((current) => {
-      const existing = current.find((entry) => entry.id === item.id);
+      const existing = current.find((entry) => entry.selectionKey === selectionKey);
       if (existing) {
-        return current.map((entry) => (entry.id === item.id ? { ...entry, quantity: entry.quantity + 1 } : entry));
+        return current.map((entry) =>
+          entry.selectionKey === selectionKey ? { ...entry, quantity: entry.quantity + 1 } : entry
+        );
       }
 
-      return [...current, { ...item, quantity: 1 }];
+      return [
+        ...current,
+        {
+          ...item,
+          price: nextPrice,
+          quantity: 1,
+          cartLineId: createCartLineId(),
+          selectionKey,
+          remark: summary
+        }
+      ];
     });
   };
 
-  const changeQty = (id: number, delta: number) => {
+  const addItem = (item: MenuItem) => {
+    if (hasCustomizations(item)) {
+      setConfiguringItem(item);
+      setAttributeSelections(buildDefaultAttributeSelections(item));
+      setModifierSelections(buildDefaultModifierSelections(item));
+      setComboSelections(
+        Object.fromEntries(item.comboSlots.map((_, index) => [index, []])) as Record<number, string[]>
+      );
+      return;
+    }
+
+    commitConfiguredItem(item, {}, {}, {});
+  };
+
+  const changeQty = (cartLineId: string, delta: number) => {
     setCart((current) =>
       current
-        .map((entry) => (entry.id === id ? { ...entry, quantity: Math.max(0, entry.quantity + delta) } : entry))
+        .map((entry) =>
+          entry.cartLineId === cartLineId ? { ...entry, quantity: Math.max(0, entry.quantity + delta) } : entry
+        )
         .filter((entry) => entry.quantity > 0)
     );
+  };
+
+  const toggleAttributeValue = (groupIndex: number, valueLabel: string, selectionMode: "SINGLE" | "MULTIPLE") => {
+    setAttributeSelections((current) => {
+      const selected = current[groupIndex] ?? [];
+      if (selectionMode === "SINGLE") {
+        return {
+          ...current,
+          [groupIndex]: [valueLabel]
+        };
+      }
+
+      return {
+        ...current,
+        [groupIndex]: selected.includes(valueLabel)
+          ? selected.filter((value) => value !== valueLabel)
+          : [...selected, valueLabel]
+      };
+    });
+  };
+
+  const toggleModifierOption = (groupIndex: number, optionLabel: string) => {
+    setModifierSelections((current) => {
+      const selected = current[groupIndex] ?? [];
+      return {
+        ...current,
+        [groupIndex]: selected.includes(optionLabel)
+          ? selected.filter((value) => value !== optionLabel)
+          : [...selected, optionLabel]
+      };
+    });
+  };
+
+  const toggleComboSelection = (slotIndex: number, skuCode: string) => {
+    setComboSelections((current) => {
+      const selected = current[slotIndex] ?? [];
+      return {
+        ...current,
+        [slotIndex]: selected.includes(skuCode) ? selected.filter((value) => value !== skuCode) : [...selected, skuCode]
+      };
+    });
+  };
+
+  const confirmConfiguredItem = () => {
+    if (!configuringItem) {
+      return;
+    }
+
+    for (const [index, group] of configuringItem.attributeGroups.entries()) {
+      const selected = attributeSelections[index] ?? [];
+      const minSelect = group.required ? Math.max(1, group.minSelect ?? 1) : group.minSelect ?? 0;
+      const maxSelect = group.maxSelect ?? (group.selectionMode === "SINGLE" ? 1 : Number.MAX_SAFE_INTEGER);
+
+      if (selected.length < minSelect) {
+        setSubmitError(`Please select ${group.name} first`);
+        return;
+      }
+
+      if (selected.length > maxSelect) {
+        setSubmitError(`You can select up to ${maxSelect} options for ${group.name}`);
+        return;
+      }
+    }
+
+    for (const [index, group] of configuringItem.modifierGroups.entries()) {
+      const selected = modifierSelections[index] ?? [];
+      const minSelect = group.minSelect ?? 0;
+      const maxSelect = group.maxSelect ?? Number.MAX_SAFE_INTEGER;
+      if (selected.length < minSelect) {
+        setSubmitError(`Please select at least ${minSelect} option(s) for ${group.name}`);
+        return;
+      }
+      if (selected.length > maxSelect) {
+        setSubmitError(`You can select up to ${maxSelect} options for ${group.name}`);
+        return;
+      }
+    }
+
+    for (const [index, slot] of configuringItem.comboSlots.entries()) {
+      const selected = comboSelections[index] ?? [];
+      const minSelect = slot.minSelect ?? 0;
+      const maxSelect = slot.maxSelect ?? Number.MAX_SAFE_INTEGER;
+      if (selected.length < minSelect) {
+        setSubmitError(`Please select ${slot.name} first`);
+        return;
+      }
+      if (selected.length > maxSelect) {
+        setSubmitError(`You can select up to ${maxSelect} choices for ${slot.name}`);
+        return;
+      }
+    }
+
+    setSubmitError("");
+    commitConfiguredItem(configuringItem, attributeSelections, modifierSelections, comboSelections);
+    setConfiguringItem(null);
   };
 
   const submitOrder = async () => {
@@ -417,7 +711,7 @@ export default function App() {
     }
 
     if (incrementalSubmissionItems.length === 0) {
-      setSubmitError("没有新增菜品可提交");
+      setSubmitError("No new items to submit");
       return;
     }
 
@@ -487,7 +781,7 @@ export default function App() {
                         skuName: item.name,
                         quantity: item.quantity,
                         unitPriceCents: Math.round(item.price * 100),
-                        remark: "",
+                        remark: item.remark,
                         lineTotalCents: Math.round(item.price * 100) * item.quantity
                       })),
                   pricing: {
@@ -547,26 +841,26 @@ export default function App() {
         <div className="mobile-shell success-shell">
           <div className="success-orb">✓</div>
           <p className="eyebrow">
-            {storeName} · 桌号 {submitResult.tableCode}
+            {storeName} · Table {submitResult.tableCode}
           </p>
-          <h1>下单成功</h1>
+          <h1>Order Submitted</h1>
           <p className="hero-copy">
-            菜品已经发送到前台收银队列，门店员工会确认订单并在结账时完成收款。
+            Your items have been sent to the cashier queue. Store staff will review the order and complete payment at checkout.
           </p>
 
           <div className="success-cards">
             <article className="metric-card">
-              <span>取号队列</span>
+              <span>Queue Number</span>
               <strong>{submitResult.orderNo}</strong>
             </article>
             <article className="metric-card">
-              <span>待收金额</span>
+              <span>Amount Due at POS</span>
               <strong>{money(submitResult.payableAmountCents / 100)}</strong>
             </article>
           </div>
 
           <button className="primary-button" onClick={() => setSubmitResult(null)}>
-            返回继续点单
+            Back to Menu
           </button>
         </div>
       </div>
@@ -580,9 +874,9 @@ export default function App() {
           <div className="hero-top">
             <button className="icon-lite">×</button>
             <div className="hero-title-block">
-              <p className="eyebrow">首页</p>
+              <p className="eyebrow">Home</p>
               <h1>{storeName}</h1>
-              <p className="hero-copy">桌号 {tableCode} · 扫码点餐 · 下单后前台结账</p>
+              <p className="hero-copy">Table {tableCode} · QR ordering · Pay at the cashier after ordering</p>
             </div>
             <button className="icon-lite">⋯</button>
           </div>
@@ -591,20 +885,20 @@ export default function App() {
         {currentOrder || submittedOrders.length > 0 ? (
           <section className="current-order-banner">
           <div>
-            <p className="eyebrow">当前桌台订单</p>
+            <p className="eyebrow">Current Table Order</p>
             <h2>{submittedOrders[0]?.orderNo ?? currentOrder?.orderNo ?? `${tableCode}-ACTIVE`}</h2>
             <p>
-              {currentTableItems.length} 件商品 · 待前台结账 · 待收 {money(currentTablePayable / 100)}
+              {currentTableItems.length} item(s) · Awaiting cashier checkout · Due {money(currentTablePayable / 100)}
             </p>
           </div>
-          <span className="table-order-state">进行中</span>
+          <span className="table-order-state">In Progress</span>
           </section>
         ) : null}
 
         <section className="search-row">
           <input
             aria-label="Search menu"
-            placeholder="搜索菜品"
+            placeholder="Search menu"
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
           />
@@ -631,16 +925,21 @@ export default function App() {
                 <div className="menu-feed-copy">
                   <div className="menu-title-row">
                     <h3>{item.name}</h3>
-                    {item.spicy ? <span className="flag">辣</span> : null}
+                    {item.spicy ? <span className="flag">Spicy</span> : null}
                   </div>
                   <p>{item.description}</p>
                   <div className="menu-meta">
-                    <span>月售{item.sales ?? 0}</span>
-                    <span>点赞{item.likes ?? 0}</span>
+                    <span>Monthly {item.sales ?? 0}</span>
+                    <span>Likes {item.likes ?? 0}</span>
                   </div>
                   <div className="price-row">
-                    <strong>¥{item.price.toFixed(0)}</strong>
+                    <strong>SGD {item.price.toFixed(2)}</strong>
                   </div>
+                  {hasCustomizations(item) ? (
+                    <div className="menu-customization-hint">
+                      {item.attributeGroups.length + item.modifierGroups.length + item.comboSlots.length} customization groups
+                    </div>
+                  ) : null}
                 </div>
                 <button className="floating-add-button" onClick={() => addItem(item)}>
                   +
@@ -649,8 +948,8 @@ export default function App() {
             ))}
             {visibleMenu.length === 0 ? (
               <article className="empty-menu-state">
-                <strong>暂时没有可点菜品</strong>
-                <p>请检查当前门店菜单、分类状态，或稍后刷新再试。</p>
+                <strong>No menu items available right now</strong>
+                <p>Please check the store menu, category status, or refresh and try again later.</p>
               </article>
             ) : null}
           </section>
@@ -659,23 +958,24 @@ export default function App() {
         <section className="cart-panel">
           <div className="section-head">
             <div>
-              <p className="eyebrow">当前已选</p>
-              <h2>购物车</h2>
+              <p className="eyebrow">Current Selection</p>
+              <h2>Cart</h2>
             </div>
-            <span className="cart-count">{cart.length} 件商品</span>
+            <span className="cart-count">{cart.length} item(s)</span>
           </div>
 
           <div className="cart-list">
             {cart.map((item) => (
-              <article key={item.id} className="cart-row">
+              <article key={item.cartLineId} className="cart-row">
                 <div className="cart-copy">
                   <strong>{item.name}</strong>
                   <p>{money(item.price)} each</p>
+                  {item.remark ? <p className="cart-remark">{item.remark}</p> : null}
                 </div>
                 <div className="qty-group">
-                  <button onClick={() => changeQty(item.id, -1)}>-</button>
+                  <button onClick={() => changeQty(item.cartLineId, -1)}>-</button>
                   <span>{item.quantity}</span>
-                  <button onClick={() => changeQty(item.id, 1)}>+</button>
+                  <button onClick={() => changeQty(item.cartLineId, 1)}>+</button>
                 </div>
               </article>
             ))}
@@ -683,22 +983,22 @@ export default function App() {
 
           <div className="summary-card">
             <div className="summary-row">
-              <span>商品小计</span>
+              <span>Subtotal</span>
               <strong>{money(subtotal)}</strong>
             </div>
             <div className="summary-row discount">
-              <span>会员优惠</span>
+              <span>Member Discount</span>
               <strong>-{money(memberDiscount)}</strong>
             </div>
             <div className="summary-row discount">
-              <span>活动优惠</span>
+              <span>Promotion Discount</span>
               <strong>-{money(promotionDiscount)}</strong>
             </div>
             <div className="summary-row total">
-              <span>前台待收</span>
+              <span>Amount Due at POS</span>
               <strong>{money(payable)}</strong>
             </div>
-            <p className="summary-note">扫码下单只提交订单，不在线支付。订单会同步到前台 POS，由 cashier 完成最终结账。</p>
+            <p className="summary-note">QR ordering only submits the order. Payment is completed at the POS by the cashier.</p>
           </div>
 
           {submitError ? <p className="submit-error">{submitError}</p> : null}
@@ -707,15 +1007,114 @@ export default function App() {
             <div className="floating-cart-left">
               <span className="floating-cart-icon">🛒</span>
               <div>
-                <strong>¥{payable.toFixed(1)}</strong>
-                <p>{cart.reduce((sum, item) => sum + item.quantity, 0)}件商品</p>
+                <strong>SGD {payable.toFixed(2)}</strong>
+                <p>{cart.reduce((sum, item) => sum + item.quantity, 0)} item(s)</p>
               </div>
             </div>
             <button className="floating-cart-action" onClick={submitOrder} disabled={cart.length === 0 || submitting}>
-              {submitting ? "提交中" : "选好了"}
+              {submitting ? "Submitting" : "Submit Order"}
             </button>
           </div>
         </section>
+
+        {configuringItem ? (
+          <div className="configurator-backdrop">
+            <section className="configurator-panel">
+              <div className="section-head">
+                <div>
+                  <p className="eyebrow">Customize Item</p>
+                  <h2>{configuringItem.name}</h2>
+                </div>
+                <button className="icon-lite" onClick={() => setConfiguringItem(null)}>
+                  ×
+                </button>
+              </div>
+
+              <div className="configurator-groups">
+                {configuringItem.attributeGroups.map((group, groupIndex) => (
+                  <article key={`${group.name}-${groupIndex}`} className="configurator-group">
+                    <div className="configurator-group-head">
+                      <strong>{group.name}</strong>
+                      <span>{group.required ? "Required" : "Optional"}</span>
+                    </div>
+                    <div className="configurator-options">
+                      {group.values.map((value) => {
+                        const selected = (attributeSelections[groupIndex] ?? []).includes(value.label);
+                        return (
+                          <button
+                            key={value.label}
+                            className={`config-option ${selected ? "config-option-active" : ""}`}
+                            onClick={() => toggleAttributeValue(groupIndex, value.label, group.selectionMode)}
+                          >
+                            <span>{value.label}</span>
+                            {value.priceDeltaCents > 0 ? <em>+SGD {(value.priceDeltaCents / 100).toFixed(1)}</em> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </article>
+                ))}
+
+                {configuringItem.modifierGroups.map((group, groupIndex) => (
+                  <article key={`${group.name}-${groupIndex}`} className="configurator-group">
+                    <div className="configurator-group-head">
+                      <strong>{group.name}</strong>
+                      <span>{group.freeQuantity ? `First ${group.freeQuantity} free` : "Optional"}</span>
+                    </div>
+                    <div className="configurator-options">
+                      {group.options.map((option) => {
+                        const selected = (modifierSelections[groupIndex] ?? []).includes(option.label);
+                        return (
+                          <button
+                            key={option.label}
+                            className={`config-option ${selected ? "config-option-active" : ""}`}
+                            onClick={() => toggleModifierOption(groupIndex, option.label)}
+                          >
+                            <span>{option.label}</span>
+                            {option.priceDeltaCents > 0 ? <em>+SGD {(option.priceDeltaCents / 100).toFixed(1)}</em> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </article>
+                ))}
+
+                {configuringItem.comboSlots.map((slot, slotIndex) => (
+                  <article key={`${slot.name}-${slotIndex}`} className="configurator-group">
+                    <div className="configurator-group-head">
+                      <strong>{slot.name}</strong>
+                      <span>{slot.minSelect ? `Pick at least ${slot.minSelect}` : "Optional"}</span>
+                    </div>
+                    <div className="configurator-options">
+                      {slot.allowedSkuCodes.map((skuCode) => {
+                        const selected = (comboSelections[slotIndex] ?? []).includes(skuCode);
+                        return (
+                          <button
+                            key={skuCode}
+                            className={`config-option ${selected ? "config-option-active" : ""}`}
+                            onClick={() => toggleComboSelection(slotIndex, skuCode)}
+                          >
+                            <span>{skuCode}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="configurator-footer">
+                <div>
+                  <p className="eyebrow">Add to Cart</p>
+                  <strong>SGD {configuringPrice.toFixed(2)}</strong>
+                </div>
+                <button className="primary-button configurator-submit" onClick={confirmConfiguredItem}>
+                  Add to Cart
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </div>
     </div>
   );

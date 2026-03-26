@@ -10,9 +10,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: "#0b6e4f",
-          colorBgLayout: "#f6f4ee",
-          borderRadius: 12
+          colorPrimary: "#3f4c63",
+          colorInfo: "#3f4c63",
+          colorSuccess: "#3f4c63",
+          colorBgLayout: "#f4f7fb",
+          colorBgContainer: "#ffffff",
+          colorBorder: "#d9e3f0",
+          colorBorderSecondary: "#e7edf5",
+          colorText: "#223046",
+          colorTextSecondary: "#6d7c93",
+          borderRadius: 18,
+          boxShadowSecondary: "0 14px 28px rgba(72, 111, 164, 0.08)"
         }
       }}
     >

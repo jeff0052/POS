@@ -1,7 +1,7 @@
 import { apiGetV2 } from "../client";
 import { USE_MOCK_API } from "../config";
 import * as mockApi from "../mockApi";
-import type { DashboardSummary, Order, SalesReportSummary } from "../../types";
+import type { DashboardSummary, MemberConsumptionSummary, Order, SalesReportSummary } from "../../types";
 
 type RecentOrderResponseItem = {
   id: number;
@@ -96,6 +96,64 @@ export async function getSalesReportSummary(): Promise<SalesReportSummary> {
   };
 }
 
+export async function getMemberConsumptionSummary(): Promise<MemberConsumptionSummary> {
+  if (USE_MOCK_API) {
+    return {
+      totalMemberSales: "SGD 0.00",
+      totalMemberDiscounts: "SGD 0.00",
+      memberOrderCount: "0",
+      activeMemberCount: "0",
+      totalRecharge: "SGD 0.00",
+      totalBonus: "SGD 0.00",
+      rechargeOrderCount: "0",
+      averageRecharge: "SGD 0.00",
+      topMembers: []
+    };
+  }
+
+  const summary = await apiGetV2<{
+    overview: {
+      totalMemberSalesCents: number;
+      totalMemberDiscountCents: number;
+      memberOrderCount: number;
+      activeMemberCount: number;
+      totalRechargeCents: number;
+      totalBonusCents: number;
+      rechargeOrderCount: number;
+      averageRechargeCents: number;
+    };
+    topMembers: Array<{
+      memberId: number;
+      memberName: string;
+      tierCode: string;
+      orderCount: number;
+      totalSalesCents: number;
+      totalRechargeCents: number;
+      memberDiscountCents: number;
+    }>;
+  }>("/reports/member-consumption-summary?storeId=101&merchantId=1");
+
+  return {
+    totalMemberSales: centsToText(summary.overview.totalMemberSalesCents),
+    totalMemberDiscounts: centsToText(summary.overview.totalMemberDiscountCents),
+    memberOrderCount: String(summary.overview.memberOrderCount),
+    activeMemberCount: String(summary.overview.activeMemberCount),
+    totalRecharge: centsToText(summary.overview.totalRechargeCents),
+    totalBonus: centsToText(summary.overview.totalBonusCents),
+    rechargeOrderCount: String(summary.overview.rechargeOrderCount),
+    averageRecharge: centsToText(summary.overview.averageRechargeCents),
+    topMembers: summary.topMembers.map((item) => ({
+      memberId: item.memberId,
+      memberName: item.memberName,
+      tierCode: item.tierCode,
+      orderCount: item.orderCount,
+      totalSales: centsToText(item.totalSalesCents),
+      totalRecharge: centsToText(item.totalRechargeCents),
+      memberDiscount: centsToText(item.memberDiscountCents)
+    }))
+  };
+}
+
 function centsToText(value: number) {
-  return `CNY ${(value / 100).toFixed(2)}`;
+  return `SGD ${(value / 100).toFixed(2)}`;
 }

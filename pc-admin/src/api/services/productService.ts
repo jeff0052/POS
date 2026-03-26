@@ -20,6 +20,42 @@ type ProductListResponse = Array<{
     status: "ENABLED" | "DISABLED";
     available: boolean;
   }>;
+  attributeGroups?: Array<{
+    code?: string;
+    name: string;
+    selectionMode: "SINGLE" | "MULTIPLE";
+    required: boolean;
+    minSelect?: number;
+    maxSelect?: number;
+    values?: Array<{
+      code?: string;
+      label: string;
+      priceDeltaCents: number;
+      defaultSelected: boolean;
+      kitchenLabel?: string;
+    }>;
+  }>;
+  modifierGroups?: Array<{
+    code?: string;
+    name: string;
+    freeQuantity?: number;
+    minSelect?: number;
+    maxSelect?: number;
+    options?: Array<{
+      code?: string;
+      label: string;
+      priceDeltaCents: number;
+      defaultSelected: boolean;
+      kitchenLabel?: string;
+    }>;
+  }>;
+  comboSlots?: Array<{
+    code?: string;
+    name: string;
+    minSelect?: number;
+    maxSelect?: number;
+    allowedSkuCodes?: string[];
+  }>;
 }>;
 
 type ProductResponse = ProductListResponse[number];
@@ -38,10 +74,13 @@ type UpsertProductRequest = {
     status: "ENABLED" | "DISABLED";
     available: boolean;
   }>;
+  attributeGroups: ProductResponse["attributeGroups"];
+  modifierGroups: ProductResponse["modifierGroups"];
+  comboSlots: ProductResponse["comboSlots"];
 };
 
 function formatMoney(value: number): string {
-  return `CNY ${(value / 100).toFixed(2)}`;
+  return `SGD ${(value / 100).toFixed(2)}`;
 }
 
 function mapStatus(status: string): "Enabled" | "Disabled" {
@@ -66,6 +105,42 @@ function mapProduct(item: ProductResponse): Product {
       price: formatMoney(sku.priceCents),
       status: mapStatus(sku.status),
       available: sku.available
+    })),
+    attributeGroups: (item.attributeGroups ?? []).map((group) => ({
+      code: group.code,
+      name: group.name,
+      selectionMode: group.selectionMode,
+      required: group.required,
+      minSelect: group.minSelect,
+      maxSelect: group.maxSelect,
+      values: (group.values ?? []).map((value) => ({
+        code: value.code,
+        label: value.label,
+        priceDeltaCents: value.priceDeltaCents,
+        defaultSelected: value.defaultSelected,
+        kitchenLabel: value.kitchenLabel
+      }))
+    })),
+    modifierGroups: (item.modifierGroups ?? []).map((group) => ({
+      code: group.code,
+      name: group.name,
+      freeQuantity: group.freeQuantity,
+      minSelect: group.minSelect,
+      maxSelect: group.maxSelect,
+      options: (group.options ?? []).map((option) => ({
+        code: option.code,
+        label: option.label,
+        priceDeltaCents: option.priceDeltaCents,
+        defaultSelected: option.defaultSelected,
+        kitchenLabel: option.kitchenLabel
+      }))
+    })),
+    comboSlots: (item.comboSlots ?? []).map((slot) => ({
+      code: slot.code,
+      name: slot.name,
+      minSelect: slot.minSelect,
+      maxSelect: slot.maxSelect,
+      allowedSkuCodes: slot.allowedSkuCodes ?? []
     }))
   };
 }

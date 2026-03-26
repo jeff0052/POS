@@ -24,6 +24,49 @@ export interface ProductSku {
   available: boolean;
 }
 
+export interface ProductAttributeValue {
+  code?: string;
+  label: string;
+  priceDeltaCents: number;
+  defaultSelected: boolean;
+  kitchenLabel?: string;
+}
+
+export interface ProductAttributeGroup {
+  code?: string;
+  name: string;
+  selectionMode: "SINGLE" | "MULTIPLE";
+  required: boolean;
+  minSelect?: number;
+  maxSelect?: number;
+  values: ProductAttributeValue[];
+}
+
+export interface ProductModifierOption {
+  code?: string;
+  label: string;
+  priceDeltaCents: number;
+  defaultSelected: boolean;
+  kitchenLabel?: string;
+}
+
+export interface ProductModifierGroup {
+  code?: string;
+  name: string;
+  freeQuantity?: number;
+  minSelect?: number;
+  maxSelect?: number;
+  options: ProductModifierOption[];
+}
+
+export interface ProductComboSlot {
+  code?: string;
+  name: string;
+  minSelect?: number;
+  maxSelect?: number;
+  allowedSkuCodes: string[];
+}
+
 export interface Product {
   id: number;
   categoryId?: number;
@@ -34,6 +77,9 @@ export interface Product {
   status: "Enabled" | "Disabled";
   categoryName: string;
   skus: ProductSku[];
+  attributeGroups: ProductAttributeGroup[];
+  modifierGroups: ProductModifierGroup[];
+  comboSlots: ProductComboSlot[];
 }
 
 export interface OrderItem {
@@ -95,6 +141,19 @@ export interface Member {
   status: "ACTIVE" | "INACTIVE";
 }
 
+export interface MemberDetail {
+  id: number;
+  memberNo: string;
+  name: string;
+  phone: string;
+  tierName: string;
+  status: "ACTIVE" | "INACTIVE";
+  points: number;
+  balance: string;
+  totalSpent: string;
+  totalRecharge: string;
+}
+
 export interface MemberTier {
   id: number;
   name: string;
@@ -149,6 +208,28 @@ export interface SalesReportSummary {
   rechargeSales: string;
   tableTurnover: string;
   pendingGtoBatches: string;
+}
+
+export interface MemberConsumptionTopMember {
+  memberId: number;
+  memberName: string;
+  tierCode: string;
+  orderCount: number;
+  totalSales: string;
+  totalRecharge: string;
+  memberDiscount: string;
+}
+
+export interface MemberConsumptionSummary {
+  totalMemberSales: string;
+  totalMemberDiscounts: string;
+  memberOrderCount: string;
+  activeMemberCount: string;
+  totalRecharge: string;
+  totalBonus: string;
+  rechargeOrderCount: string;
+  averageRecharge: string;
+  topMembers: MemberConsumptionTopMember[];
 }
 
 export interface RefundRecord {

@@ -60,7 +60,10 @@ public class MemberApplicationService implements UseCase {
                             member.getPhone(),
                             member.getTierCode(),
                             account == null ? 0 : account.getPointsBalance(),
-                            account == null ? 0 : account.getCashBalanceCents()
+                            account == null ? 0 : account.getCashBalanceCents(),
+                            account == null ? 0 : account.getLifetimeSpendCents(),
+                            account == null ? 0 : account.getLifetimeRechargeCents(),
+                            member.getMemberStatus()
                     );
                 })
                 .toList();
@@ -105,7 +108,10 @@ public class MemberApplicationService implements UseCase {
                 member.getPhone(),
                 member.getTierCode(),
                 account == null ? 0 : account.getPointsBalance(),
-                account == null ? 0 : account.getCashBalanceCents()
+                account == null ? 0 : account.getCashBalanceCents(),
+                account == null ? 0 : account.getLifetimeSpendCents(),
+                account == null ? 0 : account.getLifetimeRechargeCents(),
+                member.getMemberStatus()
         );
     }
 
@@ -145,6 +151,42 @@ public class MemberApplicationService implements UseCase {
                 savedMember.getPhone(),
                 savedMember.getTierCode(),
                 savedMember.getMemberStatus()
+        );
+    }
+
+    @Transactional
+    public MemberDetailDto updateMember(Long memberId, String name, String phone, String tierCode, String memberStatus) {
+        MemberEntity member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+
+        String normalizedPhone = phone == null ? "" : phone.trim();
+        if (normalizedPhone.isBlank()) {
+            throw new IllegalArgumentException("Phone must not be blank.");
+        }
+
+        MemberEntity existing = memberRepository.findByPhone(normalizedPhone).orElse(null);
+        if (existing != null && !existing.getId().equals(memberId)) {
+            throw new IllegalStateException("Member phone already exists: " + normalizedPhone);
+        }
+
+        member.setName(name == null ? "" : name.trim());
+        member.setPhone(normalizedPhone);
+        member.setTierCode(tierCode == null || tierCode.isBlank() ? "STANDARD" : tierCode.trim().toUpperCase());
+        member.setMemberStatus(memberStatus == null || memberStatus.isBlank() ? "ACTIVE" : memberStatus.trim().toUpperCase());
+        MemberEntity savedMember = memberRepository.save(member);
+
+        MemberAccountEntity account = memberAccountRepository.findByMemberId(memberId).orElse(null);
+        return new MemberDetailDto(
+                savedMember.getId(),
+                savedMember.getMemberNo(),
+                savedMember.getName(),
+                savedMember.getPhone(),
+                savedMember.getTierCode(),
+                savedMember.getMemberStatus(),
+                account == null ? 0 : account.getPointsBalance(),
+                account == null ? 0 : account.getCashBalanceCents(),
+                account == null ? 0 : account.getLifetimeSpendCents(),
+                account == null ? 0 : account.getLifetimeRechargeCents()
         );
     }
 

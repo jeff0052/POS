@@ -36,7 +36,7 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Developer POS",
+            text = "UNIWEB POS",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )

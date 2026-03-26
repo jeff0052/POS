@@ -10,6 +10,9 @@ build/
 
 # Android / Java
 .gradle/
+android-pos/.gradle-home/
+android-sdk/
+pos-backend/target/
 local.properties
 *.iml
 
@@ -27,6 +30,8 @@ yarn-error.log*
 # IDE
 .idea/
 .vscode/
+.playwright-cli/
+tmp/
 
 # Nested unrelated repo
 founderoscodex/

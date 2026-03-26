@@ -93,7 +93,7 @@ export function OrdersPage() {
         Orders
       </Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        订单查询、支付状态、打印状态和退款排查的核心页面。
+        Core page for order lookup, payment status, print status, and refund investigation.
       </Typography.Paragraph>
 
       <Card>

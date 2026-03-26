@@ -6,6 +6,7 @@ import com.developer.pos.data.local.PosDatabase
 import com.developer.pos.data.local.dao.ProductDao
 import com.developer.pos.data.remote.ProductApi
 import com.developer.pos.data.remote.PosOrderApi
+import com.developer.pos.BuildConfig
 import com.developer.pos.data.repository.PosOrderRepository
 import com.developer.pos.data.repository.ProductRepository
 import com.developer.pos.data.repository.impl.PosOrderRepositoryImpl
@@ -57,7 +58,7 @@ object AppModule {
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:8094/api/v2/")
+            .baseUrl(BuildConfig.API_BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

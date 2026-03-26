@@ -60,7 +60,7 @@ fun PaymentProcessingScreen(
                 )
                 Text("Order No: ${uiState.currentOrderNo}")
                 Text("Payment Method: ${PaymentMethods.displayName(uiState.selectedPaymentMethod)}")
-                Text("Amount: CNY %.2f".format(payableAmountCents / 100.0))
+                Text("Amount: SGD %.2f".format(payableAmountCents / 100.0))
                 Text("Current Stage: ${uiState.activeOrderStage.label}")
                 Text("Provider Status: ${uiState.paymentProviderStatus}", style = MaterialTheme.typography.bodyMedium)
                 uiState.paymentErrorMessage?.let {

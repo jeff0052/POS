@@ -49,7 +49,7 @@ export function RefundsPage() {
         Refunds
       </Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        退款记录页，用来排查退款状态、操作人和订单关联关系。
+        Refund record page for investigating refund status, operator actions, and related orders.
       </Typography.Paragraph>
 
       <Card>

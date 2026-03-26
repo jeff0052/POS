@@ -30,6 +30,15 @@ public class ProductEntity {
     @Column(name = "product_status", nullable = false)
     private String productStatus;
 
+    @Column(name = "attribute_config_json", columnDefinition = "TEXT")
+    private String attributeConfigJson;
+
+    @Column(name = "modifier_config_json", columnDefinition = "TEXT")
+    private String modifierConfigJson;
+
+    @Column(name = "combo_slot_config_json", columnDefinition = "TEXT")
+    private String comboSlotConfigJson;
+
     protected ProductEntity() {
     }
 
@@ -38,13 +47,19 @@ public class ProductEntity {
             Long categoryId,
             String productCode,
             String productName,
-            String productStatus
+            String productStatus,
+            String attributeConfigJson,
+            String modifierConfigJson,
+            String comboSlotConfigJson
     ) {
         this.storeId = storeId;
         this.categoryId = categoryId;
         this.productCode = productCode;
         this.productName = productName;
         this.productStatus = productStatus;
+        this.attributeConfigJson = attributeConfigJson;
+        this.modifierConfigJson = modifierConfigJson;
+        this.comboSlotConfigJson = comboSlotConfigJson;
     }
 
     public Long getId() {
@@ -71,10 +86,33 @@ public class ProductEntity {
         return productStatus;
     }
 
-    public void update(Long categoryId, String productCode, String productName, String productStatus) {
+    public String getAttributeConfigJson() {
+        return attributeConfigJson;
+    }
+
+    public String getModifierConfigJson() {
+        return modifierConfigJson;
+    }
+
+    public String getComboSlotConfigJson() {
+        return comboSlotConfigJson;
+    }
+
+    public void update(
+            Long categoryId,
+            String productCode,
+            String productName,
+            String productStatus,
+            String attributeConfigJson,
+            String modifierConfigJson,
+            String comboSlotConfigJson
+    ) {
         this.categoryId = categoryId;
         this.productCode = productCode;
         this.productName = productName;
         this.productStatus = productStatus;
+        this.attributeConfigJson = attributeConfigJson;
+        this.modifierConfigJson = modifierConfigJson;
+        this.comboSlotConfigJson = comboSlotConfigJson;
     }
 }

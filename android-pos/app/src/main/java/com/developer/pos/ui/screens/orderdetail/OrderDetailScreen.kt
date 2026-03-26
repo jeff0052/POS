@@ -52,7 +52,7 @@ fun OrderDetailScreen(
                     Text("Order No: ${currentOrder.orderNo}")
                     Text("Table: ${currentOrder.tableCode ?: "-"}")
                     Text("Source: ${currentOrder.orderType}")
-                    Text("Amount: CNY %.2f".format(currentOrder.payableAmountCents / 100.0))
+                    Text("Amount: SGD %.2f".format(currentOrder.payableAmountCents / 100.0))
                     Text("Status: ${currentOrder.orderStatus}")
                     Text("Payment: ${currentOrder.paymentMethod ?: "UNPAID"}")
                     Text("Member: ${currentOrder.memberName ?: "Walk-in"}${currentOrder.memberTier?.let { " / $it" } ?: ""}")
@@ -69,17 +69,17 @@ fun OrderDetailScreen(
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.height(180.dp)) {
                         items(currentOrder.items) { item ->
-                            Text("${item.productName} x ${item.quantity}  |  CNY %.2f".format(item.amountCents / 100.0))
+                            Text("${item.productName} x ${item.quantity}  |  SGD %.2f".format(item.amountCents / 100.0))
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Original Amount: CNY %.2f".format(currentOrder.originalAmountCents / 100.0))
-                    Text("Member Discount: -CNY %.2f".format(currentOrder.memberDiscountCents / 100.0))
-                    Text("Promotion Discount: -CNY %.2f".format(currentOrder.promotionDiscountCents / 100.0))
+                    Text("Original Amount: SGD %.2f".format(currentOrder.originalAmountCents / 100.0))
+                    Text("Member Discount: -SGD %.2f".format(currentOrder.memberDiscountCents / 100.0))
+                    Text("Promotion Discount: -SGD %.2f".format(currentOrder.promotionDiscountCents / 100.0))
                     if (currentOrder.giftItems.isNotEmpty()) {
                         Text("Gift Items: ${currentOrder.giftItems.joinToString(", ")}")
                     }
-                    Text("Payable: CNY %.2f".format(currentOrder.payableAmountCents / 100.0), fontWeight = FontWeight.SemiBold)
+                    Text("Payable: SGD %.2f".format(currentOrder.payableAmountCents / 100.0), fontWeight = FontWeight.SemiBold)
                 }
             }
         }

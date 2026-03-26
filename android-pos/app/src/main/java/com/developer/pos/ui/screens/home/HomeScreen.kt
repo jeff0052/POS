@@ -52,7 +52,7 @@ fun HomeScreen(
                 Text("Today's Revenue")
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "CNY %.2f".format(uiState.dashboard.totalRevenueCents / 100.0),
+                    "SGD %.2f".format(uiState.dashboard.totalRevenueCents / 100.0),
                     style = MaterialTheme.typography.headlineMedium
                 )
             }

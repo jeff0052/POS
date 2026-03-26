@@ -7,6 +7,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.time.OffsetDateTime;
+
 @Entity
 @Table(name = "settlement_records")
 public class SettlementRecordEntity {
@@ -44,6 +46,9 @@ public class SettlementRecordEntity {
 
     @Column(name = "collected_amount_cents", nullable = false)
     private long collectedAmountCents;
+
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private OffsetDateTime createdAt;
 
     public Long getId() {
         return id;
@@ -127,5 +132,9 @@ public class SettlementRecordEntity {
 
     public void setCollectedAmountCents(long collectedAmountCents) {
         this.collectedAmountCents = collectedAmountCents;
+    }
+
+    public OffsetDateTime getCreatedAt() {
+        return createdAt;
     }
 }

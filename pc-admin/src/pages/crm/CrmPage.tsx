@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from "react";
-import { Alert, Button, Card, Col, Form, InputNumber, message, Row, Select, Skeleton, Space, Table, Tabs, Typography } from "antd";
+import { Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, message, Row, Select, Skeleton, Table, Tabs, Typography } from "antd";
 import {
   adjustMemberPoints,
+  createMember,
+  getMemberDetail,
   getMembers,
   getMemberTiers,
   getPointsRecords,
   getRechargeRecords,
-  rechargeMember
+  rechargeMember,
+  updateMember
 } from "../../api/services/memberService";
 import { useAsyncData } from "../../hooks/useAsyncData";
 
@@ -15,6 +18,8 @@ export function CrmPage() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [messageApi, messageContextHolder] = message.useMessage();
+  const [createForm] = Form.useForm();
+  const [detailForm] = Form.useForm();
   const [rechargeForm] = Form.useForm();
   const [pointsForm] = Form.useForm();
 
@@ -26,25 +31,35 @@ export function CrmPage() {
   const tiersQuery = useAsyncData(getMemberTiers);
   const rechargeQuery = useAsyncData(rechargeLoader);
   const pointsQuery = useAsyncData(pointsLoader);
+  const memberDetailQuery = useAsyncData(
+    useCallback(() => {
+      if (!selectedMemberId) {
+        return Promise.resolve(null);
+      }
+      return getMemberDetail(selectedMemberId);
+    }, [selectedMemberId, refreshKey])
+  );
 
   const selectedMember = useMemo(
     () => membersQuery.data?.find((item) => item.id === selectedMemberId) ?? null,
     [membersQuery.data, selectedMemberId]
   );
 
+  const selectedMemberDetail = memberDetailQuery.data;
+
   const summary = membersQuery.data
     ? [
         { title: "Active Members", value: String(membersQuery.data.filter((item) => item.status === "ACTIVE").length) },
         {
           title: "Member Balance",
-          value: `CNY ${membersQuery.data
-            .reduce((total, item) => total + Number(item.balance.replace("CNY ", "")), 0)
+          value: `SGD ${membersQuery.data
+            .reduce((total, item) => total + Number(item.balance.replace("SGD ", "")), 0)
             .toFixed(2)}`
         },
         {
           title: "Today Recharge",
-          value: `CNY ${rechargeQuery.data
-            ?.reduce((total, item) => total + Number(item.amount.replace("CNY ", "")), 0)
+          value: `SGD ${rechargeQuery.data
+            ?.reduce((total, item) => total + Number(item.amount.replace("SGD ", "")), 0)
             .toFixed(2) ?? "0.00"}`
         },
         { title: "Points Changes", value: `${pointsQuery.data?.length ?? 0} records` }
@@ -89,6 +104,44 @@ export function CrmPage() {
     }
   }
 
+  async function handleCreateMember(values: { name: string; phone: string; tierCode?: string }) {
+    setActionLoading(true);
+    try {
+      const created = await createMember(values.name, values.phone, values.tierCode);
+      messageApi.success("Member created.");
+      createForm.resetFields();
+      setSelectedMemberId(created.id);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "Create member failed");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleUpdateMember(values: {
+    name: string;
+    phone: string;
+    tierCode: string;
+    memberStatus: "ACTIVE" | "INACTIVE";
+  }) {
+    if (!selectedMemberId) {
+      messageApi.warning("Select a member first.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await updateMember(selectedMemberId, values);
+      messageApi.success("Member updated.");
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      messageApi.error(error instanceof Error ? error.message : "Update member failed");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   return (
     <div className="page-shell">
       {messageContextHolder}
@@ -96,7 +149,7 @@ export function CrmPage() {
         CRM
       </Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        会员、积分、充值、等级与权益的运营中心。
+        Operating center for members, points, recharges, tiers, and benefits.
       </Typography.Paragraph>
 
       {membersQuery.error ? <Alert type="error" message={membersQuery.error} /> : null}
@@ -119,8 +172,50 @@ export function CrmPage() {
           </Row>
 
           <Card style={{ marginTop: 24 }}>
+            <Row gutter={[16, 16]}>
+              <Col span={10}>
+                <Typography.Text type="secondary">Create Member</Typography.Text>
+                <Typography.Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+                  Add a new member before recharge, points adjustment, or POS binding.
+                </Typography.Paragraph>
+              </Col>
+              <Col span={14}>
+                <Form form={createForm} layout="vertical" onFinish={handleCreateMember}>
+                  <Row gutter={[12, 12]}>
+                    <Col span={8}>
+                      <Form.Item label="Name" name="name" rules={[{ required: true }]}>
+                        <Input placeholder="Member name" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item label="Phone" name="phone" rules={[{ required: true }]}>
+                        <Input placeholder="Phone number" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={4}>
+                      <Form.Item label="Tier" name="tierCode" initialValue="STANDARD">
+                        <Select
+                          options={(tiersQuery.data ?? []).map((tier) => ({
+                            value: tier.name.toUpperCase(),
+                            label: tier.name
+                          }))}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={4} style={{ display: "flex", alignItems: "end" }}>
+                      <Button block type="primary" htmlType="submit" loading={actionLoading}>
+                        Create
+                      </Button>
+                    </Col>
+                  </Row>
+                </Form>
+              </Col>
+            </Row>
+          </Card>
+
+          <Card style={{ marginTop: 24 }}>
             <Row gutter={[16, 16]} align="middle">
-              <Col span={8}>
+              <Col span={7}>
                 <Typography.Text type="secondary">Member Operations</Typography.Text>
                 <Select
                   style={{ width: "100%", marginTop: 12 }}
@@ -138,20 +233,91 @@ export function CrmPage() {
                     : "Choose a member to recharge or adjust points."}
                 </Typography.Paragraph>
               </Col>
-              <Col span={8}>
+              <Col span={9}>
+                <Typography.Text type="secondary">Member Detail</Typography.Text>
+                <Card size="small" style={{ marginTop: 12 }}>
+                  {memberDetailQuery.loading && selectedMemberId ? (
+                    <Skeleton active paragraph={{ rows: 4 }} />
+                  ) : selectedMemberDetail ? (
+                    <>
+                      <Descriptions column={1} size="small">
+                        <Descriptions.Item label="Member No">{selectedMemberDetail.memberNo}</Descriptions.Item>
+                        <Descriptions.Item label="Tier">{selectedMemberDetail.tierName}</Descriptions.Item>
+                        <Descriptions.Item label="Status">{selectedMemberDetail.status}</Descriptions.Item>
+                        <Descriptions.Item label="Balance">{selectedMemberDetail.balance}</Descriptions.Item>
+                        <Descriptions.Item label="Total Spent">{selectedMemberDetail.totalSpent}</Descriptions.Item>
+                        <Descriptions.Item label="Total Recharge">{selectedMemberDetail.totalRecharge}</Descriptions.Item>
+                      </Descriptions>
+                      <Form
+                        key={selectedMemberDetail.id}
+                        form={detailForm}
+                        layout="vertical"
+                        initialValues={{
+                          name: selectedMemberDetail.name,
+                          phone: selectedMemberDetail.phone,
+                          tierCode: selectedMemberDetail.tierName,
+                          memberStatus: selectedMemberDetail.status
+                        }}
+                        onFinish={handleUpdateMember}
+                      >
+                        <Row gutter={[8, 8]}>
+                          <Col span={12}>
+                            <Form.Item label="Name" name="name" rules={[{ required: true }]}>
+                              <Input />
+                            </Form.Item>
+                          </Col>
+                          <Col span={12}>
+                            <Form.Item label="Phone" name="phone" rules={[{ required: true }]}>
+                              <Input />
+                            </Form.Item>
+                          </Col>
+                          <Col span={12}>
+                            <Form.Item label="Tier" name="tierCode" rules={[{ required: true }]}>
+                              <Select
+                                options={(tiersQuery.data ?? []).map((tier) => ({
+                                  value: tier.name.toUpperCase(),
+                                  label: tier.name
+                                }))}
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col span={12}>
+                            <Form.Item label="Status" name="memberStatus" rules={[{ required: true }]}>
+                              <Select
+                                options={[
+                                  { value: "ACTIVE", label: "ACTIVE" },
+                                  { value: "INACTIVE", label: "INACTIVE" }
+                                ]}
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                        <Button block htmlType="submit" loading={actionLoading}>
+                          Save Member Detail
+                        </Button>
+                      </Form>
+                    </>
+                  ) : (
+                    <Typography.Paragraph style={{ marginBottom: 0 }}>
+                      Choose a member to review and edit member profile.
+                    </Typography.Paragraph>
+                  )}
+                </Card>
+              </Col>
+              <Col span={4}>
                 <Form form={rechargeForm} layout="vertical" onFinish={handleRecharge}>
                   <Form.Item label="Recharge Amount" name="amount" rules={[{ required: true }]}>
-                    <InputNumber min={0.01} precision={2} style={{ width: "100%" }} addonBefore="CNY" />
+                    <InputNumber min={0.01} precision={2} style={{ width: "100%" }} addonBefore="SGD" />
                   </Form.Item>
                   <Form.Item label="Bonus Amount" name="bonusAmount" initialValue={0}>
-                    <InputNumber min={0} precision={2} style={{ width: "100%" }} addonBefore="CNY" />
+                    <InputNumber min={0} precision={2} style={{ width: "100%" }} addonBefore="SGD" />
                   </Form.Item>
                   <Button block type="primary" htmlType="submit" loading={actionLoading}>
                     Recharge Member
                   </Button>
                 </Form>
               </Col>
-              <Col span={8}>
+              <Col span={4}>
                 <Form form={pointsForm} layout="vertical" onFinish={handleAdjustPoints}>
                   <Form.Item label="Points Adjustment" name="pointsDelta" rules={[{ required: true }]}>
                     <InputNumber style={{ width: "100%" }} />
@@ -182,9 +348,11 @@ export function CrmPage() {
                       { title: "Name", dataIndex: "name" },
                       { title: "Phone", dataIndex: "phone" },
                       { title: "Tier", dataIndex: "tierName" },
+                      { title: "Status", dataIndex: "status" },
                       { title: "Points", dataIndex: "points" },
                       { title: "Balance", dataIndex: "balance" },
-                      { title: "Total Spent", dataIndex: "totalSpent" }
+                      { title: "Total Spent", dataIndex: "totalSpent" },
+                      { title: "Total Recharge", dataIndex: "totalRecharge" }
                     ]}
                   />
                 )

@@ -1,7 +1,7 @@
-import { apiGetV2, apiPostV2 } from "../client";
+import { apiGetV2, apiPostV2, apiPutV2 } from "../client";
 import { USE_MOCK_API } from "../config";
 import * as mockApi from "../mockApi";
-import type { Member, MemberTier, PointsRecord, RechargeRecord } from "../../types";
+import type { Member, MemberDetail, MemberTier, PointsRecord, RechargeRecord } from "../../types";
 
 export async function getMembers(): Promise<Member[]> {
   if (USE_MOCK_API) {
@@ -16,6 +16,9 @@ export async function getMembers(): Promise<Member[]> {
       tierCode: string;
       pointsBalance: number;
       cashBalanceCents: number;
+      lifetimeSpendCents: number;
+      lifetimeRechargeCents: number;
+      memberStatus: "ACTIVE" | "INACTIVE";
     }>
   >("/members?keyword=");
 
@@ -25,10 +28,10 @@ export async function getMembers(): Promise<Member[]> {
     phone: item.phone,
     tierName: item.tierCode,
     points: item.pointsBalance,
-    balance: `CNY ${(item.cashBalanceCents / 100).toFixed(2)}`,
-    totalSpent: "CNY 0.00",
-    totalRecharge: "CNY 0.00",
-    status: "ACTIVE"
+    balance: `SGD ${(item.cashBalanceCents / 100).toFixed(2)}`,
+    totalSpent: `SGD ${(item.lifetimeSpendCents / 100).toFixed(2)}`,
+    totalRecharge: `SGD ${(item.lifetimeRechargeCents / 100).toFixed(2)}`,
+    status: item.memberStatus
   }));
 }
 
@@ -38,6 +41,34 @@ export async function getMemberTiers(): Promise<MemberTier[]> {
   }
 
   return mockApi.getMemberTiers();
+}
+
+export async function getMemberDetail(memberId: number): Promise<MemberDetail> {
+  const response = await apiGetV2<{
+    memberId: number;
+    memberNo: string;
+    name: string;
+    phone: string;
+    tierCode: string;
+    memberStatus: "ACTIVE" | "INACTIVE";
+    pointsBalance: number;
+    cashBalanceCents: number;
+    lifetimeSpendCents: number;
+    lifetimeRechargeCents: number;
+  }>(`/members/${memberId}`);
+
+  return {
+    id: response.memberId,
+    memberNo: response.memberNo,
+    name: response.name,
+    phone: response.phone,
+    tierName: response.tierCode,
+    status: response.memberStatus,
+    points: response.pointsBalance,
+    balance: `SGD ${(response.cashBalanceCents / 100).toFixed(2)}`,
+    totalSpent: `SGD ${(response.lifetimeSpendCents / 100).toFixed(2)}`,
+    totalRecharge: `SGD ${(response.lifetimeRechargeCents / 100).toFixed(2)}`
+  };
 }
 
 export async function getRechargeRecords(): Promise<RechargeRecord[]> {
@@ -61,8 +92,8 @@ export async function getRechargeRecords(): Promise<RechargeRecord[]> {
     id: item.id,
     memberName: item.memberName,
     memberPhone: item.memberPhone,
-    amount: `CNY ${(item.amountCents / 100).toFixed(2)}`,
-    bonusAmount: `CNY ${(item.bonusAmountCents / 100).toFixed(2)}`,
+    amount: `SGD ${(item.amountCents / 100).toFixed(2)}`,
+    bonusAmount: `SGD ${(item.bonusAmountCents / 100).toFixed(2)}`,
     status: item.status,
     time: item.createdAt
   }));
@@ -126,4 +157,35 @@ export async function adjustMemberPoints(
     source,
     operatorName
   });
+}
+
+export async function createMember(name: string, phone: string, tierCode?: string) {
+  return apiPostV2<{
+    id: number;
+    memberNo: string;
+    name: string;
+    phone: string;
+    tierCode: string;
+    memberStatus: "ACTIVE" | "INACTIVE";
+  }>("/members", {
+    merchantId: 1,
+    name,
+    phone,
+    tierCode
+  });
+}
+
+export async function updateMember(memberId: number, payload: { name: string; phone: string; tierCode: string; memberStatus: "ACTIVE" | "INACTIVE" }) {
+  return apiPutV2<{
+    memberId: number;
+    memberNo: string;
+    name: string;
+    phone: string;
+    tierCode: string;
+    memberStatus: "ACTIVE" | "INACTIVE";
+    pointsBalance: number;
+    cashBalanceCents: number;
+    lifetimeSpendCents: number;
+    lifetimeRechargeCents: number;
+  }>(`/members/${memberId}`, payload);
 }

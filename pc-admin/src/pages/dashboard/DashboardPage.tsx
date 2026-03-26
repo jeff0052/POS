@@ -27,7 +27,7 @@ export function DashboardPage() {
         Dashboard
       </Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        商户每天最先看的经营总览页。
+        The first operational overview page merchants check each day.
       </Typography.Paragraph>
 
       {summaryQuery.error ? <Alert type="error" message={summaryQuery.error} /> : null}

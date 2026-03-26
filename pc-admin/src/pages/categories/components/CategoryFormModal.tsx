@@ -1,5 +1,5 @@
 import { Button, Form, Input, InputNumber, Modal, Select, Space, message } from "antd";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Category } from "../../../types";
 
 export function CategoryFormModal({
@@ -14,8 +14,14 @@ export function CategoryFormModal({
   onSubmit: (values: CategoryFormValues) => Promise<void>;
 }) {
   const [form] = Form.useForm<CategoryFormValues>();
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    form.resetFields();
     form.setFieldsValue({
       name: category?.name,
       sortOrder: category?.sortOrder,
@@ -34,9 +40,17 @@ export function CategoryFormModal({
         form={form}
         layout="vertical"
         onFinish={async (values) => {
-          await onSubmit(values);
-          message.success(category ? "Category draft updated" : "Category draft created");
-          onClose();
+          setSaving(true);
+          try {
+            await onSubmit(values);
+            message.success(category ? "Category updated" : "Category created");
+            onClose();
+          } catch (error) {
+            const nextMessage = error instanceof Error ? error.message : "Failed to save category";
+            message.error(nextMessage);
+          } finally {
+            setSaving(false);
+          }
         }}
       >
         <Form.Item label="Category Name" name="name" rules={[{ required: true }]}>
@@ -56,13 +70,14 @@ export function CategoryFormModal({
         <Space>
           <Button
             type="primary"
+            loading={saving}
             onClick={() => {
               form.submit();
             }}
           >
             Save
           </Button>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={onClose} disabled={saving}>Cancel</Button>
         </Space>
       </Form>
     </Modal>

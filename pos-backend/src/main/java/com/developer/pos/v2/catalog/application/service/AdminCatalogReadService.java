@@ -1,6 +1,9 @@
 package com.developer.pos.v2.catalog.application.service;
 
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogCategoryDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogAttributeGroupDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogComboSlotDto;
+import com.developer.pos.v2.catalog.application.dto.AdminCatalogModifierGroupDto;
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogProductDto;
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogSkuDto;
 import com.developer.pos.v2.common.application.UseCase;
@@ -12,6 +15,8 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaPro
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaProductRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaStoreSkuAvailabilityRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import org.springframework.stereotype.Service;
@@ -31,19 +36,22 @@ public class AdminCatalogReadService implements UseCase {
     private final JpaProductRepository productRepository;
     private final JpaSkuRepository skuRepository;
     private final JpaStoreSkuAvailabilityRepository availabilityRepository;
+    private final ObjectMapper objectMapper;
 
     public AdminCatalogReadService(
             JpaStoreLookupRepository storeLookupRepository,
             JpaProductCategoryRepository categoryRepository,
             JpaProductRepository productRepository,
             JpaSkuRepository skuRepository,
-            JpaStoreSkuAvailabilityRepository availabilityRepository
+            JpaStoreSkuAvailabilityRepository availabilityRepository,
+            ObjectMapper objectMapper
     ) {
         this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
         this.productRepository = productRepository;
         this.skuRepository = skuRepository;
         this.availabilityRepository = availabilityRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -73,7 +81,10 @@ public class AdminCatalogReadService implements UseCase {
                             999,
                             normalizeStatus(product.getProductStatus()),
                             category == null ? "-" : category.getCategoryName(),
-                            skus
+                            skus,
+                            readList(product.getAttributeConfigJson(), new TypeReference<List<AdminCatalogAttributeGroupDto>>() {}),
+                            readList(product.getModifierConfigJson(), new TypeReference<List<AdminCatalogModifierGroupDto>>() {}),
+                            readList(product.getComboSlotConfigJson(), new TypeReference<List<AdminCatalogComboSlotDto>>() {})
                     );
                 })
                 .sorted(Comparator.comparing(AdminCatalogProductDto::categoryName).thenComparing(AdminCatalogProductDto::name))
@@ -139,5 +150,15 @@ public class AdminCatalogReadService implements UseCase {
             case "ACTIVE", "ENABLED" -> "ENABLED";
             default -> "DISABLED";
         };
+    }
+
+    private <T> List<T> readList(String raw, TypeReference<List<T>> typeReference) {
+        try {
+            return raw == null || raw.isBlank()
+                    ? List.of()
+                    : objectMapper.readValue(raw, typeReference);
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Failed to parse catalog config", exception);
+        }
     }
 }

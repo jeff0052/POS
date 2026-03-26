@@ -1,13 +1,19 @@
 package com.developer.pos.ui.screens.payment
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -38,10 +44,14 @@ fun PaymentConfirmScreen(
     val scenario = PaymentScenarioStore.current
     val payableAmountCents = if (scenario.payableAmountCents > 0L) scenario.payableAmountCents else uiState.payableAmountCents
     val currentStage = if (scenario.source == "QR") ActiveOrderStage.PENDING_SETTLEMENT else uiState.activeOrderStage
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(WindowInsets.safeDrawing.asPaddingValues())
+            .imePadding()
+            .verticalScroll(scrollState)
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -94,14 +104,14 @@ fun PaymentConfirmScreen(
                         "Member: ${scenario.memberName ?: "Guest"}"
                     }
                 )
-                Text("Original Amount: CNY %.2f".format(scenario.originalAmountCents / 100.0))
-                Text("Member Discount: -CNY %.2f".format(scenario.memberDiscountCents / 100.0))
-                Text("Promotion Discount: -CNY %.2f".format(scenario.promotionDiscountCents / 100.0))
+                Text("Original Amount: SGD %.2f".format(scenario.originalAmountCents / 100.0))
+                Text("Member Discount: -SGD %.2f".format(scenario.memberDiscountCents / 100.0))
+                Text("Promotion Discount: -SGD %.2f".format(scenario.promotionDiscountCents / 100.0))
                 if (scenario.giftItems.isNotEmpty()) {
                     Text("Gift Items: ${scenario.giftItems.joinToString()}")
                 }
                 Text(
-                    text = "Payable: CNY %.2f".format(payableAmountCents / 100.0),
+                    text = "Payable: SGD %.2f".format(payableAmountCents / 100.0),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -120,7 +130,7 @@ fun PaymentConfirmScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("${item.product.name} x ${item.quantity}")
-                            Text("CNY %.2f".format(item.lineAmountCents / 100.0))
+                            Text("SGD %.2f".format(item.lineAmountCents / 100.0))
                         }
                     }
                 }
@@ -158,36 +168,41 @@ fun PaymentConfirmScreen(
             }
         }
 
-        Button(
-            onClick = {
-                if (scenario.source != "QR") {
-                    viewModel.moveToPendingSettlement()
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Button(
+                    onClick = {
+                        if (scenario.source != "QR") {
+                            viewModel.moveToPendingSettlement()
+                        }
+                        viewModel.preparePayment()
+                        onStartPayment()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = (uiState.cartItems.isNotEmpty() || scenario.source == "QR") &&
+                        currentStage != ActiveOrderStage.SETTLED
+                ) {
+                    Text(
+                        when {
+                            scenario.source == "QR" -> "Collect Payment at Cashier"
+                            currentStage == ActiveOrderStage.DRAFT -> "Move to Cashier Settlement"
+                            currentStage == ActiveOrderStage.SUBMITTED -> "Open Cashier Settlement"
+                            currentStage == ActiveOrderStage.PENDING_SETTLEMENT -> "Collect Payment at Cashier"
+                            else -> "Order Already Settled"
+                        }
+                    )
                 }
-                viewModel.preparePayment()
-                onStartPayment()
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = (uiState.cartItems.isNotEmpty() || scenario.source == "QR") &&
-                currentStage != ActiveOrderStage.SETTLED
-        ) {
-            Text(
-                when {
-                    scenario.source == "QR" -> "Collect Payment at Cashier"
-                    currentStage == ActiveOrderStage.DRAFT -> "Move to Cashier Settlement"
-                    currentStage == ActiveOrderStage.SUBMITTED -> "Open Cashier Settlement"
-                    currentStage == ActiveOrderStage.PENDING_SETTLEMENT -> "Collect Payment at Cashier"
-                    else -> "Order Already Settled"
-                }
-            )
-        }
 
-        if (scenario.source != "QR" && currentStage == ActiveOrderStage.DRAFT) {
-            OutlinedButton(
-                onClick = viewModel::sendToKitchen,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = uiState.cartItems.isNotEmpty()
-            ) {
-                Text("Send to Kitchen First")
+                if (scenario.source != "QR" && currentStage == ActiveOrderStage.DRAFT) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = viewModel::sendToKitchen,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = uiState.cartItems.isNotEmpty()
+                    ) {
+                        Text("Send to Kitchen First")
+                    }
+                }
             }
         }
     }

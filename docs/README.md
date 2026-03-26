@@ -105,3 +105,4 @@
 47. `47-v2-sku-data-model-and-api-contract.md`
 48. `48-payment-current-status-and-blockers.md`
 49. `49-lovable-tablet-frontend-review-and-adoption-guide.md`
+50. `50-parallel-delivery-plan-and-acceptance.md`

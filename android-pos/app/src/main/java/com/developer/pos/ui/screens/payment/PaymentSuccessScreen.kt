@@ -46,7 +46,7 @@ fun PaymentSuccessScreen(
                 Text("Order No: ${uiState.currentOrderNo}")
                 Text("Source: ${scenario.source}${scenario.tableCode?.let { " · $it" } ?: ""}")
                 Text("Order Stage: ${uiState.activeOrderStage.label}")
-                Text("Amount: CNY %.2f".format(payableAmountCents / 100.0))
+                Text("Amount: SGD %.2f".format(payableAmountCents / 100.0))
                 Text(
                     if (scenario.memberTier != null) {
                         "Member: ${scenario.memberName} / ${scenario.memberTier}"
@@ -54,8 +54,8 @@ fun PaymentSuccessScreen(
                         "Member: ${scenario.memberName ?: "Guest"}"
                     }
                 )
-                Text("Member Discount: -CNY %.2f".format(scenario.memberDiscountCents / 100.0))
-                Text("Promotion Discount: -CNY %.2f".format(scenario.promotionDiscountCents / 100.0))
+                Text("Member Discount: -SGD %.2f".format(scenario.memberDiscountCents / 100.0))
+                Text("Promotion Discount: -SGD %.2f".format(scenario.promotionDiscountCents / 100.0))
                 if (scenario.giftItems.isNotEmpty()) {
                     Text("Gift Items: ${scenario.giftItems.joinToString()}")
                 }

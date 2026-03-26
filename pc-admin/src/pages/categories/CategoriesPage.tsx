@@ -29,7 +29,7 @@ export function CategoriesPage() {
         Categories
       </Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        商品分类管理页，给收银端分类 tab 和后台商品组织使用。
+        Manage catalog categories for POS tabs and merchant-side product organization.
       </Typography.Paragraph>
 
       <Card>

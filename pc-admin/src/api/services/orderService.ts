@@ -34,7 +34,7 @@ interface OrderListResponseItem {
 type OrderListResponse = OrderListResponseItem[];
 
 function formatCurrency(amountCents: number) {
-  return `CNY ${(amountCents / 100).toFixed(2)}`;
+  return `SGD ${(amountCents / 100).toFixed(2)}`;
 }
 
 export async function getOrders(): Promise<Order[]> {

@@ -5,10 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,6 +43,8 @@ fun CashierScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(WindowInsets.safeDrawing.asPaddingValues())
+            .imePadding()
             .padding(24.dp)
     ) {
         Row(
@@ -83,7 +89,9 @@ fun CashierScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f, fill = true)
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Box(modifier = Modifier.weight(1.2f)) {
@@ -106,7 +114,7 @@ fun CashierScreen(
                                     Text("Barcode: ${product.barcode}")
                                     Text("Stock: ${product.stockQty}")
                                 }
-                                Text("CNY %.2f".format(product.priceCents / 100.0))
+                                Text("SGD %.2f".format(product.priceCents / 100.0))
                             }
                         }
                     }
@@ -133,7 +141,7 @@ fun CashierScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Text("CNY %.2f".format(item.product.priceCents / 100.0))
+                                            Text("SGD %.2f".format(item.product.priceCents / 100.0))
                                             Row {
                                                 OutlinedButton(onClick = { viewModel.decreaseQuantity(item.product.id) }) {
                                                     Text("-")
@@ -146,7 +154,7 @@ fun CashierScreen(
                                                 }
                                             }
                                         }
-                                        Text("Line total: CNY %.2f".format(item.lineAmountCents / 100.0))
+                                        Text("Line total: SGD %.2f".format(item.lineAmountCents / 100.0))
                                         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
                                     }
                                 }
@@ -155,7 +163,7 @@ fun CashierScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Text("Items: ${uiState.totalItems}")
                         Text(
-                            text = "Payable: CNY %.2f".format(uiState.payableAmountCents / 100.0),
+                            text = "Payable: SGD %.2f".format(uiState.payableAmountCents / 100.0),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -164,27 +172,31 @@ fun CashierScreen(
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(
-            onClick = viewModel::sendToKitchen,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = uiState.cartItems.isNotEmpty() && uiState.activeOrderStage == com.developer.pos.ui.model.ActiveOrderStage.DRAFT
-        ) {
-            Text("Send to Kitchen")
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(
-            onClick = onProceedToPayment,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = uiState.cartItems.isNotEmpty()
-        ) {
-            Text(
-                when (uiState.activeOrderStage) {
-                    com.developer.pos.ui.model.ActiveOrderStage.DRAFT -> "Review Draft Order"
-                    com.developer.pos.ui.model.ActiveOrderStage.SUBMITTED -> "Review Submitted Order"
-                    com.developer.pos.ui.model.ActiveOrderStage.PENDING_SETTLEMENT -> "Open Cashier Settlement"
-                    com.developer.pos.ui.model.ActiveOrderStage.SETTLED -> "Review Settled Order"
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                OutlinedButton(
+                    onClick = viewModel::sendToKitchen,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = uiState.cartItems.isNotEmpty() && uiState.activeOrderStage == com.developer.pos.ui.model.ActiveOrderStage.DRAFT
+                ) {
+                    Text("Send to Kitchen")
                 }
-            )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onProceedToPayment,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = uiState.cartItems.isNotEmpty()
+                ) {
+                    Text(
+                        when (uiState.activeOrderStage) {
+                            com.developer.pos.ui.model.ActiveOrderStage.DRAFT -> "Review Draft Order"
+                            com.developer.pos.ui.model.ActiveOrderStage.SUBMITTED -> "Review Submitted Order"
+                            com.developer.pos.ui.model.ActiveOrderStage.PENDING_SETTLEMENT -> "Open Cashier Settlement"
+                            com.developer.pos.ui.model.ActiveOrderStage.SETTLED -> "Review Settled Order"
+                        }
+                    )
+                }
+            }
         }
     }
 }

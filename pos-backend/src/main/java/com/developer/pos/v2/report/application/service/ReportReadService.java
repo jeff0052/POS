@@ -1,16 +1,21 @@
 package com.developer.pos.v2.report.application.service;
 
+import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberRechargeOrderEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRechargeOrderRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaActiveTableOrderRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
-import com.developer.pos.v2.report.application.dto.V2DailySummaryDto;
+import com.developer.pos.v2.report.application.dto.MemberConsumptionOverviewDto;
+import com.developer.pos.v2.report.application.dto.MemberConsumptionReportDto;
 import com.developer.pos.v2.report.application.dto.OrderStateIssueDto;
 import com.developer.pos.v2.report.application.dto.OrderStateMonitorDto;
+import com.developer.pos.v2.report.application.dto.TopMemberConsumptionDto;
+import com.developer.pos.v2.report.application.dto.V2DailySummaryDto;
 import com.developer.pos.v2.report.application.dto.V2SalesReportSummaryDto;
 import com.developer.pos.v2.settlement.infrastructure.persistence.entity.SettlementRecordEntity;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementRecordRepository;
@@ -34,6 +39,7 @@ public class ReportReadService {
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaMemberRechargeOrderRepository memberRechargeOrderRepository;
     private final JpaStoreTableRepository storeTableRepository;
+    private final JpaMemberRepository memberRepository;
 
     public ReportReadService(
             JpaSettlementRecordRepository settlementRecordRepository,
@@ -41,7 +47,8 @@ public class ReportReadService {
             JpaSubmittedOrderRepository submittedOrderRepository,
             JpaTableSessionRepository tableSessionRepository,
             JpaMemberRechargeOrderRepository memberRechargeOrderRepository,
-            JpaStoreTableRepository storeTableRepository
+            JpaStoreTableRepository storeTableRepository,
+            JpaMemberRepository memberRepository
     ) {
         this.settlementRecordRepository = settlementRecordRepository;
         this.activeTableOrderRepository = activeTableOrderRepository;
@@ -49,6 +56,7 @@ public class ReportReadService {
         this.tableSessionRepository = tableSessionRepository;
         this.memberRechargeOrderRepository = memberRechargeOrderRepository;
         this.storeTableRepository = storeTableRepository;
+        this.memberRepository = memberRepository;
     }
 
     public V2DailySummaryDto getDailySummary(Long storeId) {
@@ -104,6 +112,86 @@ public class ReportReadService {
                 rechargeSales,
                 turnover,
                 0
+        );
+    }
+
+    public MemberConsumptionReportDto getMemberConsumptionReport(Long storeId, Long merchantId) {
+        List<SubmittedOrderEntity> settledMemberOrders = safeSubmittedOrders(storeId).stream()
+                .filter(item -> item.getMemberId() != null)
+                .filter(item -> "SETTLED".equals(item.getSettlementStatus()))
+                .toList();
+        List<MemberRechargeOrderEntity> successfulRecharges = safeRechargeOrders(merchantId).stream()
+                .filter(item -> "SUCCESS".equals(item.getFinalStatus()))
+                .toList();
+        Map<Long, MemberEntity> membersById = new HashMap<>();
+        for (MemberEntity member : safeMembers(merchantId)) {
+            membersById.put(member.getId(), member);
+        }
+
+        Map<Long, MemberAggregation> aggregates = new HashMap<>();
+        for (SubmittedOrderEntity order : settledMemberOrders) {
+            Long memberId = order.getMemberId();
+            if (memberId == null) {
+                continue;
+            }
+            MemberAggregation aggregate = aggregates.computeIfAbsent(memberId, ignored -> new MemberAggregation());
+            aggregate.orderCount += 1;
+            aggregate.totalSalesCents += order.getPayableAmountCents();
+            aggregate.memberDiscountCents += order.getMemberDiscountCents();
+        }
+
+        for (MemberRechargeOrderEntity recharge : successfulRecharges) {
+            Long memberId = recharge.getMemberId();
+            MemberAggregation aggregate = aggregates.computeIfAbsent(memberId, ignored -> new MemberAggregation());
+            aggregate.totalRechargeCents += recharge.getAmountCents();
+            aggregate.totalBonusCents += recharge.getBonusAmountCents();
+            aggregate.rechargeOrderCount += 1;
+        }
+
+        long totalMemberSales = settledMemberOrders.stream().mapToLong(SubmittedOrderEntity::getPayableAmountCents).sum();
+        long totalMemberDiscounts = settledMemberOrders.stream().mapToLong(SubmittedOrderEntity::getMemberDiscountCents).sum();
+        long totalRechargeCents = successfulRecharges.stream().mapToLong(MemberRechargeOrderEntity::getAmountCents).sum();
+        long totalBonusCents = successfulRecharges.stream().mapToLong(MemberRechargeOrderEntity::getBonusAmountCents).sum();
+        long rechargeOrderCount = successfulRecharges.size();
+        long averageRechargeCents = rechargeOrderCount == 0 ? 0 : totalRechargeCents / rechargeOrderCount;
+
+        List<TopMemberConsumptionDto> topMembers = aggregates.entrySet().stream()
+                .map(entry -> {
+                    Long memberId = entry.getKey();
+                    MemberAggregation aggregate = entry.getValue();
+                    MemberEntity member = membersById.get(memberId);
+                    return new TopMemberConsumptionDto(
+                            memberId,
+                            member != null ? member.getName() : "Member " + memberId,
+                            member != null ? member.getTierCode() : "UNKNOWN",
+                            aggregate.orderCount,
+                            aggregate.totalSalesCents,
+                            aggregate.totalRechargeCents,
+                            aggregate.memberDiscountCents
+                    );
+                })
+                .sorted((left, right) -> {
+                    int salesCompare = Long.compare(right.totalSalesCents(), left.totalSalesCents());
+                    if (salesCompare != 0) {
+                        return salesCompare;
+                    }
+                    return Long.compare(right.totalRechargeCents(), left.totalRechargeCents());
+                })
+                .limit(10)
+                .toList();
+
+        return new MemberConsumptionReportDto(
+                new MemberConsumptionOverviewDto(
+                        totalMemberSales,
+                        totalMemberDiscounts,
+                        settledMemberOrders.size(),
+                        aggregates.size(),
+                        totalRechargeCents,
+                        totalBonusCents,
+                        rechargeOrderCount,
+                        averageRechargeCents
+                ),
+                topMembers
         );
     }
 
@@ -282,6 +370,16 @@ public class ReportReadService {
         }
     }
 
+    private List<MemberEntity> safeMembers(Long merchantId) {
+        try {
+            return memberRepository.findAll().stream()
+                    .filter(item -> item.getMerchantId().equals(merchantId))
+                    .toList();
+        } catch (DataAccessException ignored) {
+            return Collections.emptyList();
+        }
+    }
+
     private List<StoreTableEntity> safeTables() {
         try {
             return storeTableRepository.findAll();
@@ -312,5 +410,14 @@ public class ReportReadService {
         } catch (DataAccessException ignored) {
             return Collections.emptyList();
         }
+    }
+
+    private static final class MemberAggregation {
+        private long orderCount;
+        private long totalSalesCents;
+        private long totalRechargeCents;
+        private long totalBonusCents;
+        private long rechargeOrderCount;
+        private long memberDiscountCents;
     }
 }

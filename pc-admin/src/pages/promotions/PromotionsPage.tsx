@@ -107,7 +107,7 @@ export function PromotionsPage() {
         Promotions
       </Typography.Title>
       <Typography.Paragraph className="page-subtitle">
-        管理满减、满赠、会员价、等级折扣和充值赠送规则。
+        Manage full-reduction, gift-with-purchase, member pricing, tier discounts, and recharge bonus rules.
       </Typography.Paragraph>
 
       {query.error ? <Alert type="error" message={query.error} /> : null}
@@ -213,7 +213,7 @@ export function PromotionsPage() {
                 </Col>
                 <Col span={6}>
                   <Form.Item label="Threshold Amount" name="thresholdAmount" rules={[{ required: true }]}>
-                    <InputNumber min={0.01} precision={2} style={{ width: "100%" }} addonBefore="CNY" />
+                    <InputNumber min={0.01} precision={2} style={{ width: "100%" }} addonBefore="SGD" />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
@@ -221,7 +221,7 @@ export function PromotionsPage() {
                     {({ getFieldValue }) =>
                       getFieldValue("ruleType") === "FULL_REDUCTION" ? (
                         <Form.Item label="Discount Amount" name="discountAmount" rules={[{ required: true }]}>
-                          <InputNumber min={0.01} precision={2} style={{ width: "100%" }} addonBefore="CNY" />
+                          <InputNumber min={0.01} precision={2} style={{ width: "100%" }} addonBefore="SGD" />
                         </Form.Item>
                       ) : (
                         <Form.Item label="Gift SKU" name="giftSkuId" rules={[{ required: true }]}>

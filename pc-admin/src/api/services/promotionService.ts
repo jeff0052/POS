@@ -27,8 +27,8 @@ export async function getPromotionRules(): Promise<PromotionRule[]> {
     status: "ACTIVE",
     ruleSummary:
       item.ruleType === "GIFT_SKU"
-        ? `Spend CNY ${(item.thresholdAmountCents / 100).toFixed(2)} get gift`
-        : `Spend CNY ${(item.thresholdAmountCents / 100).toFixed(2)} save CNY ${(item.discountAmountCents / 100).toFixed(2)}`,
+        ? `Spend SGD ${(item.thresholdAmountCents / 100).toFixed(2)} get gift`
+        : `Spend SGD ${(item.thresholdAmountCents / 100).toFixed(2)} save SGD ${(item.discountAmountCents / 100).toFixed(2)}`,
     priority: item.priority
   }));
 }

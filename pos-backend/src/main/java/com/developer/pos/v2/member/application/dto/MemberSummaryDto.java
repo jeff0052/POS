@@ -7,6 +7,9 @@ public record MemberSummaryDto(
         String phone,
         String tierCode,
         long pointsBalance,
-        long cashBalanceCents
+        long cashBalanceCents,
+        long lifetimeSpendCents,
+        long lifetimeRechargeCents,
+        String memberStatus
 ) {
 }

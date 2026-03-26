@@ -43,7 +43,7 @@ class ProductRepositoryImpl @Inject constructor(
         productDao.upsertAll(
             remoteItems?.takeIf { it.isNotEmpty() } ?: listOf(
                 ProductEntity(401, 101, 301, "Fried Rice", "fried-rice-default", 1250, 999, true),
-                ProductEntity(402, 101, 301, "Black Pepper Beef Rice", "black-pepper-beef-rice-default", 1850, 999, true),
+                ProductEntity(402, 101, 301, "Black Pepper Beef Rice", "black-pepper-beef-rice-default", 10, 999, true),
                 ProductEntity(403, 101, 302, "Crispy Chicken Bites", "crispy-chicken-bites-default", 1600, 999, true),
                 ProductEntity(404, 101, 303, "White Peach Soda", "white-peach-soda-default", 1200, 999, true)
             )

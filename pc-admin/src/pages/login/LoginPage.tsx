@@ -11,9 +11,9 @@ export function LoginPage() {
   return (
     <div className="login-wrap">
       <Card className="login-card">
-        <Typography.Title level={2}>Developer POS Admin</Typography.Title>
+        <Typography.Title level={2}>UNIWEB POS Admin</Typography.Title>
         <Typography.Paragraph type="secondary">
-          Merchant后台骨架，先完成登录和核心管理页面结构。
+          Merchant admin foundation with login and core management pages.
         </Typography.Paragraph>
         {error ? <Alert type="error" message={error} style={{ marginBottom: 16 }} /> : null}
         <Form

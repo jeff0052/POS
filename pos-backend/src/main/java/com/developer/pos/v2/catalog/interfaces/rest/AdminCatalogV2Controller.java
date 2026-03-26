@@ -111,6 +111,52 @@ public class AdminCatalogV2Controller implements V2Api {
                                 item.status(),
                                 item.available()
                         ))
+                        .toList(),
+                request.attributeGroups() == null ? List.of() : request.attributeGroups().stream()
+                        .map(item -> new AdminCatalogWriteService.UpsertAttributeGroupCommand(
+                                item.code(),
+                                item.name(),
+                                item.selectionMode(),
+                                item.required(),
+                                item.minSelect(),
+                                item.maxSelect(),
+                                item.values() == null ? List.of() : item.values().stream()
+                                        .map(value -> new AdminCatalogWriteService.UpsertAttributeValueCommand(
+                                                value.code(),
+                                                value.label(),
+                                                value.priceDeltaCents(),
+                                                value.defaultSelected(),
+                                                value.kitchenLabel()
+                                        ))
+                                        .toList()
+                        ))
+                        .toList(),
+                request.modifierGroups() == null ? List.of() : request.modifierGroups().stream()
+                        .map(item -> new AdminCatalogWriteService.UpsertModifierGroupCommand(
+                                item.code(),
+                                item.name(),
+                                item.freeQuantity(),
+                                item.minSelect(),
+                                item.maxSelect(),
+                                item.options() == null ? List.of() : item.options().stream()
+                                        .map(option -> new AdminCatalogWriteService.UpsertModifierOptionCommand(
+                                                option.code(),
+                                                option.label(),
+                                                option.priceDeltaCents(),
+                                                option.defaultSelected(),
+                                                option.kitchenLabel()
+                                        ))
+                                        .toList()
+                        ))
+                        .toList(),
+                request.comboSlots() == null ? List.of() : request.comboSlots().stream()
+                        .map(item -> new AdminCatalogWriteService.UpsertComboSlotCommand(
+                                item.code(),
+                                item.name(),
+                                item.minSelect(),
+                                item.maxSelect(),
+                                item.allowedSkuCodes() == null ? List.of() : item.allowedSkuCodes()
+                        ))
                         .toList()
         );
     }

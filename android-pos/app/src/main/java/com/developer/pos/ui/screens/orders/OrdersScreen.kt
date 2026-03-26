@@ -74,7 +74,7 @@ fun OrdersScreen(
                         Spacer(modifier = Modifier.height(6.dp))
                         Text("Table: ${item.tableCode ?: "-"}")
                         Text("Source: ${item.orderType}")
-                        Text("Amount: CNY %.2f".format(item.payableAmountCents / 100.0))
+                        Text("Amount: SGD %.2f".format(item.payableAmountCents / 100.0))
                         Text("Status: ${item.orderStatus}")
                         Text("Payment: ${item.paymentMethod ?: "UNPAID"}")
                         Text("Time: ${item.createdAt}")

@@ -39,7 +39,7 @@ fun SettingsScreen(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Restaurant", style = MaterialTheme.typography.titleMedium)
-                Text("Developer POS Demo Restaurant")
+                Text("UNIWEB POS Demo Restaurant")
                 Text("Cashier: Amy")
                 Text("Version: 1.0.0")
             }

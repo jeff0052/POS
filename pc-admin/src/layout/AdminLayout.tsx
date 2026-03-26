@@ -38,7 +38,7 @@ export function AdminLayout() {
       <Sider width={240} theme="light" style={{ borderRight: "1px solid #e5e7eb" }}>
         <div style={{ padding: 24 }}>
           <Typography.Title level={3} style={{ margin: 0 }}>
-            Developer POS
+            UNIWEB POS
           </Typography.Title>
           <Typography.Text type="secondary">Merchant Admin</Typography.Text>
         </div>

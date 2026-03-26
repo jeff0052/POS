@@ -15,7 +15,8 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
-        buildConfigField("String", "WEBVIEW_URL", "\"http://192.168.1.10:5188/\"")
+        buildConfigField("String", "WEBVIEW_URL", "\"http://127.0.0.1:5188/\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.10:8098/api/v2/\"")
         buildConfigField("String", "DCS_COUNTRY_CODE", "\"SG\"")
         buildConfigField("String", "DCS_CURRENCY_CODE", "\"702\"")
         buildConfigField("String", "DCS_MERCHANT_ID", "\"000241017000034\"")
