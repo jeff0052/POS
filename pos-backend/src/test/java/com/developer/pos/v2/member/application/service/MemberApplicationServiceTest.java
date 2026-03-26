@@ -1,12 +1,13 @@
 package com.developer.pos.v2.member.application.service;
 
-import com.developer.pos.v2.member.application.command.RegisterMemberCommand;
-import com.developer.pos.v2.member.application.dto.MemberDto;
+import com.developer.pos.v2.member.application.dto.CreateMemberDto;
+import com.developer.pos.v2.member.application.dto.MemberDetailDto;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberAccountEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
-import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberPointsLedgerRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRechargeOrderRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaActiveTableOrderRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -15,8 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.OffsetDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,6 +29,7 @@ class MemberApplicationServiceTest {
 
     @Mock private JpaMemberRepository memberRepository;
     @Mock private JpaMemberAccountRepository memberAccountRepository;
+    @Mock private JpaMemberRechargeOrderRepository memberRechargeOrderRepository;
     @Mock private JpaMemberPointsLedgerRepository memberPointsLedgerRepository;
     @Mock private JpaActiveTableOrderRepository activeTableOrderRepository;
 
@@ -35,30 +37,18 @@ class MemberApplicationServiceTest {
     private MemberApplicationService service;
 
     @Nested
-    @DisplayName("registerMember")
-    class RegisterMember {
+    @DisplayName("createMember")
+    class CreateMember {
 
         @Test
         @DisplayName("creates member and account for new phone number")
         void createsNewMember() {
-            when(memberRepository.findByPhoneNumber("91234567"))
+            when(memberRepository.findByPhone("91234567"))
                     .thenReturn(Optional.empty());
-            when(memberRepository.save(any())).thenAnswer(inv -> {
-                MemberEntity e = inv.getArgument(0);
-                e.setId(1L);
-                return e;
-            });
-            when(memberAccountRepository.save(any())).thenAnswer(inv -> {
-                MemberAccountEntity e = inv.getArgument(0);
-                e.setId(1L);
-                return e;
-            });
+            when(memberRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(memberAccountRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            RegisterMemberCommand command = new RegisterMemberCommand(
-                    1L, "91234567", "Test User", null
-            );
-
-            MemberDto result = service.registerMember(command);
+            CreateMemberDto result = service.createMember(1L, "Test User", "91234567", null);
 
             assertNotNull(result);
             verify(memberRepository).save(any());
@@ -69,17 +59,13 @@ class MemberApplicationServiceTest {
         @DisplayName("throws when phone number already registered")
         void throwsOnDuplicate() {
             MemberEntity existing = new MemberEntity();
-            existing.setId(1L);
-            existing.setPhoneNumber("91234567");
-            when(memberRepository.findByPhoneNumber("91234567"))
+            ReflectionTestUtils.setField(existing, "id", 1L);
+            existing.setPhone("91234567");
+            when(memberRepository.findByPhone("91234567"))
                     .thenReturn(Optional.of(existing));
 
-            RegisterMemberCommand command = new RegisterMemberCommand(
-                    1L, "91234567", "Test User", null
-            );
-
             assertThrows(IllegalStateException.class,
-                    () -> service.registerMember(command));
+                    () -> service.createMember(1L, "Test User", "91234567", null));
         }
     }
 
@@ -91,28 +77,30 @@ class MemberApplicationServiceTest {
         @DisplayName("returns member with account when found")
         void returnsMember() {
             MemberEntity member = new MemberEntity();
-            member.setId(1L);
+            ReflectionTestUtils.setField(member, "id", 1L);
             member.setMerchantId(1L);
-            member.setPhoneNumber("91234567");
-            member.setDisplayName("Test User");
+            member.setMemberNo("MEM001");
+            member.setPhone("91234567");
+            member.setName("Test User");
             member.setTierCode("STANDARD");
-            member.setCreatedAt(OffsetDateTime.now());
+            member.setMemberStatus("ACTIVE");
             when(memberRepository.findById(1L)).thenReturn(Optional.of(member));
 
             MemberAccountEntity account = new MemberAccountEntity();
-            account.setId(1L);
+            ReflectionTestUtils.setField(account, "id", 1L);
             account.setMemberId(1L);
-            account.setTotalPointsBalance(100L);
+            account.setPointsBalance(100L);
             account.setCashBalanceCents(5000L);
             account.setLifetimeSpendCents(50000L);
+            account.setLifetimeRechargeCents(0L);
             when(memberAccountRepository.findByMemberId(1L))
                     .thenReturn(Optional.of(account));
 
-            MemberDto result = service.getMember(1L);
+            MemberDetailDto result = service.getMember(1L);
 
             assertNotNull(result);
-            assertEquals("91234567", result.phoneNumber());
-            assertEquals(100L, result.totalPointsBalance());
+            assertEquals("91234567", result.phone());
+            assertEquals(100L, result.pointsBalance());
             assertEquals(5000L, result.cashBalanceCents());
         }
 

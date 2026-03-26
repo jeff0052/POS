@@ -16,7 +16,6 @@ import com.developer.pos.v2.promotion.infrastructure.persistence.repository.JpaP
 import com.developer.pos.v2.promotion.infrastructure.persistence.repository.JpaPromotionRuleRepository;
 import com.developer.pos.v2.promotion.infrastructure.persistence.repository.JpaPromotionRuleRewardRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -25,6 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -267,7 +267,7 @@ class PromotionApplicationServiceTest {
 
     private ActiveTableOrderEntity buildOrder(String activeOrderId, long originalCents, long memberDiscountCents) {
         ActiveTableOrderEntity entity = new ActiveTableOrderEntity();
-        entity.setId(1L);
+        ReflectionTestUtils.setField(entity, "id", 1L);
         entity.setActiveOrderId(activeOrderId);
         entity.setStoreId(1001L);
         entity.setTableId(1L);

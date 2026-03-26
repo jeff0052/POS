@@ -1,16 +1,19 @@
 package com.developer.pos.v2.settlement.application.service;
 
-import com.developer.pos.v2.order.domain.status.ActiveOrderStatus;
-import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderEntity;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaActiveTableOrderRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
-import com.developer.pos.v2.settlement.application.command.CollectForTableCommand;
+import com.developer.pos.v2.promotion.infrastructure.persistence.repository.JpaPromotionHitRepository;
+import com.developer.pos.v2.settlement.application.command.CollectCashierSettlementCommand;
+import com.developer.pos.v2.settlement.application.dto.CashierSettlementResultDto;
 import com.developer.pos.v2.settlement.infrastructure.persistence.entity.SettlementRecordEntity;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementRecordRepository;
+import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,9 +21,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,91 +38,98 @@ class CashierSettlementApplicationServiceTest {
     @Mock private JpaTableSessionRepository tableSessionRepository;
     @Mock private JpaSettlementRecordRepository settlementRecordRepository;
     @Mock private JpaStoreTableRepository storeTableRepository;
+    @Mock private JpaMemberRepository memberRepository;
+    @Mock private JpaPromotionHitRepository promotionHitRepository;
+    @Mock private ObjectMapper objectMapper;
 
     @InjectMocks
     private CashierSettlementApplicationService service;
+
+    private static final Long STORE_ID = 1001L;
+    private static final Long TABLE_ID = 1L;
 
     @Nested
     @DisplayName("collectForTable")
     class CollectForTable {
 
         @Test
-        @DisplayName("throws when no active order found")
-        void throws_whenNoActiveOrder() {
-            when(activeTableOrderRepository.findByStoreIdAndTableId(1001L, 1L))
+        @DisplayName("throws when no open table session found")
+        void throws_whenNoOpenSession() {
+            when(tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(STORE_ID, TABLE_ID, "OPEN"))
                     .thenReturn(Optional.empty());
 
-            CollectForTableCommand command = new CollectForTableCommand(
-                    1001L, 1L, "CASH", null, null, null
+            CollectCashierSettlementCommand command = new CollectCashierSettlementCommand(
+                    null, 1L, "CASH", 5000L
             );
 
             assertThrows(IllegalArgumentException.class,
-                    () -> service.collectForTable(command));
+                    () -> service.collectForTable(STORE_ID, TABLE_ID, command));
         }
 
         @Test
-        @DisplayName("throws when order not in PENDING_SETTLEMENT status")
-        void throws_whenNotPendingSettlement() {
-            ActiveTableOrderEntity order = buildActiveOrder(ActiveOrderStatus.DRAFT);
-            when(activeTableOrderRepository.findByStoreIdAndTableId(1001L, 1L))
-                    .thenReturn(Optional.of(order));
+        @DisplayName("throws when no unpaid submitted orders")
+        void throws_whenNoUnpaidOrders() {
+            TableSessionEntity session = new TableSessionEntity();
+            ReflectionTestUtils.setField(session, "id", 10L);
+            session.setSessionId("SESS-001");
+            when(tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(STORE_ID, TABLE_ID, "OPEN"))
+                    .thenReturn(Optional.of(session));
+            when(submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(10L, "UNPAID"))
+                    .thenReturn(List.of());
 
-            CollectForTableCommand command = new CollectForTableCommand(
-                    1001L, 1L, "CASH", null, null, null
+            CollectCashierSettlementCommand command = new CollectCashierSettlementCommand(
+                    null, 1L, "CASH", 5000L
             );
 
             assertThrows(IllegalStateException.class,
-                    () -> service.collectForTable(command));
+                    () -> service.collectForTable(STORE_ID, TABLE_ID, command));
         }
 
         @Test
-        @DisplayName("creates settlement record for valid PENDING_SETTLEMENT order")
+        @DisplayName("creates settlement record for valid table collection")
         void createsSettlement_whenValid() {
-            ActiveTableOrderEntity order = buildActiveOrder(ActiveOrderStatus.PENDING_SETTLEMENT);
-            order.setSessionId(10L);
-            when(activeTableOrderRepository.findByStoreIdAndTableId(1001L, 1L))
-                    .thenReturn(Optional.of(order));
-
             TableSessionEntity session = new TableSessionEntity();
-            session.setId(10L);
+            ReflectionTestUtils.setField(session, "id", 10L);
             session.setSessionId("SESS-001");
-            when(tableSessionRepository.findById(10L)).thenReturn(Optional.of(session));
+            when(tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(STORE_ID, TABLE_ID, "OPEN"))
+                    .thenReturn(Optional.of(session));
 
-            when(submittedOrderRepository.findBySessionId(10L)).thenReturn(List.of());
-            when(settlementRecordRepository.save(any())).thenAnswer(inv -> {
+            SubmittedOrderEntity unpaidOrder = new SubmittedOrderEntity();
+            ReflectionTestUtils.setField(unpaidOrder, "id", 1L);
+            unpaidOrder.setMerchantId(1L);
+            unpaidOrder.setPayableAmountCents(5000L);
+            when(submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(10L, "UNPAID"))
+                    .thenReturn(List.of(unpaidOrder));
+
+            when(settlementRecordRepository.saveAndFlush(any())).thenAnswer(inv -> {
                 SettlementRecordEntity e = inv.getArgument(0);
-                e.setId(1L);
+                ReflectionTestUtils.setField(e, "id", 1L);
                 return e;
             });
-            when(activeTableOrderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(submittedOrderRepository.saveAllAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(tableSessionRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(activeTableOrderRepository.findByStoreIdAndTableId(STORE_ID, TABLE_ID))
+                    .thenReturn(Optional.empty());
 
-            CollectForTableCommand command = new CollectForTableCommand(
-                    1001L, 1L, "CASH", null, null, null
+            StoreTableEntity table = org.springframework.beans.BeanUtils.instantiateClass(StoreTableEntity.class);
+            ReflectionTestUtils.setField(table, "id", TABLE_ID);
+            ReflectionTestUtils.setField(table, "storeId", STORE_ID);
+            ReflectionTestUtils.setField(table, "tableCode", "T01");
+            ReflectionTestUtils.setField(table, "tableName", "Table 1");
+            ReflectionTestUtils.setField(table, "tableStatus", "PENDING_SETTLEMENT");
+            when(storeTableRepository.findByIdAndStoreId(TABLE_ID, STORE_ID))
+                    .thenReturn(Optional.of(table));
+            when(storeTableRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            CollectCashierSettlementCommand command = new CollectCashierSettlementCommand(
+                    null, 1L, "CASH", 5000L
             );
 
-            var result = service.collectForTable(command);
+            CashierSettlementResultDto result = service.collectForTable(STORE_ID, TABLE_ID, command);
 
             assertNotNull(result);
-            verify(settlementRecordRepository).save(any());
-            verify(activeTableOrderRepository).save(argThat(e ->
-                    e.getStatus() == ActiveOrderStatus.SETTLED));
+            assertEquals("SESS-001", result.activeOrderId());
+            verify(settlementRecordRepository).saveAndFlush(any());
         }
-    }
-
-    private ActiveTableOrderEntity buildActiveOrder(ActiveOrderStatus status) {
-        ActiveTableOrderEntity entity = new ActiveTableOrderEntity();
-        entity.setId(1L);
-        entity.setActiveOrderId("ATO-TEST-001");
-        entity.setStoreId(1001L);
-        entity.setTableId(1L);
-        entity.setStatus(status);
-        entity.setOriginalAmountCents(5000L);
-        entity.setMemberDiscountCents(0L);
-        entity.setPromotionDiscountCents(0L);
-        entity.setPayableAmountCents(5000L);
-        entity.setItems(new ArrayList<>());
-        entity.setCreatedAt(OffsetDateTime.now());
-        entity.setUpdatedAt(OffsetDateTime.now());
-        return entity;
     }
 }
