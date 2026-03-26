@@ -1,6 +1,7 @@
 package com.developer.pos.v2.order.application.service;
 
 import com.developer.pos.v2.catalog.domain.model.SkuRef;
+import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.member.domain.policy.MemberDiscountPolicy;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
@@ -48,6 +49,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
     private final JpaMemberRepository memberRepository;
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
+    private final JpaSkuRepository skuRepository;
 
     public ActiveTableOrderApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -56,7 +58,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
             JpaStoreTableRepository storeTableRepository,
             JpaMemberRepository memberRepository,
             JpaTableSessionRepository tableSessionRepository,
-            JpaSubmittedOrderRepository submittedOrderRepository
+            JpaSubmittedOrderRepository submittedOrderRepository,
+            JpaSkuRepository skuRepository
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.storeRepository = storeRepository;
@@ -65,6 +68,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         this.memberRepository = memberRepository;
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
+        this.skuRepository = skuRepository;
     }
 
     @Transactional(readOnly = true)
@@ -118,7 +122,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         StoreTableEntity table = storeTableRepository.findByIdAndStoreId(command.tableId(), command.storeId())
                 .orElseThrow(() -> new IllegalArgumentException("Table not found in store: " + command.tableId()));
 
-        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableId(command.storeId(), command.tableId())
+        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableIdForUpdate(command.storeId(), command.tableId())
                 .orElseGet(() -> createEntity(store, table, command));
 
         entity.setOrderSource(command.orderSource());
@@ -166,7 +170,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         StoreTableEntity table = storeTableRepository.findByStoreIdAndTableCode(store.getId(), command.tableCode())
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + command.tableCode()));
 
-        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableId(store.getId(), table.getId())
+        ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableIdForUpdate(store.getId(), table.getId())
                 .filter(existing -> existing.getStatus() != ActiveOrderStatus.SETTLED)
                 .orElseGet(() -> createEntity(store, table, new ReplaceActiveTableOrderItemsCommand(
                         store.getId(),
@@ -289,7 +293,6 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 saved.getPromotionDiscountCents(),
                 saved.getPayableAmountCents()
         );
-        activeTableOrderRepository.delete(saved);
 
         return new OrderStageTransitionDto(saved.getActiveOrderId(), saved.getStatus().name());
     }
@@ -323,7 +326,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
     ) {
         ActiveTableOrderEntity entity = new ActiveTableOrderEntity();
         entity.setActiveOrderId("ato_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-        entity.setOrderNo("ATO" + System.currentTimeMillis());
+        entity.setOrderNo("ATO" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
         entity.setMerchantId(store.getMerchantId());
         entity.setStoreId(store.getId());
         entity.setTableId(table.getId());
@@ -353,6 +356,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
 
         for (SubmitQrOrderingCommand.SubmitQrOrderingItemInput incoming : incomingItems) {
+            var sku = skuRepository.findById(incoming.skuId())
+                    .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + incoming.skuId()));
+            long serverPrice = sku.getBasePriceCents();
+
             ActiveTableOrderItemEntity matched = merged.stream()
                     .filter(item -> item.getSkuId().equals(incoming.skuId())
                             && java.util.Objects.equals(item.getItemRemark(), incoming.remark()))
@@ -361,13 +368,13 @@ public class ActiveTableOrderApplicationService implements UseCase {
 
             if (matched == null) {
                 ActiveTableOrderItemEntity next = new ActiveTableOrderItemEntity();
-                next.setSkuId(incoming.skuId());
-                next.setSkuCodeSnapshot(incoming.skuCode());
-                next.setSkuNameSnapshot(incoming.skuName());
+                next.setSkuId(sku.getId());
+                next.setSkuCodeSnapshot(sku.getSkuCode());
+                next.setSkuNameSnapshot(sku.getSkuName());
                 next.setQuantity(incoming.quantity());
-                next.setUnitPriceSnapshotCents(incoming.unitPriceCents());
+                next.setUnitPriceSnapshotCents(serverPrice);
                 next.setItemRemark(incoming.remark());
-                next.setLineTotalCents(incoming.unitPriceCents() * incoming.quantity());
+                next.setLineTotalCents(serverPrice * incoming.quantity());
                 merged.add(next);
             } else {
                 int nextQuantity = matched.getQuantity() + incoming.quantity();
