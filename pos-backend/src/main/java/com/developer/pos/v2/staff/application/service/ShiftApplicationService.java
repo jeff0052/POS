@@ -6,8 +6,8 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.repository.Jpa
 import com.developer.pos.v2.staff.application.dto.ShiftClosedDto;
 import com.developer.pos.v2.staff.application.dto.ShiftOpenedDto;
 import com.developer.pos.v2.staff.application.dto.ShiftSummaryDto;
-import com.developer.pos.v2.staff.infrastructure.persistence.entity.CashierShiftEntity;
-import com.developer.pos.v2.staff.infrastructure.persistence.repository.JpaCashierShiftRepository;
+import com.developer.pos.v2.shift.infrastructure.persistence.entity.CashierShiftEntity;
+import com.developer.pos.v2.shift.infrastructure.persistence.repository.JpaCashierShiftRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
