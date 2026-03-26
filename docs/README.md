@@ -106,3 +106,4 @@
 48. `48-payment-current-status-and-blockers.md`
 49. `49-lovable-tablet-frontend-review-and-adoption-guide.md`
 50. `50-parallel-delivery-plan-and-acceptance.md`
+51. `51-branch-review-and-merge-plan.md`
