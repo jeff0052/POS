@@ -31,6 +31,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: root
       JWT_SECRET: local-dev-jwt-secret-must-be-32-chars
       POS_CALLBACK_SECRET: local-dev-callback-secret
+      AUTH_BOOTSTRAP_SECRET: local-dev-bootstrap-secret
       VIBECASH_API_URL: ${VIBECASH_API_URL:-https://api.vibecash.dev}
       VIBECASH_SECRET: ${VIBECASH_SECRET:-}
       VIBECASH_WEBHOOK_SECRET: ${VIBECASH_WEBHOOK_SECRET:-}
@@ -52,6 +53,7 @@ services:
       PAYMENT_DB_PASSWORD: root
       POS_CALLBACK_URL: http://pos-backend:8080/api/v2/internal/payment-callback
       POS_CALLBACK_SECRET: local-dev-callback-secret
+      PAYMENT_SERVICE_API_KEY: local-dev-api-key
     ports:
       - "8081:8081"
 

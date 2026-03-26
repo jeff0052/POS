@@ -34,6 +34,7 @@ services:
       VIBECASH_CURRENCY: ${VIBECASH_CURRENCY:-SGD}
       JWT_SECRET: ${JWT_SECRET}
       POS_CALLBACK_SECRET: ${POS_CALLBACK_SECRET}
+      AUTH_BOOTSTRAP_SECRET: ${AUTH_BOOTSTRAP_SECRET}
 
   pos-payment-service:
     build:
@@ -55,6 +56,33 @@ services:
       VIBECASH_WEBHOOK_SECRET: ${VIBECASH_WEBHOOK_SECRET}
       DCS_ENABLED: ${DCS_ENABLED:-false}
       PAYMENT_SERVICE_API_KEY: ${PAYMENT_SERVICE_API_KEY}
+
+  pos-frontend:
+    build:
+      context: ./android-preview-web
+      dockerfile: Dockerfile.prod
+    container_name: pos-frontend
+    restart: unless-stopped
+    depends_on:
+      - pos-backend
+
+  qr-frontend:
+    build:
+      context: ./qr-ordering-web
+      dockerfile: Dockerfile.prod
+    container_name: qr-frontend
+    restart: unless-stopped
+    depends_on:
+      - pos-backend
+
+  platform-admin:
+    build:
+      context: ./platform-admin
+      dockerfile: Dockerfile.prod
+    container_name: platform-admin
+    restart: unless-stopped
+    depends_on:
+      - pos-backend
 
   pc-admin:
     build:
