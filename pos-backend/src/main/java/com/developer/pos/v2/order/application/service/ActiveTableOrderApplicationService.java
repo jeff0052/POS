@@ -129,14 +129,17 @@ public class ActiveTableOrderApplicationService implements UseCase {
 
         List<ActiveTableOrderItemEntity> items = command.items().stream()
                 .map(item -> {
+                    // Server-side price lookup — never trust client-supplied prices
+                    var sku = skuRepository.findById(item.skuId())
+                            .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + item.skuId()));
                     ActiveTableOrderItemEntity next = new ActiveTableOrderItemEntity();
-                    next.setSkuId(item.skuId());
-                    next.setSkuCodeSnapshot(item.skuCode());
-                    next.setSkuNameSnapshot(item.skuName());
+                    next.setSkuId(sku.getId());
+                    next.setSkuCodeSnapshot(sku.getSkuCode());
+                    next.setSkuNameSnapshot(sku.getSkuName());
                     next.setQuantity(item.quantity());
-                    next.setUnitPriceSnapshotCents(item.unitPriceCents());
+                    next.setUnitPriceSnapshotCents(sku.getBasePriceCents());
                     next.setItemRemark(item.remark());
-                    next.setLineTotalCents(item.unitPriceCents() * item.quantity());
+                    next.setLineTotalCents(sku.getBasePriceCents() * item.quantity());
                     return next;
                 })
                 .toList();

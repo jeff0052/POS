@@ -9,14 +9,21 @@ interface LoginRequest {
   clientType: "PC";
 }
 
-export async function login(username: string, password: string): Promise<AuthUser> {
+interface LoginResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export async function login(username: string, password: string): Promise<{ token: string; user: AuthUser }> {
   if (USE_MOCK_API) {
-    return mockApi.login(username, password);
+    return { token: "mock-token", user: await mockApi.login(username, password) };
   }
 
-  return apiPost<AuthUser>("/auth/login", {
+  const response = await apiPost<LoginResponse>("/auth/login", {
     username,
     password,
     clientType: "PC"
   } satisfies LoginRequest);
+
+  return { token: response.token, user: response.user };
 }

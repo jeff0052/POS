@@ -155,14 +155,15 @@ public class VibeCashPaymentApplicationService implements UseCase {
 
     @Transactional
     public VibeCashWebhookResultDto handleWebhook(String signature, JsonNode payload) {
-        if (webhookSecret != null && !webhookSecret.isBlank()) {
-            String expectedSignature = new HmacUtils("HmacSHA256", webhookSecret).hmacHex(payload.toString());
-            if (signature == null || !MessageDigest.isEqual(
-                    expectedSignature.getBytes(StandardCharsets.UTF_8),
-                    signature.getBytes(StandardCharsets.UTF_8)
-            )) {
-                throw new SecurityException("Invalid webhook signature");
-            }
+        if (webhookSecret == null || webhookSecret.isBlank()) {
+            throw new SecurityException("Webhook secret is not configured. Cannot verify webhook signature.");
+        }
+        String expectedSignature = new HmacUtils("HmacSHA256", webhookSecret).hmacHex(payload.toString());
+        if (signature == null || !MessageDigest.isEqual(
+                expectedSignature.getBytes(StandardCharsets.UTF_8),
+                signature.getBytes(StandardCharsets.UTF_8)
+        )) {
+            throw new SecurityException("Invalid webhook signature");
         }
 
         String eventType = payload.path("type").asText(null);

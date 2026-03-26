@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { clearAuthUser, loadAuthUser, saveAuthUser } from "./authStorage";
+import { clearAuthUser, loadAuthUser, saveAuthUser, saveToken } from "./authStorage";
 import { login as loginRequest } from "../api/services/authService";
 import type { AuthUser } from "../types";
 
@@ -19,7 +19,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       async signIn(username: string, password: string) {
-        const nextUser = await loginRequest(username, password);
+        const { token, user: nextUser } = await loginRequest(username, password);
+        saveToken(token);
         saveAuthUser(nextUser);
         setUser(nextUser);
       },

@@ -192,6 +192,22 @@ public class CashierSettlementApplicationService implements UseCase {
 
         long payableAmount = unpaidOrders.stream().mapToLong(SubmittedOrderEntity::getPayableAmountCents).sum();
 
+        // Validate collected amount: must cover the payable amount for cash; exact match for digital
+        if ("CASH".equalsIgnoreCase(command.paymentMethod())) {
+            if (command.collectedAmountCents() < payableAmount) {
+                throw new IllegalArgumentException(
+                        "Collected amount " + command.collectedAmountCents() +
+                        " is less than payable amount " + payableAmount + ". Underpayment not allowed.");
+            }
+        } else {
+            // Digital payment: must match exactly (provider confirms amount)
+            if (command.collectedAmountCents() != payableAmount && command.collectedAmountCents() > 0) {
+                throw new IllegalArgumentException(
+                        "Digital payment collected amount " + command.collectedAmountCents() +
+                        " does not match payable amount " + payableAmount);
+            }
+        }
+
         SettlementRecordEntity settlementRecord = new SettlementRecordEntity();
         settlementRecord.setSettlementNo("SET" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
         settlementRecord.setActiveOrderId(session.getSessionId());

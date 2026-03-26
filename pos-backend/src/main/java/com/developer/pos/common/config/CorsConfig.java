@@ -1,22 +1,11 @@
 package com.developer.pos.common.config;
 
-import org.springframework.beans.factory.annotation.Value;
+// CORS is now handled by SecurityConfig.corsConfigurationSource()
+// This class is intentionally empty to avoid conflict with Spring Security's CORS handling.
+
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-public class CorsConfig implements WebMvcConfigurer {
-
-    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5187,http://localhost:5188,http://localhost:4183,http://localhost:4184,http://127.0.0.1:5187,http://127.0.0.1:5188,http://127.0.0.1:4183}")
-    private String allowedOrigins;
-
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-            .allowedOrigins(allowedOrigins.split(","))
-            .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH")
-            .allowedHeaders("*")
-            .allowCredentials(true);
-    }
+public class CorsConfig {
+    // Intentionally empty - CORS moved to SecurityConfig
 }

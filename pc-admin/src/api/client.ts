@@ -1,16 +1,32 @@
 import type { ApiResponse } from "../types";
+import { loadToken } from "../auth/authStorage";
 
 const API_BASE = "/api/v2";
 const V2_API_BASE = "/api/v2";
 
 async function request<T>(base: string, path: string, init?: RequestInit): Promise<T> {
+  const token = loadToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> ?? {})
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${base}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    },
-    ...init
+    ...init,
+    headers
   });
+
+  if (response.status === 401) {
+    // Token expired or invalid — clear auth and redirect to login
+    localStorage.removeItem("pc-admin-auth-user");
+    localStorage.removeItem("pc-admin-auth-token");
+    window.location.href = "/login";
+    throw new Error("Session expired");
+  }
 
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);

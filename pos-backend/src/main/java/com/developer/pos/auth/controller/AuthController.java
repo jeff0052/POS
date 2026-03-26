@@ -6,15 +6,13 @@ import com.developer.pos.auth.dto.LoginResponse;
 import com.developer.pos.auth.service.AuthService;
 import com.developer.pos.common.response.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.Map;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/auth")
 public class AuthController {
 
     private final AuthService authService;
@@ -23,18 +21,23 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @PostMapping("/login")
+    @PostMapping({"/api/v1/auth/login", "/api/v2/auth/login"})
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.success(authService.login(request));
     }
 
-    @PostMapping("/logout")
+    @PostMapping({"/api/v1/auth/logout", "/api/v2/auth/logout"})
     public ApiResponse<Map<String, Boolean>> logout() {
         return ApiResponse.success(Map.of("success", true));
     }
 
-    @GetMapping("/me")
+    @GetMapping({"/api/v1/auth/me", "/api/v2/auth/me"})
     public ApiResponse<AuthUserDto> me() {
-        return ApiResponse.success(new AuthUserDto(1L, "admin", "Store Admin", "ADMIN", 1001L));
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null || "anonymousUser".equals(auth.getPrincipal())) {
+            throw new IllegalStateException("Not authenticated");
+        }
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ApiResponse.success(authService.getUser(userId));
     }
 }
