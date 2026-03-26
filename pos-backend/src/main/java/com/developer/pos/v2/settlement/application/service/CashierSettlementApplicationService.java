@@ -179,6 +179,17 @@ public class CashierSettlementApplicationService implements UseCase {
         TableSessionEntity session = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
 
+        if (settlementRecordRepository.existsByActiveOrderId(session.getSessionId())) {
+            SettlementRecordEntity existing = settlementRecordRepository.findByActiveOrderId(session.getSessionId()).orElseThrow();
+            return new CashierSettlementResultDto(
+                    session.getSessionId(),
+                    existing.getSettlementNo(),
+                    "SETTLED",
+                    existing.getPayableAmountCents(),
+                    existing.getCollectedAmountCents()
+            );
+        }
+
         List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(session.getId(), "UNPAID");
         if (unpaidOrders.isEmpty()) {
             throw new IllegalStateException("No unpaid submitted orders found for collection.");
@@ -232,6 +243,17 @@ public class CashierSettlementApplicationService implements UseCase {
     public CashierSettlementResultDto collect(CollectCashierSettlementCommand command) {
         ActiveTableOrderEntity activeOrder = activeTableOrderRepository.findByActiveOrderId(command.activeOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("Active order not found: " + command.activeOrderId()));
+
+        if (activeOrder.getStatus() == ActiveOrderStatus.SETTLED) {
+            SettlementRecordEntity existing = settlementRecordRepository.findByActiveOrderId(activeOrder.getActiveOrderId()).orElseThrow();
+            return new CashierSettlementResultDto(
+                    activeOrder.getActiveOrderId(),
+                    existing.getSettlementNo(),
+                    "SETTLED",
+                    existing.getPayableAmountCents(),
+                    existing.getCollectedAmountCents()
+            );
+        }
 
         if (activeOrder.getStatus() != ActiveOrderStatus.PENDING_SETTLEMENT) {
             throw new IllegalStateException("Only pending settlement orders can be collected.");

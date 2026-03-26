@@ -29,6 +29,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/v2/qr-ordering/**").permitAll()
                 .requestMatchers("/api/v2/webhooks/**").permitAll()
+                .requestMatchers("/api/v2/payments/*/webhook").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .anyRequest().authenticated()
             )

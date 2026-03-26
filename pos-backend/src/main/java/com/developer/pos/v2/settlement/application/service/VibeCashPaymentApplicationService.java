@@ -17,6 +17,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.apache.commons.codec.digest.HmacUtils;
+
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -41,6 +43,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final String apiUrl;
     private final String secret;
+    private final String webhookSecret;
     private final String currencyCode;
 
     public VibeCashPaymentApplicationService(
@@ -50,6 +53,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
             ObjectMapper objectMapper,
             @Value("${vibecash.api-url}") String apiUrl,
             @Value("${vibecash.secret}") String secret,
+            @Value("${vibecash.webhook-secret:}") String webhookSecret,
             @Value("${vibecash.currency}") String currencyCode
     ) {
         this.tableSessionRepository = tableSessionRepository;
@@ -58,6 +62,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
         this.objectMapper = objectMapper;
         this.apiUrl = apiUrl;
         this.secret = secret;
+        this.webhookSecret = webhookSecret;
         this.currencyCode = currencyCode;
     }
 
@@ -149,6 +154,16 @@ public class VibeCashPaymentApplicationService implements UseCase {
 
     @Transactional
     public VibeCashWebhookResultDto handleWebhook(String signature, JsonNode payload) {
+        if (webhookSecret != null && !webhookSecret.isBlank()) {
+            String payloadText = payload.toString();
+            String expectedSignature = new HmacUtils("HmacSHA256", webhookSecret).hmacHex(payloadText);
+            if (signature == null || !java.security.MessageDigest.isEqual(
+                    expectedSignature.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                    signature.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+                throw new SecurityException("Invalid webhook signature");
+            }
+        }
+
         String eventType = payload.path("type").asText(null);
         JsonNode objectNode = payload.path("data").path("object");
         if (objectNode.isMissingNode() || objectNode.isNull()) {
