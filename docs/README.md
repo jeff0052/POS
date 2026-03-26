@@ -53,6 +53,9 @@
 - `47-v2-sku-data-model-and-api-contract.md`
 - `48-payment-current-status-and-blockers.md`
 - `49-lovable-tablet-frontend-review-and-adoption-guide.md`
+- `50-parallel-delivery-plan-and-acceptance.md`
+- `51-branch-review-and-merge-plan.md`
+- `52-engineering-handoff-and-takeover-guide.md`
 
 建议阅读顺序：
 
@@ -107,3 +110,4 @@
 49. `49-lovable-tablet-frontend-review-and-adoption-guide.md`
 50. `50-parallel-delivery-plan-and-acceptance.md`
 51. `51-branch-review-and-merge-plan.md`
+52. `52-engineering-handoff-and-takeover-guide.md`
