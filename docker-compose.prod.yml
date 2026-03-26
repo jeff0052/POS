@@ -33,6 +33,26 @@ services:
       VIBECASH_WEBHOOK_SECRET: ${VIBECASH_WEBHOOK_SECRET}
       VIBECASH_CURRENCY: ${VIBECASH_CURRENCY:-SGD}
 
+  pos-payment-service:
+    build:
+      context: ./pos-payment-service
+    container_name: pos-payment-service
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PAYMENT_DB_URL: jdbc:mysql://mysql:3306/pos_payment_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
+      PAYMENT_DB_USERNAME: ${MYSQL_USERNAME}
+      PAYMENT_DB_PASSWORD: ${MYSQL_PASSWORD}
+      POS_CALLBACK_URL: http://pos-backend:8080/api/v2/internal/payment-callback
+      POS_CALLBACK_SECRET: ${POS_CALLBACK_SECRET}
+      VIBECASH_ENABLED: ${VIBECASH_ENABLED:-false}
+      VIBECASH_API_URL: ${VIBECASH_API_URL}
+      VIBECASH_SECRET: ${VIBECASH_SECRET}
+      VIBECASH_WEBHOOK_SECRET: ${VIBECASH_WEBHOOK_SECRET}
+      DCS_ENABLED: ${DCS_ENABLED:-false}
+
   pc-admin:
     build:
       context: ./pc-admin
