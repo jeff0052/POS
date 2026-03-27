@@ -44,6 +44,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/v2/internal/**").permitAll()
                 // OPTIONS preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // Public image serving (QR/POS need unauthenticated access)
+                .requestMatchers("/api/v2/images/**").permitAll()
+                // All admin operations require ADMIN or PLATFORM_ADMIN
+                .requestMatchers("/api/v2/admin/**").hasAnyRole("ADMIN", "PLATFORM_ADMIN")
                 // MCP requires ADMIN or PLATFORM_ADMIN
                 .requestMatchers("/api/v2/mcp/**").hasAnyRole("ADMIN", "PLATFORM_ADMIN")
                 // Platform admin
