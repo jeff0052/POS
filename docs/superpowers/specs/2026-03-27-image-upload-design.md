@@ -1,7 +1,7 @@
 # Image Upload System — Design Spec
 
 Date: 2026-03-27
-Status: Rev 4 — all P1/P2 review findings addressed
+Status: Rev 5 — final (all P1/P2 findings addressed)
 
 ---
 
@@ -107,7 +107,9 @@ This eliminates the need to manually parse JWT claims in every service method.
 
 **Required additions to SecurityConfig:**
 ```java
-// All admin catalog operations (including image upload/delete AND product upsert) require ADMIN or PLATFORM_ADMIN
+// Public image serving (QR/POS need unauthenticated access)
+.requestMatchers("/api/v2/images/**").permitAll()
+// All admin operations (catalog, images, orders) require ADMIN or PLATFORM_ADMIN
 .requestMatchers("/api/v2/admin/**").hasAnyRole("ADMIN", "PLATFORM_ADMIN")
 ```
 
@@ -230,14 +232,21 @@ spring:
 
 **Endpoint:** `PUT /api/v2/admin/catalog/products/{id}` (existing)
 
-The existing product upsert payload is extended with optional `imageId` field:
+The existing `UpsertCatalogProductRequest` payload is extended with an optional `imageId` field at both product and SKU level:
 ```json
 {
-  "productName": "Signature Fried Rice",
+  "storeCode": "STORE001",
+  "categoryId": 1,
+  "name": "Signature Fried Rice",
+  "status": "PUBLISHED",
   "imageId": "IMG-a1b2c3d4e5f6g7h8",
   "skus": [
     {
-      "skuName": "Regular",
+      "skuCode": "SKU001",
+      "name": "Regular",
+      "priceCents": 1800,
+      "status": "ACTIVE",
+      "available": true,
       "imageId": "IMG-x9y8z7w6v5u4t3s2"
     }
   ]
