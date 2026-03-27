@@ -1,11 +1,20 @@
 server:
   port: 8080
 
+aws:
+  s3:
+    bucket: ${S3_BUCKET:founderpos-images}
+    region: ${S3_REGION:us-east-1}
+
 spring:
   application:
     name: pos-backend
   profiles:
     active: mock
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
   flyway:
     enabled: false
 
