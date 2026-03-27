@@ -1,7 +1,7 @@
 # Image Upload System — Design Spec
 
 Date: 2026-03-27
-Status: Rev 3 — all P1/P2 review findings addressed
+Status: Rev 4 — all P1/P2 review findings addressed
 
 ---
 
@@ -105,13 +105,19 @@ This eliminates the need to manually parse JWT claims in every service method.
 
 **Current SecurityConfig (line 52):** `anyRequest().authenticated()` — all non-public endpoints only require a valid JWT, regardless of role.
 
-**Required addition to SecurityConfig:**
+**Required additions to SecurityConfig:**
 ```java
-// Image upload and delete require ADMIN or PLATFORM_ADMIN
-.requestMatchers("/api/v2/admin/catalog/images/**").hasAnyRole("ADMIN", "PLATFORM_ADMIN")
+// All admin catalog operations (including image upload/delete AND product upsert) require ADMIN or PLATFORM_ADMIN
+.requestMatchers("/api/v2/admin/**").hasAnyRole("ADMIN", "PLATFORM_ADMIN")
 ```
 
-This must be added BEFORE the `.anyRequest().authenticated()` line. Without this, a CASHIER role user could upload/delete images.
+This covers:
+- `/api/v2/admin/catalog/images/**` — upload and delete
+- `/api/v2/admin/catalog/products/**` — product upsert (which includes image binding)
+- `/api/v2/admin/catalog/categories/**` — category management
+- `/api/v2/admin/orders` — merchant order view
+
+This must be added BEFORE the `.anyRequest().authenticated()` line. Without this, a CASHIER role user could upload/delete images AND bind/unbind images via product upsert.
 
 ## Data Model
 
@@ -240,11 +246,15 @@ The existing product upsert payload is extended with optional `imageId` field:
 
 **There is NO separate `PUT /api/v2/admin/catalog/skus/{id}` endpoint.** SKU images are set through the product upsert payload, same as all other SKU fields. This matches the existing code in `AdminCatalogV2Controller` and `AdminCatalogWriteService`.
 
-**Validation:**
-- If `imageId` provided → verify exists in `image_assets` with `status=ACTIVE` and `merchant_id` matches `AuthContext.current().merchantId()`
-- If ownership check fails → 403
-- If `imageId` is null or omitted → leave existing image unchanged
-- If `imageId` is empty string → unbind (set to null)
+**Validation (3-layer check):**
+
+1. **Store-merchant boundary:** Before any product write, verify `store.merchantId == AuthContext.current().merchantId()`. The current code resolves by `storeCode` but does NOT verify the store belongs to the caller's merchant. This must be added to `AdminCatalogWriteService` as a prerequisite for this feature.
+
+2. **Image ownership:** If `imageId` provided → verify exists in `image_assets` with `status=ACTIVE` and `merchant_id == AuthContext.current().merchantId()` → 403 if not
+
+3. **Null semantics:**
+   - If `imageId` is null or omitted → leave existing image unchanged
+   - If `imageId` is empty string → unbind (set to null)
 
 ### Image Priority (frontend read time)
 
