@@ -28,6 +28,9 @@ public class SkuEntity extends BaseAuditableEntity {
     @Column(name = "sku_name", nullable = false)
     private String skuName;
 
+    @Column(name = "image_id", length = 64)
+    private String imageId;
+
     @Column(name = "base_price_cents", nullable = false)
     private long basePriceCents;
 
@@ -65,6 +68,14 @@ public class SkuEntity extends BaseAuditableEntity {
 
     public String getSkuName() {
         return skuName;
+    }
+
+    public String getImageId() {
+        return imageId;
+    }
+
+    public void setImageId(String imageId) {
+        this.imageId = imageId;
     }
 
     public long getBasePriceCents() {

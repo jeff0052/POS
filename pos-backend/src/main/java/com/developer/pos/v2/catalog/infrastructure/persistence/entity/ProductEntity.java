@@ -27,6 +27,9 @@ public class ProductEntity {
     @Column(name = "product_name", nullable = false)
     private String productName;
 
+    @Column(name = "image_id", length = 64)
+    private String imageId;
+
     @Column(name = "product_status", nullable = false)
     private String productStatus;
 
@@ -80,6 +83,14 @@ public class ProductEntity {
 
     public String getProductName() {
         return productName;
+    }
+
+    public String getImageId() {
+        return imageId;
+    }
+
+    public void setImageId(String imageId) {
+        this.imageId = imageId;
     }
 
     public String getProductStatus() {
