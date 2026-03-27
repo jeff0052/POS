@@ -221,7 +221,7 @@ ALTER TABLE skus ADD COLUMN image_id VARCHAR(64) NULL AFTER sku_name;
 package com.developer.pos.v2.image.infrastructure.persistence.entity;
 
 import jakarta.persistence.*;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "image_assets")
@@ -253,10 +253,10 @@ public class ImageAssetEntity {
     private String status;
 
     @Column(name = "created_at")
-    private OffsetDateTime createdAt;
+    private LocalDateTime createdAt;
 
     @Column(name = "updated_at")
-    private OffsetDateTime updatedAt;
+    private LocalDateTime updatedAt;
 
     protected ImageAssetEntity() {}
 
@@ -269,8 +269,8 @@ public class ImageAssetEntity {
         this.contentType = contentType;
         this.fileSizeBytes = fileSizeBytes;
         this.status = "ACTIVE";
-        this.createdAt = OffsetDateTime.now();
-        this.updatedAt = OffsetDateTime.now();
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public Long getId() { return id; }
@@ -281,12 +281,12 @@ public class ImageAssetEntity {
     public String getContentType() { return contentType; }
     public long getFileSizeBytes() { return fileSizeBytes; }
     public String getStatus() { return status; }
-    public OffsetDateTime getCreatedAt() { return createdAt; }
-    public OffsetDateTime getUpdatedAt() { return updatedAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 
     public void markDeleted() {
         this.status = "DELETED";
-        this.updatedAt = OffsetDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 }
 ```
@@ -800,6 +800,18 @@ if (imageId != null) {
 
 3. Same pattern inside the SKU loop for each `skuCmd.imageId()`.
 
+4. **Add `String imageId` to the `UpsertSkuCommand` record** (inner record of `AdminCatalogWriteService`):
+```java
+public record UpsertSkuCommand(Long skuId, String skuCode, String name,
+        long priceCents, String status, boolean available, String imageId) {}
+```
+
+5. **Update controller mapping** in `AdminCatalogV2Controller.upsertProduct` to pass `skuReq.imageId()` when constructing `UpsertSkuCommand`.
+
+6. **Update ALL `AdminCatalogProductDto` constructor calls** in both `AdminCatalogWriteService` and `AdminCatalogReadService` to include the 2 new fields (`imageId`, `imageUrl`). Since Java records have positional constructors, every existing call site MUST be updated or compilation will fail.
+
+7. **Update ALL `AdminCatalogSkuDto` constructor calls** — same issue. Both write and read services construct this DTO and must include `imageId` and `imageUrl` parameters.
+
 - [ ] **Step 3: Commit**
 
 ```bash
@@ -1033,3 +1045,15 @@ Expected: 409 Conflict if bound, 204 No Content if unbound.
 ```bash
 git commit --allow-empty -m "verify: image upload system deployed and tested on AWS"
 ```
+
+---
+
+## Task 13: Frontend integration (deferred)
+
+> **Note:** Frontend changes are explicitly deferred to a follow-up plan. The backend is fully functional and testable via curl/API without frontend work. Frontend tasks will be:
+>
+> 1. `pc-admin`: Add `imageId?` and `imageUrl?` to Product/SKU TypeScript types in `productService.ts`. Add "Upload Image" button to product edit form.
+> 2. `android-preview-web`: Use `imageUrl` from menu API to display product images. Fall back to placeholder.
+> 3. `qr-ordering-web`: Same as POS — use `imageUrl` from QR menu API.
+>
+> These changes are small (~20 lines each) and can be done after backend verification.
