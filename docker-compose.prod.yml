@@ -35,6 +35,10 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       POS_CALLBACK_SECRET: ${POS_CALLBACK_SECRET}
       AUTH_BOOTSTRAP_SECRET: ${AUTH_BOOTSTRAP_SECRET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET:-founderpos-images}
+      S3_REGION: ${S3_REGION:-us-east-1}
 
   pos-payment-service:
     build:
