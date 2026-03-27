@@ -14,6 +14,7 @@ public record UpsertCatalogProductRequest(
         String productCode,
         @NotBlank String name,
         @NotBlank String status,
+        String imageId,
         @Valid @NotEmpty List<UpsertCatalogSkuItemRequest> skus,
         @Valid List<UpsertCatalogAttributeGroupRequest> attributeGroups,
         @Valid List<UpsertCatalogModifierGroupRequest> modifierGroups,
@@ -25,7 +26,8 @@ public record UpsertCatalogProductRequest(
             @NotBlank String name,
             @Min(0) long priceCents,
             @NotBlank String status,
-            @NotNull Boolean available
+            @NotNull Boolean available,
+            String imageId
     ) {
     }
 

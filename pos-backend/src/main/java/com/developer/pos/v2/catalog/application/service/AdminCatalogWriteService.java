@@ -8,6 +8,7 @@ import com.developer.pos.v2.catalog.application.dto.AdminCatalogModifierGroupDto
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogModifierOptionDto;
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogProductDto;
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogSkuDto;
+import com.developer.pos.auth.security.AuthContext;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ProductCategoryEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ProductEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuEntity;
@@ -17,6 +18,7 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaPro
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaStoreSkuAvailabilityRepository;
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.image.application.service.ImageUploadService;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -43,6 +45,7 @@ public class AdminCatalogWriteService implements UseCase {
     private final JpaSkuRepository skuRepository;
     private final JpaStoreSkuAvailabilityRepository availabilityRepository;
     private final ObjectMapper objectMapper;
+    private final ImageUploadService imageUploadService;
 
     public AdminCatalogWriteService(
             JpaStoreLookupRepository storeLookupRepository,
@@ -50,7 +53,8 @@ public class AdminCatalogWriteService implements UseCase {
             JpaProductRepository productRepository,
             JpaSkuRepository skuRepository,
             JpaStoreSkuAvailabilityRepository availabilityRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ImageUploadService imageUploadService
     ) {
         this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
@@ -58,6 +62,7 @@ public class AdminCatalogWriteService implements UseCase {
         this.skuRepository = skuRepository;
         this.availabilityRepository = availabilityRepository;
         this.objectMapper = objectMapper;
+        this.imageUploadService = imageUploadService;
     }
 
     @Transactional
@@ -98,6 +103,7 @@ public class AdminCatalogWriteService implements UseCase {
             String productCode,
             String name,
             String status,
+            String imageId,
             List<UpsertSkuCommand> skus,
             List<UpsertAttributeGroupCommand> attributeGroups,
             List<UpsertModifierGroupCommand> modifierGroups,
@@ -108,6 +114,11 @@ public class AdminCatalogWriteService implements UseCase {
         }
 
         StoreEntity store = findStore(storeCode);
+        Long authMerchantId = AuthContext.current().merchantId();
+        if (!store.getMerchantId().equals(authMerchantId)) {
+            throw new SecurityException("Store does not belong to your merchant");
+        }
+
         ProductCategoryEntity category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new IllegalArgumentException("Category not found: " + categoryId));
         ensureStoreOwnership(store.getId(), category.getStoreId(), "Category");
@@ -141,6 +152,18 @@ public class AdminCatalogWriteService implements UseCase {
         }
 
         ProductEntity savedProduct = productRepository.save(entity);
+
+        // Product-level image binding
+        if (imageId != null) {
+            if (imageId.isEmpty()) {
+                savedProduct.setImageId(null);
+            } else {
+                imageUploadService.validateImageOwnership(imageId, authMerchantId);
+                savedProduct.setImageId(imageId);
+            }
+            savedProduct = productRepository.save(savedProduct);
+        }
+
         List<SkuEntity> existingSkus = skuRepository.findByProductIdOrderByIdAsc(savedProduct.getId());
         Map<Long, SkuEntity> existingSkuMap = new HashMap<>();
         for (SkuEntity existing : existingSkus) {
@@ -168,6 +191,18 @@ public class AdminCatalogWriteService implements UseCase {
             }
 
             SkuEntity savedSku = skuRepository.save(skuEntity);
+
+            // SKU-level image binding
+            if (command.imageId() != null) {
+                if (command.imageId().isEmpty()) {
+                    savedSku.setImageId(null);
+                } else {
+                    imageUploadService.validateImageOwnership(command.imageId(), authMerchantId);
+                    savedSku.setImageId(command.imageId());
+                }
+                savedSku = skuRepository.save(savedSku);
+            }
+
             StoreSkuAvailabilityEntity availability = availabilityRepository.findByStoreIdAndSkuId(store.getId(), savedSku.getId())
                     .orElseGet(() -> new StoreSkuAvailabilityEntity(store.getId(), savedSku.getId(), command.available()));
             availability.updateAvailability(command.available());
@@ -267,7 +302,8 @@ public class AdminCatalogWriteService implements UseCase {
             String name,
             long priceCents,
             String status,
-            boolean available
+            boolean available,
+            String imageId
     ) {
     }
 

@@ -102,6 +102,7 @@ public class AdminCatalogV2Controller implements V2Api {
                 request.productCode(),
                 request.name(),
                 request.status(),
+                request.imageId(),
                 request.skus().stream()
                         .map(item -> new AdminCatalogWriteService.UpsertSkuCommand(
                                 item.skuId(),
@@ -109,7 +110,8 @@ public class AdminCatalogV2Controller implements V2Api {
                                 item.name(),
                                 item.priceCents(),
                                 item.status(),
-                                item.available()
+                                item.available(),
+                                item.imageId()
                         ))
                         .toList(),
                 request.attributeGroups() == null ? List.of() : request.attributeGroups().stream()
