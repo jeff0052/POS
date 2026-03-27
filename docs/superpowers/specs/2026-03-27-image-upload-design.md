@@ -238,7 +238,7 @@ The existing `UpsertCatalogProductRequest` payload is extended with an optional 
   "storeCode": "STORE001",
   "categoryId": 1,
   "name": "Signature Fried Rice",
-  "status": "PUBLISHED",
+  "status": "ENABLED",
   "imageId": "IMG-a1b2c3d4e5f6g7h8",
   "skus": [
     {
