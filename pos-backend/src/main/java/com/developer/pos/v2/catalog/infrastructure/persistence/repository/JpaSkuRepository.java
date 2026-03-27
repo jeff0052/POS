@@ -9,4 +9,6 @@ public interface JpaSkuRepository extends JpaRepository<SkuEntity, Long> {
     List<SkuEntity> findByProductIdOrderByIdAsc(Long productId);
 
     List<SkuEntity> findByProductIdInOrderByProductIdAscIdAsc(List<Long> productIds);
+
+    long countByImageId(String imageId);
 }
