@@ -7,6 +7,8 @@ public record AdminCatalogSkuDto(
         String barcode,
         long priceCents,
         String status,
-        boolean available
+        boolean available,
+        String imageId,
+        String imageUrl
 ) {
 }

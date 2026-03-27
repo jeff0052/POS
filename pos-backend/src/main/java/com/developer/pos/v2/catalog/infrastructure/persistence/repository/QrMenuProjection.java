@@ -28,4 +28,8 @@ public interface QrMenuProjection {
     String getSkuName();
 
     Long getUnitPriceCents();
+
+    String getProductImageId();
+
+    String getSkuImageId();
 }

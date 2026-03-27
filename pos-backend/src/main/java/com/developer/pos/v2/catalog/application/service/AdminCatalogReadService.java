@@ -81,6 +81,8 @@ public class AdminCatalogReadService implements UseCase {
                             999,
                             normalizeStatus(product.getProductStatus()),
                             category == null ? "-" : category.getCategoryName(),
+                            product.getImageId(),
+                            imageUrl(product.getImageId()),
                             skus,
                             readList(product.getAttributeConfigJson(), new TypeReference<List<AdminCatalogAttributeGroupDto>>() {}),
                             readList(product.getModifierConfigJson(), new TypeReference<List<AdminCatalogModifierGroupDto>>() {}),
@@ -136,10 +138,16 @@ public class AdminCatalogReadService implements UseCase {
                             sku.getSkuCode(),
                             sku.getBasePriceCents(),
                             normalizeStatus(sku.getSkuStatus()),
-                            availabilityMap.getOrDefault(sku.getId(), true)
+                            availabilityMap.getOrDefault(sku.getId(), true),
+                            sku.getImageId(),
+                            imageUrl(sku.getImageId())
                     ));
         }
         return result;
+    }
+
+    private String imageUrl(String imageId) {
+        return imageId != null ? "/api/v2/images/" + imageId : null;
     }
 
     private String normalizeStatus(String rawStatus) {

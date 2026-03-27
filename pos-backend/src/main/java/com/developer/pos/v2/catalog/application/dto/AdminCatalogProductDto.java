@@ -9,6 +9,8 @@ public record AdminCatalogProductDto(
         int stockQty,
         String status,
         String categoryName,
+        String imageId,
+        String imageUrl,
         java.util.List<AdminCatalogSkuDto> skus,
         java.util.List<AdminCatalogAttributeGroupDto> attributeGroups,
         java.util.List<AdminCatalogModifierGroupDto> modifierGroups,

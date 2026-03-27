@@ -24,6 +24,7 @@ public record QrMenuDto(
             String skuCode,
             String skuName,
             long unitPriceCents,
+            String imageUrl,
             List<AdminCatalogAttributeGroupDto> attributeGroups,
             List<AdminCatalogModifierGroupDto> modifierGroups,
             List<AdminCatalogComboSlotDto> comboSlots

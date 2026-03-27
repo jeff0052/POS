@@ -23,7 +23,9 @@ public interface JpaQrMenuRepository extends JpaRepository<StoreSkuAvailabilityE
                 k.id AS skuId,
                 k.sku_code AS skuCode,
                 k.sku_name AS skuName,
-                k.base_price_cents AS unitPriceCents
+                k.base_price_cents AS unitPriceCents,
+                p.image_id AS productImageId,
+                k.image_id AS skuImageId
             FROM stores s
             JOIN product_categories c
               ON c.store_id = s.id

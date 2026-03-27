@@ -215,7 +215,9 @@ public class AdminCatalogWriteService implements UseCase {
                     savedSku.getSkuCode(),
                     savedSku.getBasePriceCents(),
                     savedSku.getSkuStatus(),
-                    availability.isAvailable()
+                    availability.isAvailable(),
+                    savedSku.getImageId(),
+                    imageUrl(savedSku.getImageId())
             ));
         }
 
@@ -230,6 +232,8 @@ public class AdminCatalogWriteService implements UseCase {
                 999,
                 savedProduct.getProductStatus(),
                 category.getCategoryName(),
+                savedProduct.getImageId(),
+                imageUrl(savedProduct.getImageId()),
                 skuDtos,
                 readJson(savedProduct.getAttributeConfigJson(), new TypeReference<List<AdminCatalogAttributeGroupDto>>() {}),
                 readJson(savedProduct.getModifierConfigJson(), new TypeReference<List<AdminCatalogModifierGroupDto>>() {}),
@@ -253,6 +257,10 @@ public class AdminCatalogWriteService implements UseCase {
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException("Failed to parse catalog config", exception);
         }
+    }
+
+    private String imageUrl(String imageId) {
+        return imageId != null ? "/api/v2/images/" + imageId : null;
     }
 
     private StoreEntity findStore(String storeCode) {

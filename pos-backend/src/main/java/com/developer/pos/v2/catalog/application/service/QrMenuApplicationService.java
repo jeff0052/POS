@@ -65,6 +65,10 @@ public class QrMenuApplicationService implements UseCase {
             );
             ProductEntity product = productsById.get(row.getProductId());
 
+            // Image priority: SKU imageId → product imageId → null
+            String effectiveImageId = row.getSkuImageId() != null ? row.getSkuImageId() : row.getProductImageId();
+            String menuImageUrl = effectiveImageId != null ? "/api/v2/images/" + effectiveImageId : null;
+
             category.items().add(new QrMenuDto.MenuItemDto(
                     row.getProductId(),
                     row.getProductCode(),
@@ -73,6 +77,7 @@ public class QrMenuApplicationService implements UseCase {
                     row.getSkuCode(),
                     row.getSkuName(),
                     row.getUnitPriceCents(),
+                    menuImageUrl,
                     readList(product == null ? null : product.getAttributeConfigJson(), new TypeReference<List<AdminCatalogAttributeGroupDto>>() {}),
                     readList(product == null ? null : product.getModifierConfigJson(), new TypeReference<List<AdminCatalogModifierGroupDto>>() {}),
                     readList(product == null ? null : product.getComboSlotConfigJson(), new TypeReference<List<AdminCatalogComboSlotDto>>() {})
