@@ -34,12 +34,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (jwtProvider.isValid(token)) {
                 Claims claims = jwtProvider.parseToken(token);
                 String userId = claims.getSubject();
+                String username = claims.get("username", String.class);
                 String role = claims.get("role", String.class);
+                Long merchantId = claims.get("merchantId", Long.class);
+                Long storeId = claims.get("storeId", Long.class);
 
+                AuthenticatedActor actor = new AuthenticatedActor(
+                        Long.parseLong(userId), username, role, merchantId, storeId
+                );
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                        userId,
-                        null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                        actor, null, List.of(new SimpleGrantedAuthority("ROLE_" + role))
                 );
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
