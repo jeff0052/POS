@@ -203,8 +203,9 @@ public class AdminCatalogWriteService implements UseCase {
                 savedSku = skuRepository.save(savedSku);
             }
 
-            StoreSkuAvailabilityEntity availability = availabilityRepository.findByStoreIdAndSkuId(store.getId(), savedSku.getId())
-                    .orElseGet(() -> new StoreSkuAvailabilityEntity(store.getId(), savedSku.getId(), command.available()));
+            final SkuEntity finalSku = savedSku;
+            StoreSkuAvailabilityEntity availability = availabilityRepository.findByStoreIdAndSkuId(store.getId(), finalSku.getId())
+                    .orElseGet(() -> new StoreSkuAvailabilityEntity(store.getId(), finalSku.getId(), command.available()));
             availability.updateAvailability(command.available());
             availabilityRepository.save(availability);
 
