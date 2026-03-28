@@ -1,19 +1,20 @@
--- G07 SOP 批量导入: 导入批次追踪表
+-- V088: SOP 配方批量导入表
+-- Journey: J08 库存
 CREATE TABLE sop_import_batches (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     store_id BIGINT NOT NULL,
-    batch_no VARCHAR(64) NOT NULL,
     file_name VARCHAR(255) NOT NULL,
-    file_url VARCHAR(512) NOT NULL,
+    file_asset_id VARCHAR(64) NULL,
     total_rows INT NOT NULL DEFAULT 0,
     success_rows INT NOT NULL DEFAULT 0,
     error_rows INT NOT NULL DEFAULT 0,
-    error_details JSON NULL COMMENT '[{"row":3,"field":"sku_code","error":"not found"}]',
-    import_status VARCHAR(32) NOT NULL DEFAULT 'UPLOADED'
-      COMMENT 'UPLOADED|VALIDATING|VALIDATED|IMPORTING|COMPLETED|FAILED',
-    imported_by BIGINT NOT NULL,
+    batch_status VARCHAR(32) NOT NULL DEFAULT 'VALIDATING'
+      COMMENT 'VALIDATING -> VALIDATED -> IMPORTING -> COMPLETED | FAILED',
+    error_details JSON NULL
+      COMMENT '[{"row": 5, "error": "SKU not found: ABC"}]',
+    imported_by BIGINT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_sib_store FOREIGN KEY (store_id) REFERENCES stores(id),
-    CONSTRAINT uk_sib UNIQUE (store_id, batch_no)
+    INDEX idx_sib_store (store_id, batch_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

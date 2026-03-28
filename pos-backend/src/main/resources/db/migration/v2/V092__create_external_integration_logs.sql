@@ -1,24 +1,25 @@
--- G12 第三方对接日志
+-- V092: 外部对接日志表
+-- Journey: J03 外卖, J10 财务, J12 预约
+-- LONGTEXT for body: webhook payloads can be large (consistent with payment_attempts)
 CREATE TABLE external_integration_logs (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    store_id BIGINT NULL COMMENT '可为空(平台级调用)',
-    merchant_id BIGINT NOT NULL,
-    integration_type VARCHAR(64) NOT NULL
-      COMMENT 'GRAB|FOODPANDA|GOOGLE|MALL_CRM|GTO|PAYMENT|OCR',
-    direction VARCHAR(16) NOT NULL COMMENT 'OUTBOUND|INBOUND',
-    http_method VARCHAR(16) NULL,
-    request_url VARCHAR(1024) NULL,
-    request_headers JSON NULL,
-    request_body TEXT NULL,
-    response_status INT NULL,
-    response_body TEXT NULL,
-    latency_ms INT NULL,
-    result_status VARCHAR(32) NOT NULL COMMENT 'SUCCESS|FAILED|TIMEOUT|ERROR',
-    error_message VARCHAR(512) NULL,
-    business_type VARCHAR(64) NULL COMMENT 'ORDER_SYNC|MENU_PUSH|REVIEW_FETCH|...',
-    business_ref VARCHAR(128) NULL COMMENT '关联的业务 ID',
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    store_id BIGINT NOT NULL,
+    platform VARCHAR(64) NOT NULL
+      COMMENT 'GRAB | FOODPANDA | GOOGLE | WECHAT | ...',
+    direction VARCHAR(16) NOT NULL
+      COMMENT 'INBOUND | OUTBOUND',
+    endpoint VARCHAR(512) NOT NULL,
+    request_body LONGTEXT NULL,
+    response_body LONGTEXT NULL,
+    http_status INT NULL,
+    result_status VARCHAR(32) NOT NULL
+      COMMENT 'SUCCESS | FAILED | TIMEOUT',
+    error_message VARCHAR(1024) NULL,
+    correlation_id VARCHAR(128) NULL,
+    duration_ms INT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_eil_type (merchant_id, integration_type, created_at),
-    INDEX idx_eil_result (merchant_id, result_status, created_at),
-    INDEX idx_eil_biz (business_type, business_ref)
+    CONSTRAINT fk_eil_store FOREIGN KEY (store_id) REFERENCES stores(id),
+    INDEX idx_eil_store_platform (store_id, platform),
+    INDEX idx_eil_correlation (correlation_id),
+    INDEX idx_eil_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

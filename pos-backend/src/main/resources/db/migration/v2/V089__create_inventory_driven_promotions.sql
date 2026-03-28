@@ -1,25 +1,27 @@
--- G05 库存驱动促销: 临期/积压/滞销自动生成促销草案
+-- V089: 库存驱动促销草案表
+-- Journey: J07 店长, J08 库存
+-- 临期/滞销自动生成草案，店长审批后创建 promotion_rule
 CREATE TABLE inventory_driven_promotions (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     store_id BIGINT NOT NULL,
-    trigger_type VARCHAR(32) NOT NULL COMMENT 'EXPIRING_BATCH|OVERSTOCK|SLOW_MOVING',
     inventory_item_id BIGINT NOT NULL,
-    batch_id BIGINT NULL COMMENT '临期触发时关联的批次',
-    trigger_data JSON NOT NULL COMMENT '{"daysToExpiry":3,"remainingQty":50,"unit":"kg"}',
-    affected_sku_ids JSON NOT NULL COMMENT '[101,102]',
-    suggested_promotion_type VARCHAR(32) NOT NULL COMMENT 'PERCENT_DISCOUNT|AMOUNT_DISCOUNT|GIFT_SKU',
-    suggested_discount_value INT NULL COMMENT '折扣百分比或减免金额(cents)',
-    suggested_start_at TIMESTAMP NOT NULL,
-    suggested_end_at TIMESTAMP NOT NULL,
-    draft_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT|APPROVED|REJECTED|EXPIRED',
-    promotion_rule_id BIGINT NULL COMMENT '审批通过后关联的 promotion_rules.id',
-    reviewed_by BIGINT NULL,
-    reviewed_at TIMESTAMP NULL,
-    review_notes VARCHAR(255) NULL,
+    inventory_batch_id BIGINT NULL,
+    trigger_type VARCHAR(32) NOT NULL
+      COMMENT 'NEAR_EXPIRY | OVERSTOCK | LOW_TURNOVER',
+    suggested_discount_percent DECIMAL(5,2) NOT NULL
+      COMMENT 'supports fractional discount like 12.50%',
+    suggested_sku_ids JSON NOT NULL
+      COMMENT '[101, 102, ...]',
+    draft_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT'
+      COMMENT 'DRAFT -> APPROVED -> CREATED | REJECTED | EXPIRED',
+    promotion_rule_id BIGINT NULL
+      COMMENT 'created promotion_rule after approval',
+    approved_by BIGINT NULL,
+    approved_at TIMESTAMP NULL,
+    expires_at TIMESTAMP NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_idp_store FOREIGN KEY (store_id) REFERENCES stores(id),
     CONSTRAINT fk_idp_item FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id),
-    INDEX idx_idp_status (store_id, draft_status),
-    INDEX idx_idp_trigger (store_id, trigger_type, created_at)
+    INDEX idx_idp_store_status (store_id, draft_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

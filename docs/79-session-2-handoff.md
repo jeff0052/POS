@@ -20,10 +20,19 @@
 ```
 ✅ 0.1 写 12 条 user journey
 ✅ 0.2 从 journey 反推状态机、约束、跨模块边界
-→  0.3 补数据模型遗漏（基于 journey + 状态机发现的 gap）
-   0.4 统一 review DDL
-   0.5 生成 Flyway migrations
+✅ 0.3 补数据模型遗漏 → docs/80（9 新表 + 8 ALTER）
+✅ 0.4 统一 review DDL → docs/82（3 BUG + agent review 11 项修复）
+✅ 0.5 生成 Flyway migrations → 21 个 SQL 文件（V066-V101）
+✅ 0.6 验证 migration 可执行 → 本地 MySQL 128 表全部通过
+✅ 0.7 Code Review 修复 → 4 项（V099 删除、QR 统一、API 契约对齐、本文档更新）
 ```
+
+**最终数字:**
+- 物理表: 128（不含 flyway_schema_history）
+- Migration 文件: V001-V101（其中 V099 已删除）
+- V066: 74 个 CREATE TABLE（docs 66-73 追赶）
+- V067: 现有表 ALTER（buffet/CRM/channel 字段）
+- V070-V101: Step 0.3 gap 修复（9 新表 + ALTER）
 
 ---
 
@@ -129,7 +138,8 @@ Step 8: AI层（MCP接真数据 + AI顾问接LLM + Agent）— 5-7天
 | MRD V3 | `docs/74-mrd-v3.md` |
 | PRD V3 | `docs/77-updated-prd-v3.md` |
 | 客户原始需求 | `/Users/ontanetwork/Documents/小航需求/65-aurora-restaurant-pos-detailed-prd.md` |
-| 系统架构（5大块22子系统） | `docs/78-next-session-handoff.md` |
+| **系统架构总纲（唯一入口）** | **`docs/83-system-architecture-v3.md`** |
+| 系统架构（旧版，已被 83 替代） | `docs/78-next-session-handoff.md` |
 | 支付外包交接 | `docs/55-payment-service-handoff-for-external-team.md` |
 
 ---
