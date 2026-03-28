@@ -3727,7 +3727,25 @@ function App() {
                   </p>
                 </div>
 
-                <button className="cta-button success-done-button" onClick={() => setView("tables")}>
+                <button className="cta-button success-done-button" onClick={() => {
+                  // Clear all local state for this table after settlement
+                  const tid = selectedTable?.id;
+                  if (tid) {
+                    setTableDraftOrders((prev) => { const next = {...prev}; delete next[tid]; return next; });
+                    setSubmittedOrdersByTable((prev) => { const next = {...prev}; delete next[tid]; return next; });
+                    setTableOrderStages((prev) => { const next = {...prev}; delete next[tid]; return next; });
+                    setTablePaymentPreviews((prev) => { const next = {...prev}; delete next[tid]; return next; });
+                    setTableBackendIds((prev) => { const next = {...prev}; delete next[tid]; return next; });
+                    const tCode = `T${tid}`;
+                    setQrOrders((prev) => { const next = {...prev}; delete next[tCode]; return next; });
+                    // Update table card to available
+                    setTables((prev) => prev.map((t) =>
+                      t.id === tid ? {...t, status: "available" as const, total: 0, itemCount: 0, source: undefined, settlementState: undefined} : t
+                    ));
+                  }
+                  setCompletedSettlementSnapshot(null);
+                  setView("tables");
+                }}>
                   Payment Done
                 </button>
               </section>
