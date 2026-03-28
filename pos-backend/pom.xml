@@ -89,11 +89,7 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
-            <version>2.25.16</version>
-        </dependency>
+        <!-- Image storage uses local disk; AWS SDK removed -->
     </dependencies>
 
     <build>

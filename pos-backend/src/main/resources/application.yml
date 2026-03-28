@@ -1,10 +1,8 @@
 server:
   port: 8080
 
-aws:
-  s3:
-    bucket: ${S3_BUCKET:founderpos-images}
-    region: ${S3_REGION:us-east-1}
+storage:
+  base-path: ${IMAGE_STORAGE_PATH:/data/founderpos/images}
 
 spring:
   application:
