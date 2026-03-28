@@ -75,8 +75,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("USER_MANAGE", "STORE_MANAGE", "ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
                 // MCP requires ADMIN/PLATFORM_ADMIN role OR appropriate permission
                 .requestMatchers("/api/v2/mcp/**").hasAnyAuthority("AI_RECOMMENDATION_VIEW", "AI_RECOMMENDATION_APPROVE", "ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
-                // Platform admin
-                .requestMatchers("/api/v2/platform/**").hasAnyAuthority("STORE_MANAGE", "ROLE_PLATFORM_ADMIN")
+                // Platform admin — SUPER_ADMIN only (not MERCHANT_OWNER even though they have STORE_MANAGE)
+                .requestMatchers("/api/v2/platform/**").hasAuthority("ROLE_SUPER_ADMIN")
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )

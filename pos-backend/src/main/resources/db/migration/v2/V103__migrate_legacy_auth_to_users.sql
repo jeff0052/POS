@@ -76,6 +76,8 @@ FROM users u
 JOIN staff s ON u.user_code COLLATE utf8mb4_unicode_ci = s.staff_code COLLATE utf8mb4_unicode_ci
 JOIN custom_roles r ON r.merchant_id IS NULL AND r.role_code COLLATE utf8mb4_unicode_ci = CASE
     WHEN s.role_code = 'MANAGER' THEN 'STORE_MANAGER'
+    WHEN s.role_code = 'OWNER' THEN 'MERCHANT_OWNER'
+    WHEN s.role_code = 'KITCHEN' THEN 'KITCHEN_STAFF'
     ELSE s.role_code
 END COLLATE utf8mb4_unicode_ci
 WHERE NOT EXISTS (

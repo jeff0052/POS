@@ -49,6 +49,7 @@ public class RbacManagementService implements UseCase {
     private final JpaUserStoreAccessRepository userStoreAccessRepository;
     private final PermissionCacheService permissionCacheService;
     private final PasswordEncoder passwordEncoder;
+    private final com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreRepository storeRepository;
 
     public RbacManagementService(
             JpaUserRepository userRepository,
@@ -58,7 +59,8 @@ public class RbacManagementService implements UseCase {
             JpaUserRoleRepository userRoleRepository,
             JpaUserStoreAccessRepository userStoreAccessRepository,
             PermissionCacheService permissionCacheService,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreRepository storeRepository
     ) {
         this.userRepository = userRepository;
         this.permissionRepository = permissionRepository;
@@ -67,6 +69,7 @@ public class RbacManagementService implements UseCase {
         this.userRoleRepository = userRoleRepository;
         this.userStoreAccessRepository = userStoreAccessRepository;
         this.permissionCacheService = permissionCacheService;
+        this.storeRepository = storeRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -225,6 +228,7 @@ public class RbacManagementService implements UseCase {
     }
 
     public List<CustomRoleDto> listRoles(Long merchantId) {
+        assertSameMerchant(merchantId);
         List<CustomRoleEntity> roles = customRoleRepository.findByMerchantIdOrMerchantIdIsNull(merchantId);
         return roles.stream().map(this::toRoleDto).collect(Collectors.toList());
     }
@@ -330,6 +334,22 @@ public class RbacManagementService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
         assertUserBelongsToCaller(user);
 
+        // Validate all roleIds: non-SUPER_ADMIN callers cannot assign PLATFORM-level roles
+        Long callerMerchant = enforceCallerMerchant();
+        if (callerMerchant != null) {
+            for (Long roleId : roleIds) {
+                CustomRoleEntity role = customRoleRepository.findById(roleId)
+                        .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
+                if ("PLATFORM".equals(role.getRoleLevel())) {
+                    throw new SecurityException("Cannot assign platform-level role: " + role.getRoleCode());
+                }
+                // Custom (non-system) roles must belong to caller's merchant
+                if (role.getMerchantId() != null && !role.getMerchantId().equals(callerMerchant)) {
+                    throw new SecurityException("Access denied: role belongs to another merchant");
+                }
+            }
+        }
+
         // Remove existing roles
         List<UserRoleEntity> existing = userRoleRepository.findByUserId(userId);
         for (UserRoleEntity ur : existing) {
@@ -353,6 +373,18 @@ public class RbacManagementService implements UseCase {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
         assertUserBelongsToCaller(user);
+
+        // Validate all storeIds belong to caller's merchant
+        Long callerMerchant2 = enforceCallerMerchant();
+        if (callerMerchant2 != null) {
+            for (SetStoreAccessRequest.Entry entry : entries) {
+                var store = storeRepository.findById(entry.getStoreId())
+                        .orElseThrow(() -> new IllegalArgumentException("Store not found: " + entry.getStoreId()));
+                if (!callerMerchant2.equals(store.getMerchantId())) {
+                    throw new SecurityException("Access denied: store belongs to another merchant");
+                }
+            }
+        }
 
         // Remove existing store access
         List<UserStoreAccessEntity> existing = userStoreAccessRepository.findByUserId(userId);

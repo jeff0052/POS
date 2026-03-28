@@ -145,10 +145,10 @@ public class RbacAuthService implements UseCase {
     private void validateUserNotDisabledOrLocked(UserEntity user) {
         String status = user.getUserStatus();
         if ("DISABLED".equals(status)) {
-            throw new IllegalArgumentException("Invalid credentials");
+            throw new IllegalStateException("Account is disabled");
         }
         if ("LOCKED".equals(status)) {
-            throw new IllegalArgumentException("Invalid credentials");
+            throw new IllegalStateException("Account is locked");
         }
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(OffsetDateTime.now())) {
             throw new IllegalStateException("Account locked until " + user.getLockedUntil());
