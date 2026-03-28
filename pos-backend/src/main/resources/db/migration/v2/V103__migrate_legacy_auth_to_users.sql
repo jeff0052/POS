@@ -57,6 +57,7 @@ WHERE NOT EXISTS (
 --   PLATFORM_ADMIN → SUPER_ADMIN
 --   ADMIN → MERCHANT_OWNER
 --   CASHIER (default) → CASHIER
+-- Only bind roles for users actually migrated in step 1 (user_code starts with 'AU-')
 INSERT IGNORE INTO user_roles (user_id, role_id, assigned_at, assigned_by)
 SELECT u.id, r.id, NOW(), NULL
 FROM users u
@@ -65,7 +66,8 @@ JOIN custom_roles r ON r.merchant_id IS NULL AND r.role_code = CASE
     WHEN a.role = 'PLATFORM_ADMIN' THEN 'SUPER_ADMIN'
     WHEN a.role = 'ADMIN' THEN 'MERCHANT_OWNER'
     ELSE a.role
-END;
+END
+WHERE u.user_code LIKE 'AU-%';
 
 -- staff role mapping: staff.role_code → custom_roles.role_code
 INSERT IGNORE INTO user_roles (user_id, role_id, assigned_at, assigned_by)
@@ -89,7 +91,8 @@ INSERT IGNORE INTO user_store_access (user_id, store_id, access_level, granted_a
 SELECT u.id, a.store_id, 'FULL', NOW(), NULL
 FROM users u
 JOIN auth_users a ON u.username COLLATE utf8mb4_unicode_ci = a.username COLLATE utf8mb4_unicode_ci
-WHERE a.store_id IS NOT NULL;
+WHERE a.store_id IS NOT NULL
+  AND u.user_code LIKE 'AU-%';
 
 -- staff with store_id
 INSERT IGNORE INTO user_store_access (user_id, store_id, access_level, granted_at, granted_by)

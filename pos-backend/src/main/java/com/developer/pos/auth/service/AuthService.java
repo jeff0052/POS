@@ -45,8 +45,12 @@ public class AuthService {
                     rbacResponse.permissions(),
                     rbacResponse.roles()
             );
-        } catch (Exception e) {
-            log.debug("RBAC login failed for {}, falling back to legacy auth_users: {}", request.username(), e.getMessage());
+        } catch (IllegalStateException e) {
+            // Account locked/disabled — do NOT fallback, propagate the error
+            throw e;
+        } catch (IllegalArgumentException e) {
+            // "Invalid credentials" from RBAC — could mean user not in users table yet, try legacy
+            log.debug("RBAC login failed for {}, falling back to legacy: {}", request.username(), e.getMessage());
         }
 
         // Fallback to legacy auth_users

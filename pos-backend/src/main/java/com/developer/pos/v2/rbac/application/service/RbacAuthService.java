@@ -84,6 +84,12 @@ public class RbacAuthService implements UseCase {
         UserEntity user = userRepository.findByUserCodeAndMerchantId(userCode, store.getMerchantId())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
 
+        // Verify user has access to the requested store
+        boolean hasAccess = userStoreAccessRepository.findByUserIdAndStoreId(user.getId(), storeId).isPresent();
+        if (!hasAccess) {
+            throw new IllegalArgumentException("Invalid credentials");
+        }
+
         validateUserNotDisabledOrLocked(user);
 
         if (user.getPinHash() == null || !passwordEncoder.matches(pin, user.getPinHash())) {
@@ -97,7 +103,7 @@ public class RbacAuthService implements UseCase {
         user.setLastLoginAt(OffsetDateTime.now());
         userRepository.save(user);
 
-        return buildLoginResponse(user);
+        return buildLoginResponse(user, storeId);
     }
 
     @Transactional
@@ -167,12 +173,14 @@ public class RbacAuthService implements UseCase {
     }
 
     private RbacLoginResponse buildLoginResponse(UserEntity user) {
+        return buildLoginResponse(user, null);
+    }
+
+    private RbacLoginResponse buildLoginResponse(UserEntity user, Long requestedStoreId) {
         ResolvedPermissions resolved = permissionCacheService.resolve(user.getId());
 
-        // Determine storeId for JWT: use first accessible store, or null
-        Long storeId = resolved.accessibleStoreIds().isEmpty()
-                ? null
-                : resolved.accessibleStoreIds().iterator().next();
+        // Use requested storeId if provided (PIN login), otherwise null (password login)
+        Long storeId = requestedStoreId;
 
         String token = jwtProvider.generateToken(
                 user.getId(),

@@ -1,5 +1,7 @@
 package com.developer.pos.v2.rbac.application.service;
 
+import com.developer.pos.auth.security.AuthContext;
+import com.developer.pos.auth.security.AuthenticatedActor;
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.rbac.application.dto.CustomRoleDto;
 import com.developer.pos.v2.rbac.application.dto.PermissionDto;
@@ -68,10 +70,33 @@ public class RbacManagementService implements UseCase {
         this.passwordEncoder = passwordEncoder;
     }
 
+    // ==================== Tenant Isolation ====================
+
+    private Long enforceCallerMerchant() {
+        AuthenticatedActor actor = AuthContext.current();
+        // SUPER_ADMIN (merchantId=0) can operate on any merchant
+        if (actor.merchantId() != null && actor.merchantId() == 0L) {
+            return null; // no restriction
+        }
+        return actor.merchantId();
+    }
+
+    private void assertSameMerchant(Long targetMerchantId) {
+        Long callerMerchant = enforceCallerMerchant();
+        if (callerMerchant != null && !callerMerchant.equals(targetMerchantId)) {
+            throw new SecurityException("Access denied: cross-merchant operation");
+        }
+    }
+
+    private void assertUserBelongsToCaller(UserEntity user) {
+        assertSameMerchant(user.getMerchantId());
+    }
+
     // ==================== User CRUD ====================
 
     @Transactional
     public RbacUserDto createUser(CreateUserRequest request) {
+        assertSameMerchant(request.getMerchantId());
         UserEntity user = new UserEntity();
         user.setUserCode(generateUserCode());
         user.setMerchantId(request.getMerchantId());
@@ -122,6 +147,7 @@ public class RbacManagementService implements UseCase {
     public RbacUserDto updateUser(Long userId, UpdateUserRequest request) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        assertUserBelongsToCaller(user);
 
         if (request.getDisplayName() != null) {
             user.setDisplayName(request.getDisplayName());
@@ -146,6 +172,7 @@ public class RbacManagementService implements UseCase {
     public void deactivateUser(Long userId) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        assertUserBelongsToCaller(user);
 
         user.setUserStatus("DISABLED");
         userRepository.save(user);
@@ -156,6 +183,7 @@ public class RbacManagementService implements UseCase {
     public void resetPassword(Long userId, String newPassword) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        assertUserBelongsToCaller(user);
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setMustChangePassword(true);
@@ -167,6 +195,7 @@ public class RbacManagementService implements UseCase {
     public void setPin(Long userId, String newPin) {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        assertUserBelongsToCaller(user);
 
         user.setPinHash(passwordEncoder.encode(newPin));
         userRepository.save(user);
@@ -202,6 +231,7 @@ public class RbacManagementService implements UseCase {
 
     @Transactional
     public CustomRoleDto createCustomRole(CreateCustomRoleRequest request) {
+        assertSameMerchant(request.getMerchantId());
         CustomRoleEntity role = new CustomRoleEntity();
         role.setMerchantId(request.getMerchantId());
         role.setRoleCode(request.getRoleCode());
@@ -233,6 +263,9 @@ public class RbacManagementService implements UseCase {
     public CustomRoleDto updateCustomRole(Long roleId, UpdateCustomRoleRequest request) {
         CustomRoleEntity role = customRoleRepository.findById(roleId)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
+        if (role.getMerchantId() != null) {
+            assertSameMerchant(role.getMerchantId());
+        }
 
         if (Boolean.FALSE.equals(role.getIsEditable())) {
             throw new IllegalStateException("Role is not editable: " + roleId);
@@ -261,6 +294,7 @@ public class RbacManagementService implements UseCase {
             }
         }
 
+        evictUsersWithRole(roleId);
         return toRoleDto(role);
     }
 
@@ -268,21 +302,33 @@ public class RbacManagementService implements UseCase {
     public void deleteCustomRole(Long roleId) {
         CustomRoleEntity role = customRoleRepository.findById(roleId)
                 .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
+        if (role.getMerchantId() != null) {
+            assertSameMerchant(role.getMerchantId());
+        }
 
         if (Boolean.TRUE.equals(role.getIsSystem())) {
             throw new IllegalStateException("Cannot delete system role: " + roleId);
         }
 
+        evictUsersWithRole(roleId);
         customRolePermissionRepository.deleteByRoleId(roleId);
         customRoleRepository.delete(role);
+    }
+
+    private void evictUsersWithRole(Long roleId) {
+        List<UserRoleEntity> holders = userRoleRepository.findByRoleId(roleId);
+        for (UserRoleEntity ur : holders) {
+            permissionCacheService.evict(ur.getUserId());
+        }
     }
 
     // ==================== User-Role Assignment ====================
 
     @Transactional
     public void assignRoles(Long userId, List<Long> roleIds) {
-        userRepository.findById(userId)
+        UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        assertUserBelongsToCaller(user);
 
         // Remove existing roles
         List<UserRoleEntity> existing = userRoleRepository.findByUserId(userId);
@@ -304,8 +350,9 @@ public class RbacManagementService implements UseCase {
 
     @Transactional
     public void setStoreAccess(Long userId, List<SetStoreAccessRequest.Entry> entries) {
-        userRepository.findById(userId)
+        UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        assertUserBelongsToCaller(user);
 
         // Remove existing store access
         List<UserStoreAccessEntity> existing = userStoreAccessRepository.findByUserId(userId);
@@ -327,6 +374,7 @@ public class RbacManagementService implements UseCase {
     }
 
     public List<RbacUserDetailDto> listUsers(Long merchantId) {
+        assertSameMerchant(merchantId);
         List<UserEntity> users = userRepository.findByMerchantId(merchantId);
         List<RbacUserDetailDto> result = new ArrayList<>();
 

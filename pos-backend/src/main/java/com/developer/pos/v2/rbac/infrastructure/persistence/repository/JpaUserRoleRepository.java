@@ -9,5 +9,7 @@ public interface JpaUserRoleRepository extends JpaRepository<UserRoleEntity, Lon
 
     List<UserRoleEntity> findByUserId(Long userId);
 
+    List<UserRoleEntity> findByRoleId(Long roleId);
+
     void deleteByUserIdAndRoleId(Long userId, Long roleId);
 }
