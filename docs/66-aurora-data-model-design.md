@@ -92,6 +92,99 @@ ALTER TABLE submitted_orders ADD COLUMN delivery_contact_phone VARCHAR(64) NULL 
 
 ## 3. 新增表 — 自助餐模块
 
+## 2.6 product_categories — 不需要改
+
+现有 `product_categories` 保持不变。分类是**商品的逻辑归类**（主食、饮品、甜品），不承担时段控制。时段控制由新增的 `menu_time_slots` 处理。
+
+---
+
+## 3. 新增表 — 时段菜单模块
+
+### 3.0.1 menu_time_slots（时段定义）
+
+```sql
+CREATE TABLE menu_time_slots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    store_id BIGINT NOT NULL,
+    slot_code VARCHAR(64) NOT NULL,
+    slot_name VARCHAR(128) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    applicable_days JSON DEFAULT '["MON","TUE","WED","THU","FRI","SAT","SUN"]',
+    dining_modes JSON DEFAULT '["A_LA_CARTE"]',
+    is_active BOOLEAN DEFAULT TRUE,
+    priority INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_mts_store FOREIGN KEY (store_id) REFERENCES stores(id),
+    CONSTRAINT uk_mts UNIQUE (store_id, slot_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+**字段说明：**
+- `start_time / end_time`：TIME 类型（如 `07:00:00`），不含日期，每天循环
+- `applicable_days`：哪几天生效，JSON 数组
+- `dining_modes`：这个时段适用于哪些用餐模式（单点/自助/外卖可以有不同时段）
+- `priority`：当多个时段重叠时，优先级高的覆盖低的
+
+**示例数据：**
+
+| slot_code | slot_name | start_time | end_time | applicable_days | dining_modes |
+|-----------|-----------|------------|----------|-----------------|--------------|
+| BREAKFAST | 早茶 | 07:00 | 11:00 | ["MON"-"SUN"] | ["A_LA_CARTE","BUFFET"] |
+| LUNCH | 午市 | 11:00 | 14:00 | ["MON"-"FRI"] | ["A_LA_CARTE"] |
+| AFTERNOON | 下午茶 | 14:00 | 17:00 | ["MON"-"SUN"] | ["A_LA_CARTE"] |
+| DINNER | 晚市 | 17:00 | 22:00 | ["MON"-"SUN"] | ["A_LA_CARTE","BUFFET"] |
+| LATE_NIGHT | 宵夜 | 22:00 | 02:00 | ["FRI","SAT"] | ["A_LA_CARTE"] |
+
+### 3.0.2 menu_time_slot_products（时段-商品可见性）
+
+```sql
+CREATE TABLE menu_time_slot_products (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    time_slot_id BIGINT NOT NULL,
+    product_id BIGINT NOT NULL,
+    is_visible BOOLEAN DEFAULT TRUE,
+    CONSTRAINT fk_mtsp_slot FOREIGN KEY (time_slot_id) REFERENCES menu_time_slots(id) ON DELETE CASCADE,
+    CONSTRAINT fk_mtsp_product FOREIGN KEY (product_id) REFERENCES products(id),
+    CONSTRAINT uk_mtsp UNIQUE (time_slot_id, product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+**设计决策：**
+- 关联到 **product** 不是 SKU — 因为通常是整道菜在某个时段卖不卖，不会出现"同一道菜的大份卖，小份不卖"
+- `is_visible=true` 表示该时段展示此商品，`false` 表示该时段隐藏
+- **如果一个 product 没有任何 time_slot 关联 → 默认全时段可见**（向后兼容，不影响现有数据）
+
+### 时段价格 — 复用 sku_price_overrides
+
+不需要新增表。`sku_price_overrides` 已经可以覆盖：
+
+```
+price_context = 'TIME_SLOT'
+price_context_ref = 'LUNCH'        → 午市价
+price_context_ref = 'AFTERNOON'    → 下午茶价
+price_context_ref = 'LATE_NIGHT'   → 宵夜价
+```
+
+### 完整的菜单解析逻辑（前端/后端统一）
+
+```
+1. 确定当前 dining_mode（A_LA_CARTE / BUFFET / DELIVERY）
+2. 确定当前时间 → 匹配 menu_time_slots（按 priority 取最高的）
+3. 过滤 products：
+   a. products.menu_modes 包含当前 dining_mode
+   b. 如果有 time_slot → 只展示 menu_time_slot_products 中 is_visible=true 的
+   c. 如果没有 time_slot 关联 → 默认展示
+4. 对每个可见 SKU 解析价格：
+   a. 查 sku_price_overrides (TIME_SLOT + 当前时段) → 有则用
+   b. 查 sku_price_overrides (DELIVERY + platform) → 有则用
+   c. 查 sku_price_overrides (MEMBER_TIER + tier) → 有则用
+   d. 以上都没有 → 用 skus.base_price_cents
+```
+
+---
+
 ### 3.1 buffet_packages（自助档位）
 
 ```sql
@@ -518,13 +611,15 @@ CREATE TABLE queue_tickets (
 
 ## 9. 数据模型总结
 
-### 新增表清单（19 张）
+### 新增表清单（21 张）
 
 | 模块 | 表 | 用途 |
 |------|-----|------|
+| 时段菜单 | menu_time_slots | 时段定义（早茶/午市/晚市...） |
+| 时段菜单 | menu_time_slot_products | 时段-商品可见性控制 |
 | 自助餐 | buffet_packages | 档位配置 |
 | 自助餐 | buffet_package_items | 档位-商品关联 |
-| 定价 | sku_price_overrides | SKU 多场景价格覆盖 |
+| 定价 | sku_price_overrides | SKU 多场景价格覆盖（含时段价） |
 | KDS | kitchen_stations | 工作站 |
 | KDS | kitchen_tickets | 厨房票 |
 | KDS | kitchen_ticket_items | 厨房票明细 |
@@ -553,7 +648,7 @@ CREATE TABLE queue_tickets (
 
 ### 最终总表数
 
-**原有 48 张 + 新增 19 张 = 67 张表**
+**原有 48 张 + 新增 21 张 = 69 张表**
 
 ---
 
