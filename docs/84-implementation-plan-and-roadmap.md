@@ -11,21 +11,30 @@
 ## 源 of Truth 优先级
 
 ```
-1. docs/80-step-0.3-data-model-gaps.md     ← DDL 以这个为准
-2. specs/final-executable-spec.md          ← 设计决策 D1-D10 以这个为准
-3. specs/sprint-plan-complete.md           ← Java 类名/API 端点参考，但 DDL 已过时
-4. docs/83-system-architecture-v3.md       ← 表归属和框架
+1. docs/75-complete-database-schema.md          ← 120 表原始 DDL
+   + V066/V067 (追赶) + V070-V101 (gap 修复)   ← 增量 DDL
+2. docs/superpowers/specs/final-executable-spec.md  ← 设计决策 D1-D10
+3. docs/85-api-contract.md                      ← API 响应格式 + 端点契约
+4. docs/86-rbac-seed-data.md                    ← 权限种子数据（Session 1.1 必读）
+5. docs/83-system-architecture-v3.md            ← 5 大系统 + 128 表归属
+6. docs/80-step-0.3-data-model-gaps.md          ← 9 新表 + 8 ALTER 设计说明
 ```
+
+**最终数字（已验证 2026-03-29）：**
+- 物理表：128（不含 flyway_schema_history）
+- Migration 文件：20 个（V066-V101，V099 已删除）
+- 新表：9 张，ALTER：8 项
 
 ---
 
 # Part 1: Roadmap（按周）
 
 ```
-Week 0 (当前)  ── 设计收尾
+Week 0 (完成)  ── 设计收尾
   ✅ 0.1-0.4 Journey + 状态机 + Gap + DDL Review
-  →  0.5 生成 Flyway migration SQL
-  →  0.6 验证 migration 可执行
+  ✅ 0.5 生成 Flyway migration SQL（20 文件）
+  ✅ 0.6 验证 migration 可执行（128 表通过）
+  ✅ 0.7 Code Review 修复（4 项）
 
 Week 1         ── 能登录、能审计
   Phase 1: RBAC + 审计
@@ -98,10 +107,16 @@ Week 6         ── AI + 收尾
 
 **前置：** Phase 0 完成（migration 已跑）
 
+**必读文档（按顺序）：**
+1. `docs/86-rbac-seed-data.md` — 权限码、预置角色、种子 SQL
+2. `docs/85-api-contract.md` — API 响应格式 `ApiResponse(code, message, data)`
+3. `docs/superpowers/specs/final-executable-spec.md` — D1-D10 设计决策
+4. `docs/83-system-architecture-v3.md` 第 4.2 节 — RBAC 6 表归属
+5. `docs/75-complete-database-schema.md` — users/permissions/custom_roles DDL
+
 **Prompt：**
 ```
-读 docs/83-system-architecture-v3.md 第 5.2 节和 docs/75 的 Auth/RBAC DDL。
-在 pos-auth 模块实现：
+先读以上 5 个文档，然后在 pos-auth 模块实现：
 
 1. UserEntity + UserRepository（对应 users 表）
 2. PermissionEntity、CustomRoleEntity、UserRoleEntity、UserStoreAccessEntity
@@ -109,8 +124,9 @@ Week 6         ── AI + 收尾
 4. RbacService：角色分配、权限查询、门店授权
 5. SecurityConfig：JWT 认证 + 权限过滤器
 6. 数据迁移脚本：auth_users + staff → users 表
-7. 预置权限种子数据（INSERT permissions）
+7. 预置权限种子数据（按 docs/86-rbac-seed-data.md 的 INSERT 语句）
 
+API 响应统一用 ApiResponse(code, message, data)，不要发明新格式。
 参考现有代码的命名风格和包结构。
 ```
 
@@ -132,7 +148,7 @@ Week 6         ── AI + 收尾
 
 **Prompt：**
 ```
-读 final-executable-spec.md D8 设计决策。
+读 docs/superpowers/specs/final-executable-spec.md D8 设计决策。
 在 pos-common 模块实现：
 
 1. @Audited 注解（action, riskLevel, requiresApproval, targetType, targetIdExpression）

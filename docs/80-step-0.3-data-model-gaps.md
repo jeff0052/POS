@@ -32,7 +32,9 @@
 | 17. `inventory_driven_promotions` | 库存驱动促销草案 | J07, J08 |
 | 18. `sop_import_batches` | SOP 批量导入 | J08 |
 
-> 变更后总计：**129 物理表**（120 现有 + 9 新表），框架内 **125 表**（不含 4 Legacy）
+> 变更后总计：**128 物理表**（不含 flyway_schema_history）。
+> 原有 55 表 + V066 追赶 64 表 + 9 新表 = 128。
+> 框架内 125 表（不含 3 Legacy: auth_users, staff, roles+role_permissions 已合并到 V060 users 体系）。
 
 ---
 
