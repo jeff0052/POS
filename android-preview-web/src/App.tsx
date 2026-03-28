@@ -3739,7 +3739,7 @@ function App() {
                     const tCode = `T${tid}`;
                     setQrOrders((prev) => { const next = {...prev}; delete next[tCode]; return next; });
                     // Update table card to available
-                    setTables((prev) => prev.map((t) =>
+                    setTableState((prev: TableCard[]) => prev.map((t: TableCard) =>
                       t.id === tid ? {...t, status: "available" as const, total: 0, itemCount: 0, source: undefined, settlementState: undefined} : t
                     ));
                   }
