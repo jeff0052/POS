@@ -2,9 +2,9 @@
 
 **Version:** V20260328012
 **Date:** 2026-03-28
-**Status:** DRAFT — 待审核
+**Status:** SUPERSEDED — 已被 `docs/84-implementation-plan-and-roadmap.md` 替代
 **前置文档:** `2026-03-28-17-gaps-phase1-buffet-design.md`（Gap 级设计）
-**本文档定位:** Sprint 级详细实现规划，含完整 DDL、API schema、边界条件、前端组件、测试场景
+**本文档定位:** 旧版 Sprint 规划。DDL 编号和部分设计决策与 final-executable-spec.md 冲突，不再作为执行依据。Java 类名和 API 端点仍可参考。
 
 ---
 
