@@ -176,11 +176,11 @@ price_context_ref = 'LATE_NIGHT'   → 宵夜价
    a. products.menu_modes 包含当前 dining_mode
    b. 如果有 time_slot → 只展示 menu_time_slot_products 中 is_visible=true 的
    c. 如果没有 time_slot 关联 → 默认展示
-4. 对每个可见 SKU 解析价格：
-   a. 查 sku_price_overrides (TIME_SLOT + 当前时段) → 有则用
-   b. 查 sku_price_overrides (DELIVERY + platform) → 有则用
-   c. 查 sku_price_overrides (MEMBER_TIER + tier) → 有则用
-   d. 以上都没有 → 用 skus.base_price_cents
+4. 对每个可见 SKU 解析价格（四级 fallback）：
+   a. 查 sku_price_overrides (store_id=当前门店 + 当前场景) → 门店级精确
+   b. 查 sku_price_overrides (store_id=NULL + 当前场景) → 品牌级
+   c. 查 sku_price_overrides (store_id=当前门店 + BASE) → 门店基础价
+   d. 以上都没有 → 用 skus.base_price_cents（全局默认价）
 ```
 
 ---
@@ -235,6 +235,7 @@ CREATE TABLE buffet_package_items (
 CREATE TABLE sku_price_overrides (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     sku_id BIGINT NOT NULL,
+    store_id BIGINT NULL,
     price_context VARCHAR(64) NOT NULL,
     price_context_ref VARCHAR(128) NULL,
     override_price_cents BIGINT NOT NULL,
@@ -242,28 +243,38 @@ CREATE TABLE sku_price_overrides (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_spo_sku FOREIGN KEY (sku_id) REFERENCES skus(id),
-    CONSTRAINT uk_spo UNIQUE (sku_id, price_context, price_context_ref)
+    CONSTRAINT fk_spo_store FOREIGN KEY (store_id) REFERENCES stores(id),
+    CONSTRAINT uk_spo UNIQUE (sku_id, store_id, price_context, price_context_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
 **price_context + price_context_ref 组合示例：**
 
-| price_context | price_context_ref | 含义 |
-|---------------|-------------------|------|
-| `DELIVERY` | `GRAB` | Grab 外卖价 |
-| `DELIVERY` | `FOODPANDA` | Foodpanda 外卖价 |
-| `DELIVERY` | `OWN` | 自有外卖价 |
-| `BUFFET` | `PKG_001` | 自助档位1内价格（通常=0 表示免费） |
-| `BUFFET` | `PKG_002` | 自助档位2内价格（可能=差价） |
-| `MEMBER_TIER` | `GOLD` | Gold 会员专属价 |
-| `MEMBER_TIER` | `VIP` | VIP 会员专属价 |
-| `HAPPY_HOUR` | `WEEKDAY_1500_1800` | 工作日下午茶价 |
+| store_id | price_context | price_context_ref | 含义 |
+|----------|---------------|-------------------|------|
+| NULL | `DELIVERY` | `GRAB` | 全品牌 Grab 外卖价 |
+| 101 | `DELIVERY` | `GRAB` | 门店 101 Grab 外卖价（覆盖品牌级） |
+| NULL | `DELIVERY` | `FOODPANDA` | 全品牌 Foodpanda 外卖价 |
+| NULL | `BUFFET` | `PKG_001` | 自助档位1内价格 |
+| NULL | `MEMBER_TIER` | `GOLD` | Gold 会员专属价 |
+| 101 | `BASE` | NULL | 门店 101 的堂食基础价（覆盖 skus.base_price_cents） |
+| 102 | `BASE` | NULL | 门店 102 的堂食基础价 |
+| NULL | `TIME_SLOT` | `LUNCH` | 全品牌午市价 |
+| 101 | `TIME_SLOT` | `LUNCH` | 门店 101 午市价 |
+
+**store_id = NULL 表示品牌级（适用所有门店），store_id 有值表示门店级（只覆盖该门店）。**
 
 **价格解析优先级（前端/后端统一）：**
 
-1. 查 `sku_price_overrides` 是否有匹配当前场景的覆盖价
-2. 有 → 用覆盖价
-3. 没有 → 用 `skus.base_price_cents`
+```
+1. 门店级精确匹配：store_id = 当前门店 + price_context + price_context_ref
+2. 品牌级匹配：    store_id = NULL + price_context + price_context_ref
+3. 门店基础价：    store_id = 当前门店 + price_context = 'BASE'
+4. 全局基础价：    skus.base_price_cents
+```
+
+优先级从高到低：门店+场景 > 品牌+场景 > 门店基础价 > SKU 默认价。
+先匹配到的优先。
 
 **设计优势：**
 - 一个 SKU 可以在无限个场景下有不同价格
