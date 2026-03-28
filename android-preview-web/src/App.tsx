@@ -2378,17 +2378,23 @@ function App() {
       amount: paymentTotal,
       methodLabel: selectedCollectionMethodLabel
     };
-    await fetch(`/api/v2/stores/${STORE_ID}/tables/${selectedBackendTableId}/payment/collect`, {
+    const collectRes = await fetch(`/api/v2/stores/${STORE_ID}/tables/${selectedBackendTableId}/payment/collect`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
         cashierId: 9001,
-        paymentMethod: "CASHIER_POS",
+        paymentMethod: "CASH",
         collectedAmountCents: Math.round(paymentTotal * 100)
       })
     });
+    if (!collectRes.ok) {
+      const errText = await collectRes.text().catch(() => "Unknown error");
+      console.error("Settlement failed:", collectRes.status, errText);
+      alert(`Settlement failed (${collectRes.status}): ${errText}`);
+      return;
+    }
     setCompletedSettlementSnapshot(settlementSnapshot);
     setTablePaymentPreviews((current) => ({
       ...current,
