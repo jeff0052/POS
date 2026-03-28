@@ -12,11 +12,19 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
     private final JwtAuthFilter jwtAuthFilter;
 
@@ -59,12 +67,16 @@ public class SecurityConfig {
                 .requestMatchers("/api/v2/ai/**").permitAll()
                 // Public image serving (QR/POS need unauthenticated access)
                 .requestMatchers("/api/v2/images/**").permitAll()
-                // All admin operations require ADMIN or PLATFORM_ADMIN
-                .requestMatchers("/api/v2/admin/**").hasAnyRole("ADMIN", "PLATFORM_ADMIN")
-                // MCP requires ADMIN or PLATFORM_ADMIN
-                .requestMatchers("/api/v2/mcp/**").hasAnyRole("ADMIN", "PLATFORM_ADMIN")
+                // PIN login is public
+                .requestMatchers("/api/v2/auth/pin-login").permitAll()
+                // RBAC management requires USER_MANAGE or ROLE_MANAGE
+                .requestMatchers("/api/v2/rbac/**").hasAnyAuthority("USER_MANAGE", "ROLE_MANAGE")
+                // All admin operations require ADMIN/PLATFORM_ADMIN role OR appropriate permission
+                .requestMatchers("/api/v2/admin/**").hasAnyAuthority("USER_MANAGE", "STORE_MANAGE", "ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
+                // MCP requires ADMIN/PLATFORM_ADMIN role OR appropriate permission
+                .requestMatchers("/api/v2/mcp/**").hasAnyAuthority("AI_RECOMMENDATION_VIEW", "AI_RECOMMENDATION_APPROVE", "ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
                 // Platform admin
-                .requestMatchers("/api/v2/platform/**").hasRole("PLATFORM_ADMIN")
+                .requestMatchers("/api/v2/platform/**").hasAnyAuthority("STORE_MANAGE", "ROLE_PLATFORM_ADMIN")
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
