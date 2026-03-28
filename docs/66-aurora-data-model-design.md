@@ -41,12 +41,10 @@ ALTER TABLE table_sessions ADD COLUMN buffet_status VARCHAR(32) NULL AFTER buffe
 
 **buffet_status 枚举：** `ACTIVE` | `WARNING` | `OVERTIME` | `ENDED`
 
-### 2.3 products — 加厨房路由和库存关联
+### 2.3 products — 加菜单控制和展示字段
 
 ```sql
-ALTER TABLE products ADD COLUMN station_id BIGINT NULL AFTER image_id;
-ALTER TABLE products ADD COLUMN print_route VARCHAR(64) NULL AFTER station_id;
-ALTER TABLE products ADD COLUMN menu_modes JSON NULL AFTER print_route;
+ALTER TABLE products ADD COLUMN menu_modes JSON NULL AFTER image_id;
 ALTER TABLE products ADD COLUMN is_featured BOOLEAN DEFAULT FALSE AFTER menu_modes;
 ALTER TABLE products ADD COLUMN is_recommended BOOLEAN DEFAULT FALSE AFTER is_featured;
 ALTER TABLE products ADD COLUMN allergen_info VARCHAR(512) NULL AFTER is_recommended;
@@ -55,17 +53,28 @@ ALTER TABLE products ADD COLUMN sort_order INT DEFAULT 0 AFTER allergen_info;
 
 **menu_modes** 示例：`["A_LA_CARTE", "BUFFET", "DELIVERY"]` — 控制该商品在哪些模式下可见。
 
-### 2.4 skus — 加外卖价和库存关联
+> **注意：** `station_id` 和 `print_route` 不放 product 层，放 SKU 层。因为同一个 product 下的不同 SKU 可能送不同工作站（例如：火锅产品下，"清汤锅底"送锅底区，"炸鸡翅"送炸物区）。
+
+### 2.4 skus — 加厨房路由、多价格、库存关联
 
 ```sql
-ALTER TABLE skus ADD COLUMN delivery_price_cents BIGINT NULL AFTER base_price_cents;
-ALTER TABLE skus ADD COLUMN cost_price_cents BIGINT NULL AFTER delivery_price_cents;
+-- 厨房路由（绑在 SKU 而非 product）
+ALTER TABLE skus ADD COLUMN station_id BIGINT NULL AFTER image_id;
+ALTER TABLE skus ADD COLUMN print_route VARCHAR(64) NULL AFTER station_id;
+
+-- 成本价（毛利计算用）
+ALTER TABLE skus ADD COLUMN cost_price_cents BIGINT NULL AFTER base_price_cents;
+
+-- 库存关联
 ALTER TABLE skus ADD COLUMN recipe_id BIGINT NULL AFTER cost_price_cents;
 ```
 
-**delivery_price_cents：** 外卖价格（可与堂食不同）。
+**station_id：** 该 SKU 出单时送到哪个工作站。
+**print_route：** 打印路由标识（打印机 IP 或名称）。
 **cost_price_cents：** 成本价（用于毛利计算）。
 **recipe_id：** 关联 SOP 配方（库存扣减用）。
+
+> **注意：** `delivery_price_cents` 不再作为 SKU 字段。多场景价格通过新增的 `sku_price_overrides` 表处理（见 Section 3.3）。
 
 ### 2.5 submitted_orders — 加配送相关
 
@@ -122,6 +131,52 @@ CREATE TABLE buffet_package_items (
 **is_included=true + surcharge=0：** 套餐内免费。
 **is_included=true + surcharge>0：** 套餐内但有差价。
 **is_included=false：** 套餐外商品（额外收费，按 SKU 原价）。
+
+---
+
+## 3.3 sku_price_overrides（SKU 多场景价格）
+
+一个 SKU 在不同场景下可以有不同价格。`skus.base_price_cents` 是默认堂食单点价，其他场景通过此表覆盖。
+
+```sql
+CREATE TABLE sku_price_overrides (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    sku_id BIGINT NOT NULL,
+    price_context VARCHAR(64) NOT NULL,
+    price_context_ref VARCHAR(128) NULL,
+    override_price_cents BIGINT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_spo_sku FOREIGN KEY (sku_id) REFERENCES skus(id),
+    CONSTRAINT uk_spo UNIQUE (sku_id, price_context, price_context_ref)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+**price_context + price_context_ref 组合示例：**
+
+| price_context | price_context_ref | 含义 |
+|---------------|-------------------|------|
+| `DELIVERY` | `GRAB` | Grab 外卖价 |
+| `DELIVERY` | `FOODPANDA` | Foodpanda 外卖价 |
+| `DELIVERY` | `OWN` | 自有外卖价 |
+| `BUFFET` | `PKG_001` | 自助档位1内价格（通常=0 表示免费） |
+| `BUFFET` | `PKG_002` | 自助档位2内价格（可能=差价） |
+| `MEMBER_TIER` | `GOLD` | Gold 会员专属价 |
+| `MEMBER_TIER` | `VIP` | VIP 会员专属价 |
+| `HAPPY_HOUR` | `WEEKDAY_1500_1800` | 工作日下午茶价 |
+
+**价格解析优先级（前端/后端统一）：**
+
+1. 查 `sku_price_overrides` 是否有匹配当前场景的覆盖价
+2. 有 → 用覆盖价
+3. 没有 → 用 `skus.base_price_cents`
+
+**设计优势：**
+- 一个 SKU 可以在无限个场景下有不同价格
+- 不需要为每种场景加一列（不会出现 `delivery_price_cents`, `grab_price_cents`, `member_gold_price_cents`...）
+- 新增价格场景只需要插入一行数据，不需要改表结构
+- 和 buffet_package_items 的 surcharge_cents 互补：buffet_package_items 管"是否包含+差价"，sku_price_overrides 管"这个 SKU 在这个场景的实际展示价"
 
 ---
 
@@ -463,12 +518,13 @@ CREATE TABLE queue_tickets (
 
 ## 9. 数据模型总结
 
-### 新增表清单（18 张）
+### 新增表清单（19 张）
 
 | 模块 | 表 | 用途 |
 |------|-----|------|
 | 自助餐 | buffet_packages | 档位配置 |
 | 自助餐 | buffet_package_items | 档位-商品关联 |
+| 定价 | sku_price_overrides | SKU 多场景价格覆盖 |
 | KDS | kitchen_stations | 工作站 |
 | KDS | kitchen_tickets | 厨房票 |
 | KDS | kitchen_ticket_items | 厨房票明细 |
@@ -491,13 +547,13 @@ CREATE TABLE queue_tickets (
 |----|------|
 | store_tables | +area, +qr_code_url |
 | table_sessions | +dining_mode, +guest_count, +buffet_* 字段 |
-| products | +station_id, +print_route, +menu_modes, +is_featured, +is_recommended, +allergen_info, +sort_order |
-| skus | +delivery_price_cents, +cost_price_cents, +recipe_id |
+| products | +menu_modes, +is_featured, +is_recommended, +allergen_info, +sort_order |
+| skus | +station_id, +print_route, +cost_price_cents, +recipe_id |
 | submitted_orders | +dining_mode, +external_platform, +external_order_no, +delivery_* 字段 |
 
 ### 最终总表数
 
-**原有 48 张 + 新增 18 张 = 66 张表**
+**原有 48 张 + 新增 19 张 = 67 张表**
 
 ---
 
@@ -513,9 +569,12 @@ Store
  ├── delivery_platform_configs
  └── queue_tickets
 
+skus (station_id → kitchen_stations, recipe_id → recipes)
+ └── sku_price_overrides (DELIVERY/GRAB, BUFFET/PKG_001, MEMBER_TIER/GOLD, ...)
+
 table_sessions (dining_mode, buffet_*)
  └── submitted_orders (dining_mode, external_*)
-      ├── kitchen_tickets → kitchen_ticket_items
+      ├── kitchen_tickets (station_id) → kitchen_ticket_items
       └── delivery_orders
 
 purchase_invoices → purchase_invoice_items → inventory_items
