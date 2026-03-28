@@ -1,0 +1,28 @@
+-- Phase1 自助餐: 档位表
+CREATE TABLE buffet_packages (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    store_id BIGINT NOT NULL,
+    package_code VARCHAR(64) NOT NULL COMMENT '档位编码',
+    package_name VARCHAR(255) NOT NULL COMMENT '如"标准自助""豪华海鲜档"',
+    description TEXT NULL,
+    price_cents BIGINT NOT NULL COMMENT '每人价格(分)',
+    child_price_cents BIGINT NULL COMMENT '儿童价(分)，NULL=无儿童价',
+    child_age_max INT NULL COMMENT '儿童年龄上限',
+    duration_minutes INT NOT NULL DEFAULT 90 COMMENT '用餐时长(分钟)',
+    warning_before_minutes INT NOT NULL DEFAULT 10 COMMENT '到期前N分钟提醒',
+    overtime_fee_per_minute_cents BIGINT NOT NULL DEFAULT 0 COMMENT '超时每分钟费用(分)',
+    overtime_grace_minutes INT NOT NULL DEFAULT 5 COMMENT '超时宽限期(分钟)',
+    max_overtime_minutes INT NOT NULL DEFAULT 60 COMMENT '最长超时(超过强制结账)',
+    package_status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE|INACTIVE',
+    applicable_time_slots JSON NULL COMMENT '适用时段["LUNCH","DINNER"]，NULL=全时段',
+    applicable_days JSON NULL COMMENT '适用日期["MON"-"SUN"]，NULL=全天',
+    sort_order INT NOT NULL DEFAULT 0,
+    image_id BIGINT NULL COMMENT '档位图片',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by BIGINT NULL,
+    updated_by BIGINT NULL,
+    CONSTRAINT fk_bp_store FOREIGN KEY (store_id) REFERENCES stores(id),
+    CONSTRAINT uk_bp_code UNIQUE (store_id, package_code),
+    INDEX idx_bp_status (store_id, package_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
