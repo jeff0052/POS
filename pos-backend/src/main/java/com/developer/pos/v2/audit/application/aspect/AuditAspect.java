@@ -3,9 +3,9 @@ package com.developer.pos.v2.audit.application.aspect;
 import com.developer.pos.auth.security.AuthContext;
 import com.developer.pos.auth.security.AuthenticatedActor;
 import com.developer.pos.v2.audit.application.annotation.Audited;
-import com.developer.pos.v2.audit.infrastructure.persistence.entity.AuditTrailEntity;
-import com.developer.pos.v2.audit.infrastructure.persistence.repository.JpaAuditTrailRepository;
+import com.developer.pos.v2.audit.application.event.AuditEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -13,6 +13,9 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
@@ -22,62 +25,65 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * AOP aspect that intercepts @Audited methods and writes audit_trail records.
+ * AOP aspect that intercepts @Audited methods and publishes AuditEvent.
  *
- * Flow:
- * 1. Before: capture method args as "before" context
- * 2. Execute the method
- * 3. After: capture return value as "after" context
- * 4. Write audit_trail record asynchronously (best-effort, never blocks business logic)
+ * Key design:
+ * - Runs OUTSIDE the business transaction (@Order(Ordered.LOWEST_PRECEDENCE))
+ * - Never blocks: publishes an event, actual DB write is async via AuditEventListener
+ * - Sanitizes sensitive fields (password, pin, secret, token) before serialization
+ * - All context (actor, IP) resolved in request thread before event publish
  */
 @Aspect
 @Component
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class AuditAspect {
 
     private static final Logger log = LoggerFactory.getLogger(AuditAspect.class);
     private static final ExpressionParser SPEL_PARSER = new SpelExpressionParser();
 
-    private final JpaAuditTrailRepository auditTrailRepository;
+    /** Fields to redact from audit snapshots */
+    private static final Set<String> SENSITIVE_FIELDS = Set.of(
+            "password", "passwordHash", "password_hash",
+            "pin", "pinHash", "pin_hash",
+            "newPassword", "newPin",
+            "secret", "token", "accessToken", "refreshToken",
+            "creditCard", "cardNumber", "cvv"
+    );
+
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
 
-    public AuditAspect(JpaAuditTrailRepository auditTrailRepository, ObjectMapper objectMapper) {
-        this.auditTrailRepository = auditTrailRepository;
+    public AuditAspect(ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
+        this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
     }
 
     @Around("@annotation(audited)")
     public Object around(ProceedingJoinPoint joinPoint, Audited audited) throws Throwable {
-        // Capture before state (method arguments as JSON)
-        String beforeSnapshot = null;
-        try {
-            Object[] args = joinPoint.getArgs();
-            if (args != null && args.length > 0) {
-                beforeSnapshot = objectMapper.writeValueAsString(args[0]);
-            }
-        } catch (Exception e) {
-            log.debug("Failed to serialize before snapshot: {}", e.getMessage());
-        }
+        // Capture before state (sanitized)
+        String beforeSnapshot = sanitizeAndSerialize(joinPoint.getArgs());
 
         // Execute the actual method
         Object result = joinPoint.proceed();
 
-        // Write audit trail (best-effort, never throw)
+        // Publish audit event (non-blocking)
         try {
-            writeAuditTrail(joinPoint, audited, beforeSnapshot, result);
+            publishAuditEvent(joinPoint, audited, beforeSnapshot, result);
         } catch (Exception e) {
-            log.warn("Failed to write audit trail for action={}: {}", audited.action(), e.getMessage());
+            log.warn("Failed to publish audit event for action={}: {}", audited.action(), e.getMessage());
         }
 
         return result;
     }
 
-    private void writeAuditTrail(ProceedingJoinPoint joinPoint, Audited audited,
-                                  String beforeSnapshot, Object result) throws Exception {
-        // Resolve actor from security context
-        String actorType = "HUMAN";
+    private void publishAuditEvent(ProceedingJoinPoint joinPoint, Audited audited,
+                                    String beforeSnapshot, Object result) {
+        // Resolve actor from security context (must be done in request thread)
+        String actorType = "SYSTEM";
         Long actorId = null;
         String actorName = null;
         Long storeId = 0L;
@@ -89,112 +95,116 @@ public class AuditAspect {
             actorName = actor.username();
             storeId = actor.storeId() != null ? actor.storeId() : 0L;
         } catch (Exception e) {
-            // No auth context (e.g., bootstrap) — use defaults
-            actorType = "SYSTEM";
+            // No auth context (e.g., bootstrap)
         }
 
         // Resolve target ID
         String targetId = resolveTargetId(joinPoint, audited, result);
 
-        // Serialize after snapshot
+        // Serialize after snapshot (sanitized)
         String afterSnapshot = null;
         if (result != null) {
-            try {
-                afterSnapshot = objectMapper.writeValueAsString(result);
-            } catch (Exception e) {
-                log.debug("Failed to serialize after snapshot: {}", e.getMessage());
-            }
+            afterSnapshot = sanitizeAndSerialize(new Object[]{result});
         }
 
-        // Get IP address
-        String ipAddress = null;
+        // Get IP address (must be done in request thread)
+        String ipAddress = resolveIpAddress();
+
+        // Publish event — will be consumed async after transaction commits
+        eventPublisher.publishEvent(new AuditEvent(
+                "AT-" + UUID.randomUUID().toString().substring(0, 12),
+                storeId,
+                actorType,
+                actorId,
+                actorName,
+                audited.action(),
+                audited.targetType(),
+                targetId,
+                beforeSnapshot,
+                afterSnapshot,
+                audited.riskLevel(),
+                audited.requiresApproval(),
+                ipAddress
+        ));
+    }
+
+    /**
+     * Serialize object to JSON, redacting sensitive fields.
+     */
+    private String sanitizeAndSerialize(Object[] args) {
+        if (args == null || args.length == 0) return null;
+        try {
+            Object target = args[0];
+            // Convert to JSON tree, redact sensitive fields, then serialize
+            ObjectNode node = objectMapper.valueToTree(target);
+            for (String field : SENSITIVE_FIELDS) {
+                if (node.has(field)) {
+                    node.put(field, "[REDACTED]");
+                }
+            }
+            return objectMapper.writeValueAsString(node);
+        } catch (Exception e) {
+            log.debug("Failed to serialize snapshot: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String resolveIpAddress() {
         try {
             ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attrs != null) {
                 HttpServletRequest request = attrs.getRequest();
-                ipAddress = request.getHeader("X-Forwarded-For");
-                if (ipAddress == null || ipAddress.isBlank()) {
-                    ipAddress = request.getRemoteAddr();
+                String ip = request.getHeader("X-Forwarded-For");
+                if (ip == null || ip.isBlank()) {
+                    ip = request.getRemoteAddr();
                 }
+                return ip;
             }
         } catch (Exception e) {
             // ignore
         }
-
-        // Build and save
-        AuditTrailEntity trail = new AuditTrailEntity();
-        trail.setTrailNo("AT-" + UUID.randomUUID().toString().substring(0, 12));
-        trail.setStoreId(storeId);
-        trail.setActorType(actorType);
-        trail.setActorId(actorId);
-        trail.setActorName(actorName);
-        trail.setAction(audited.action());
-        trail.setTargetType(audited.targetType());
-        trail.setTargetId(targetId);
-        trail.setBeforeSnapshot(beforeSnapshot);
-        trail.setAfterSnapshot(afterSnapshot);
-        trail.setRiskLevel(audited.riskLevel());
-        trail.setRequiresApproval(audited.requiresApproval());
-        trail.setIpAddress(ipAddress);
-
-        if (audited.requiresApproval()) {
-            trail.setApprovalStatus("PENDING");
-        }
-
-        auditTrailRepository.save(trail);
+        return null;
     }
 
     private String resolveTargetId(ProceedingJoinPoint joinPoint, Audited audited, Object result) {
-        // Try SpEL expression first
         if (!audited.targetIdExpression().isEmpty()) {
             try {
-                Method method = ((MethodSignature) joinPoint.getSignature()).getMethod();
                 String[] paramNames = ((MethodSignature) joinPoint.getSignature()).getParameterNames();
                 Object[] args = joinPoint.getArgs();
-
-                EvaluationContext ctx = new StandardEvaluationContext();
+                StandardEvaluationContext ctx = new StandardEvaluationContext();
                 if (paramNames != null) {
                     for (int i = 0; i < paramNames.length; i++) {
-                        ((StandardEvaluationContext) ctx).setVariable(paramNames[i], args[i]);
+                        ctx.setVariable(paramNames[i], args[i]);
                     }
                 }
-                ((StandardEvaluationContext) ctx).setVariable("result", result);
-
+                ctx.setVariable("result", result);
                 Object val = SPEL_PARSER.parseExpression(audited.targetIdExpression()).getValue(ctx);
-                if (val != null) {
-                    return val.toString();
-                }
+                if (val != null) return val.toString();
             } catch (Exception e) {
-                log.debug("SpEL evaluation failed for {}: {}", audited.targetIdExpression(), e.getMessage());
+                log.debug("SpEL evaluation failed: {}", e.getMessage());
             }
         }
 
-        // Try extracting "id" from result via reflection
+        // Try extracting id from result
         if (result != null) {
             try {
-                var idMethod = result.getClass().getMethod("id");
-                Object id = idMethod.invoke(result);
+                var m = result.getClass().getMethod("id");
+                Object id = m.invoke(result);
                 if (id != null) return id.toString();
             } catch (NoSuchMethodException e) {
-                // try getId()
                 try {
-                    var getIdMethod = result.getClass().getMethod("getId");
-                    Object id = getIdMethod.invoke(result);
+                    var m = result.getClass().getMethod("getId");
+                    Object id = m.invoke(result);
                     if (id != null) return id.toString();
-                } catch (Exception ex) {
-                    // ignore
-                }
-            } catch (Exception e) {
-                // ignore
-            }
+                } catch (Exception ex) { /* ignore */ }
+            } catch (Exception e) { /* ignore */ }
         }
 
-        // Fallback: first argument if it's a Long (likely an ID)
+        // Fallback: first Long argument
         Object[] args = joinPoint.getArgs();
         if (args != null && args.length > 0 && args[0] instanceof Long) {
             return args[0].toString();
         }
-
         return "unknown";
     }
 }
