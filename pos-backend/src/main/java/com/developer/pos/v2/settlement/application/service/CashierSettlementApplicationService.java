@@ -93,6 +93,23 @@ public class CashierSettlementApplicationService implements UseCase {
         ActiveTableOrderEntity activeOrder = activeTableOrderRepository.findByActiveOrderId(activeOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("Active order not found: " + activeOrderId));
 
+        // If this order's table has an open session, check merge status and aggregate
+        TableSessionEntity session = tableSessionRepository
+                .findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(
+                        activeOrder.getStoreId(), activeOrder.getTableId(), "OPEN")
+                .orElse(null);
+
+        if (session != null) {
+            rejectMergedChildSession(session);
+
+            List<Long> sessionChain = buildSessionChain(session);
+            if (sessionChain.size() > 1) {
+                // Merged tables exist — delegate to session-chain-aware preview
+                return getTableSettlementPreview(activeOrder.getStoreId(), activeOrder.getTableId());
+            }
+        }
+
+        // Non-merged path: use active order's cached amounts
         SettlementPreviewDto.MemberPreviewDto member = null;
         if (activeOrder.getMemberId() != null) {
             MemberEntity memberEntity = memberRepository.findById(activeOrder.getMemberId()).orElse(null);
