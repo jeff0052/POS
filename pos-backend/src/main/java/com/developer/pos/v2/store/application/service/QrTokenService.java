@@ -82,6 +82,6 @@ public class QrTokenService implements UseCase {
 
         Long sessionId = session != null ? session.getId() : null;
 
-        return jwtProvider.generateOrderingToken(storeId, tableId, sessionId, table.getTableCode());
+        return jwtProvider.generateOrderingToken(storeId, tableId, sessionId, table.getTableCode(), qrToken.getId());
     }
 }

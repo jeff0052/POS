@@ -1,5 +1,6 @@
 package com.developer.pos.auth.security;
 
+import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaQrTokenRepository;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -13,7 +14,10 @@ import java.io.IOException;
 /**
  * Validates X-Ordering-Token JWT on /api/v2/qr-ordering/** endpoints.
  * The QR scan flow (GET /qr/{storeId}/{tableId}/{token}) issues this JWT.
- * All QR ordering endpoints must present a valid ordering JWT.
+ * All QR ordering endpoints (except /menu) must present a valid ordering JWT.
+ *
+ * Also verifies that the underlying qr_tokens record is still ACTIVE,
+ * so QR rotation at table clean invalidates all previously issued ordering JWTs.
  *
  * Stores parsed claims as request attributes for downstream use:
  *   qr.storeId, qr.tableId, qr.tableCode, qr.sessionId (nullable)
@@ -25,9 +29,11 @@ public class QrOrderingFilter extends OncePerRequestFilter {
     private static final String QR_ORDERING_PATH = "/api/v2/qr-ordering/";
 
     private final JwtProvider jwtProvider;
+    private final JpaQrTokenRepository qrTokenRepository;
 
-    public QrOrderingFilter(JwtProvider jwtProvider) {
+    public QrOrderingFilter(JwtProvider jwtProvider, JpaQrTokenRepository qrTokenRepository) {
         this.jwtProvider = jwtProvider;
+        this.qrTokenRepository = qrTokenRepository;
     }
 
     @Override
@@ -47,9 +53,7 @@ public class QrOrderingFilter extends OncePerRequestFilter {
 
         String token = request.getHeader(ORDERING_TOKEN_HEADER);
         if (token == null || token.isBlank()) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"code\":40101,\"message\":\"Missing X-Ordering-Token header\",\"data\":null}");
+            sendError(response, 40101, "Missing X-Ordering-Token header");
             return;
         }
 
@@ -57,17 +61,25 @@ public class QrOrderingFilter extends OncePerRequestFilter {
         try {
             claims = jwtProvider.parseToken(token);
         } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"code\":40102,\"message\":\"Invalid or expired ordering token\",\"data\":null}");
+            sendError(response, 40102, "Invalid or expired ordering token");
             return;
         }
 
         if (!"qr-ordering".equals(claims.getSubject())) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"code\":40103,\"message\":\"Token is not an ordering token\",\"data\":null}");
+            sendError(response, 40103, "Token is not an ordering token");
             return;
+        }
+
+        // Verify the underlying QR token is still ACTIVE (revoked on table clean/refresh)
+        Long qrTokenId = claims.get("qrTokenId", Long.class);
+        if (qrTokenId != null) {
+            boolean stillActive = qrTokenRepository.findById(qrTokenId)
+                    .map(qrToken -> "ACTIVE".equals(qrToken.getTokenStatus()))
+                    .orElse(false);
+            if (!stillActive) {
+                sendError(response, 40104, "QR token has been revoked. Please re-scan the QR code.");
+                return;
+            }
         }
 
         // Store parsed claims as request attributes
@@ -80,5 +92,11 @@ public class QrOrderingFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void sendError(HttpServletResponse response, int code, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"code\":" + code + ",\"message\":\"" + message + "\",\"data\":null}");
     }
 }

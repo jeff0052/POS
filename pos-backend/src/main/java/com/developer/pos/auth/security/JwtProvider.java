@@ -49,14 +49,15 @@ public class JwtProvider {
                 .compact();
     }
 
-    public String generateOrderingToken(Long storeId, Long tableId, Long sessionId, String tableCode) {
+    public String generateOrderingToken(Long storeId, Long tableId, Long sessionId, String tableCode, Long qrTokenId) {
         Date now = new Date();
         long orderingExpirationMs = 4 * 60 * 60 * 1000L; // 4 hours
         var builder = Jwts.builder()
                 .subject("qr-ordering")
                 .claim("storeId", storeId)
                 .claim("tableId", tableId)
-                .claim("tableCode", tableCode);
+                .claim("tableCode", tableCode)
+                .claim("qrTokenId", qrTokenId);
         if (sessionId != null) {
             builder.claim("sessionId", sessionId);
         }
