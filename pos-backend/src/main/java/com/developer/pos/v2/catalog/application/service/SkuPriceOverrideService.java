@@ -48,6 +48,7 @@ public class SkuPriceOverrideService implements UseCase {
     @Transactional
     public SkuPriceOverrideDto createOverride(Long skuId, Long storeId, String priceContext,
                                               String priceContextRef, long overridePriceCents, boolean active) {
+        enforceMenuManage();
         enforceSkuOwnership(skuId);
         if (storeId != null) {
             enforceStoreOwnership(storeId);
@@ -62,10 +63,18 @@ public class SkuPriceOverrideService implements UseCase {
 
     @Transactional
     public void deleteOverride(Long overrideId) {
+        enforceMenuManage();
         SkuPriceOverrideEntity entity = overrideRepository.findById(overrideId)
                 .orElseThrow(() -> new IllegalArgumentException("Price override not found: " + overrideId));
         enforceSkuOwnership(entity.getSkuId());
         overrideRepository.delete(entity);
+    }
+
+    private void enforceMenuManage() {
+        AuthenticatedActor actor = AuthContext.current();
+        if (!actor.hasPermission("MENU_MANAGE")) {
+            throw new SecurityException("MENU_MANAGE permission required");
+        }
     }
 
     private void enforceSkuOwnership(Long skuId) {

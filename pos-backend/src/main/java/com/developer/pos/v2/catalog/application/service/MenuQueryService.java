@@ -120,7 +120,7 @@ public class MenuQueryService implements UseCase {
         List<Long> skuIds = allSkus.stream().map(SkuEntity::getId).toList();
 
         Map<Long, Boolean> availabilityMap = buildAvailabilityMap(storeId, skuIds);
-        Map<Long, Long> effectivePriceMap = buildEffectivePriceMap(skuIds, storeId, diningMode, allSkus);
+        Map<Long, Long> effectivePriceMap = buildEffectivePriceMap(skuIds, storeId, diningMode, timeSlotId, allSkus);
 
         // 4. Load modifier bindings + groups + options
         Map<Long, List<MenuModifierGroupDto>> skuModifierMap = buildSkuModifierMap(skuIds);
@@ -213,6 +213,9 @@ public class MenuQueryService implements UseCase {
         // Filter by timeSlot — only show products bound to this slot
         if (timeSlotId != null) {
             MenuTimeSlotEntity slot = timeSlotRepository.findById(timeSlotId).orElse(null);
+            if (slot != null && !slot.getStoreId().equals(storeId)) {
+                throw new IllegalArgumentException("Time slot " + timeSlotId + " does not belong to store " + storeId);
+            }
             if (slot != null && slot.isActive()) {
                 List<MenuTimeSlotProductEntity> slotProducts = timeSlotProductRepository
                         .findByTimeSlotIdAndIsVisible(timeSlotId, true);
@@ -253,52 +256,89 @@ public class MenuQueryService implements UseCase {
     }
 
     /**
-     * Price override chain (highest priority wins):
-     *   1. store-specific override matching price_context → highest
-     *   2. global override (store_id=NULL) matching price_context
-     *   3. store-specific override with no context filter
-     *   4. global override with no context filter
-     *   5. skus.base_price_cents → lowest (fallback)
+     * Price override chain. price_context is a scene type (BASE, TIME_SLOT, DELIVERY, etc.),
+     * price_context_ref is the specific ref (slot ID, platform name).
+     *
+     * Resolution priority (per SKU, highest wins):
+     *   4. store + scene-specific (e.g. store=1, context=TIME_SLOT, ref=slotId) → highest
+     *   3. global scene-specific (store=NULL, context=TIME_SLOT, ref=slotId)
+     *   2. store + BASE (e.g. store=1, context=BASE or DEFAULT)
+     *   1. global BASE (store=NULL, context=BASE or DEFAULT)
+     *   0. skus.base_price_cents → fallback
      */
     private Map<Long, Long> buildEffectivePriceMap(List<Long> skuIds, Long storeId,
-                                                    String diningMode, List<SkuEntity> skus) {
+                                                    String diningMode, Long timeSlotId,
+                                                    List<SkuEntity> skus) {
         if (skuIds.isEmpty()) return Map.of();
+
+        // Priority scores per SKU — higher score wins
         Map<Long, Long> priceMap = new HashMap<>();
-        // Base prices (lowest priority)
+        Map<Long, Integer> priorityMap = new HashMap<>();
+
+        // Base prices (priority 0)
         for (SkuEntity sku : skus) {
             priceMap.put(sku.getId(), sku.getBasePriceCents());
+            priorityMap.put(sku.getId(), 0);
         }
 
         List<SkuPriceOverrideEntity> overrides = priceOverrideRepository.findBySkuIdInAndIsActive(skuIds, true);
 
-        // Pass 1: apply global overrides (store_id=NULL), context-unaware
         for (SkuPriceOverrideEntity override : overrides) {
-            if (override.getStoreId() == null && !matchesPriceContext(override, diningMode)) {
-                continue;
-            }
-            if (override.getStoreId() == null) {
+            int priority = scorePriceOverride(override, storeId, diningMode, timeSlotId);
+            if (priority <= 0) continue; // not applicable
+
+            int existing = priorityMap.getOrDefault(override.getSkuId(), 0);
+            if (priority > existing) {
                 priceMap.put(override.getSkuId(), override.getOverridePriceCents());
-            }
-        }
-        // Pass 2: store-specific overrides win over global
-        for (SkuPriceOverrideEntity override : overrides) {
-            if (override.getStoreId() != null && override.getStoreId().equals(storeId)
-                    && matchesPriceContext(override, diningMode)) {
-                priceMap.put(override.getSkuId(), override.getOverridePriceCents());
+                priorityMap.put(override.getSkuId(), priority);
             }
         }
         return priceMap;
     }
 
-    private boolean matchesPriceContext(SkuPriceOverrideEntity override, String diningMode) {
+    /**
+     * Score a price override's applicability. Returns 0 if not applicable.
+     * Higher score = higher priority.
+     */
+    private int scorePriceOverride(SkuPriceOverrideEntity override, Long storeId,
+                                   String diningMode, Long timeSlotId) {
         String context = override.getPriceContext();
-        if (context == null || context.isBlank() || "DEFAULT".equalsIgnoreCase(context)) {
-            return true; // no context restriction
+        String contextRef = override.getPriceContextRef();
+        boolean isBaseContext = context == null || context.isBlank()
+                || "DEFAULT".equalsIgnoreCase(context) || "BASE".equalsIgnoreCase(context);
+        boolean isStoreSpecific = override.getStoreId() != null;
+        boolean storeMatches = isStoreSpecific && override.getStoreId().equals(storeId);
+
+        // If store-specific but wrong store, skip entirely
+        if (isStoreSpecific && !storeMatches) {
+            return 0;
         }
-        if (diningMode == null || diningMode.isBlank()) {
-            return true; // no diningMode filter = accept all
+
+        if (isBaseContext) {
+            // BASE/DEFAULT context: always applicable
+            return isStoreSpecific ? 2 : 1;
         }
-        return context.equalsIgnoreCase(diningMode);
+
+        // Scene-specific context: must match the current query parameters
+        if (!matchesSceneContext(context, contextRef, diningMode, timeSlotId)) {
+            return 0;
+        }
+
+        return isStoreSpecific ? 4 : 3;
+    }
+
+    private boolean matchesSceneContext(String context, String contextRef,
+                                       String diningMode, Long timeSlotId) {
+        if ("TIME_SLOT".equalsIgnoreCase(context)) {
+            return timeSlotId != null && contextRef != null
+                    && contextRef.equals(String.valueOf(timeSlotId));
+        }
+        if ("DELIVERY".equalsIgnoreCase(context) || "A_LA_CARTE".equalsIgnoreCase(context)
+                || "BUFFET".equalsIgnoreCase(context)) {
+            return context.equalsIgnoreCase(diningMode);
+        }
+        // Unknown context type — don't apply
+        return false;
     }
 
     private Map<Long, List<MenuModifierGroupDto>> buildSkuModifierMap(List<Long> skuIds) {

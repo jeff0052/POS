@@ -58,6 +58,7 @@ public class MenuTimeSlotManagementService implements UseCase {
                                       LocalTime startTime, LocalTime endTime,
                                       List<String> applicableDays, List<String> diningModes,
                                       boolean active, int priority, List<Long> productIds) {
+        enforceMenuManage();
         enforceStoreAccess(storeId);
         validateTimeRange(startTime, endTime);
         slotRepository.findByStoreIdAndSlotCode(storeId, slotCode).ifPresent(existing -> {
@@ -78,6 +79,7 @@ public class MenuTimeSlotManagementService implements UseCase {
                                       LocalTime startTime, LocalTime endTime,
                                       List<String> applicableDays, List<String> diningModes,
                                       boolean active, int priority, List<Long> productIds) {
+        enforceMenuManage();
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
         validateTimeRange(startTime, endTime);
         slot.update(slotCode, slotName, startTime, endTime,
@@ -91,6 +93,7 @@ public class MenuTimeSlotManagementService implements UseCase {
 
     @Transactional
     public void deleteSlot(Long slotId, Long expectedStoreId) {
+        enforceMenuManage();
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
         enforceSlotStoreMatch(slot, expectedStoreId);
         slotProductRepository.deleteByTimeSlotId(slot.getId());
@@ -111,6 +114,13 @@ public class MenuTimeSlotManagementService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Time slot not found: " + slotId));
         enforceStoreAccess(slot.getStoreId());
         return slot;
+    }
+
+    private void enforceMenuManage() {
+        AuthenticatedActor actor = AuthContext.current();
+        if (!actor.hasPermission("MENU_MANAGE")) {
+            throw new SecurityException("MENU_MANAGE permission required");
+        }
     }
 
     private void enforceSlotStoreMatch(MenuTimeSlotEntity slot, Long expectedStoreId) {

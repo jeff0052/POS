@@ -73,6 +73,7 @@ public class ModifierManagementService implements UseCase {
     public ModifierGroupDetailDto createGroup(String groupCode, String groupName, String selectionType,
                                               boolean required, int minSelect, int maxSelect, int sortOrder,
                                               List<CreateOptionCommand> options) {
+        enforceMenuManage();
         Long merchantId = enforceCallerMerchant();
         groupRepository.findByMerchantIdAndGroupCode(merchantId, groupCode).ifPresent(existing -> {
             throw new IllegalArgumentException("Modifier group code already exists: " + groupCode);
@@ -91,6 +92,7 @@ public class ModifierManagementService implements UseCase {
                                               String selectionType, boolean required,
                                               int minSelect, int maxSelect, int sortOrder,
                                               List<CreateOptionCommand> options) {
+        enforceMenuManage();
         ModifierGroupEntity group = findGroupAndEnforceMerchant(groupId);
         group.update(groupCode, groupName, selectionType, required, minSelect, maxSelect, sortOrder);
         group = groupRepository.save(group);
@@ -102,6 +104,7 @@ public class ModifierManagementService implements UseCase {
 
     @Transactional
     public void deleteGroup(Long groupId) {
+        enforceMenuManage();
         ModifierGroupEntity group = findGroupAndEnforceMerchant(groupId);
         optionRepository.deleteByGroupId(group.getId());
         groupRepository.delete(group);
@@ -109,6 +112,7 @@ public class ModifierManagementService implements UseCase {
 
     @Transactional
     public List<ModifierGroupDetailDto> bindSkuModifiers(Long skuId, List<BindingCommand> bindings) {
+        enforceMenuManage();
         Long merchantId = enforceCallerMerchant();
         SkuEntity sku = skuRepository.findById(skuId)
                 .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + skuId));
@@ -188,6 +192,13 @@ public class ModifierManagementService implements UseCase {
             throw new SecurityException("Modifier group does not belong to your merchant");
         }
         return group;
+    }
+
+    private void enforceMenuManage() {
+        AuthenticatedActor actor = AuthContext.current();
+        if (!actor.hasPermission("MENU_MANAGE")) {
+            throw new SecurityException("MENU_MANAGE permission required");
+        }
     }
 
     /** SKU → Product → Store → merchant_id must match caller's merchantId. */
