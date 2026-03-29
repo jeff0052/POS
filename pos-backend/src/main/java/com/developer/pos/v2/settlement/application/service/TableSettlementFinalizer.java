@@ -62,7 +62,11 @@ public class TableSettlementFinalizer {
         tableSessionRepository.saveAll(sessions);
 
         // 3. tables → PENDING_CLEAN
-        List<Long> tableIds = sessions.stream().map(TableSessionEntity::getTableId).distinct().toList();
+        List<Long> tableIds = sessions.stream()
+                .map(TableSessionEntity::getTableId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
         List<StoreTableEntity> tables = storeTableRepository.findAllById(tableIds);
         for (StoreTableEntity t : tables) {
             t.setTableStatus("PENDING_CLEAN");
