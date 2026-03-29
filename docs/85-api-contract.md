@@ -235,11 +235,40 @@ Response: { settlementId, settlementNo }
 权限: SETTLEMENT_COLLECT
 ```
 
-### POST /api/v2/payments/{attemptId}/switch-method
+### POST /api/v2/stores/{storeId}/tables/{tableId}/payment/preview-stacking
 ```
-Request:  { newPaymentMethod: "CASH", collectedAmountCents }
-Response: { newAttemptId, oldAttemptStatus: "REPLACED" }
-权限: SETTLEMENT_COLLECT
+Request:  {}
+Response: { steps: [{ holdType, amountCents }], availableCoupons: [...], externalPaymentCents }
+权限: SETTLEMENT_STACKING
+```
+
+### POST /api/v2/stores/{storeId}/tables/{tableId}/payment/collect-stacking
+```
+Request:  { usePoints: boolean, couponId: Long?, useCashBalance: boolean, externalPaymentMethod: String }
+Response: { settlementId, holdIds: [...], externalPaymentUrl? }
+权限: SETTLEMENT_STACKING
+```
+
+### POST /api/v2/stores/{storeId}/tables/{tableId}/payment/{settlementId}/confirm-stacking
+```
+Request:  {}
+Response: { settlementId, finalStatus: "SETTLED" }
+权限: SETTLEMENT_STACKING
+（通常由 VibeCash webhook 内部触发，也可手动调用）
+```
+
+### POST /api/v2/stores/{storeId}/tables/{tableId}/payment/{settlementId}/release-stacking
+```
+Request:  { reason?: String }
+Response: { settlementId, finalStatus: "CANCELLED" }
+权限: SETTLEMENT_STACKING
+```
+
+### POST /api/v2/stores/{storeId}/tables/{tableId}/payment/switch-method
+```
+Request:  { paymentAttemptId: "pa_xxx", newPaymentScheme: "ALIPAY_QR" }
+Response: { newAttemptId: "pa_yyy", checkoutUrl: "https://..." }
+权限: PAYMENT_SWITCH
 ```
 
 ---
