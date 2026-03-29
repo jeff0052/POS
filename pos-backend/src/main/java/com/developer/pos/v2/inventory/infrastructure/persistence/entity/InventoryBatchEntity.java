@@ -90,6 +90,32 @@ public class InventoryBatchEntity {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public InventoryBatchEntity(Long storeId, Long inventoryItemId, String batchNo,
+                                 String sourceType, Long supplierId,
+                                 BigDecimal receivedQty, String unit,
+                                 Long unitCostCents, LocalDate productionDate,
+                                 LocalDate expiryDate) {
+        this.storeId = storeId;
+        this.inventoryItemId = inventoryItemId;
+        this.batchNo = batchNo;
+        this.sourceType = sourceType;
+        this.supplierId = supplierId;
+        this.receivedQty = receivedQty;
+        this.remainingQty = receivedQty;
+        this.unit = unit;
+        this.unitCostCents = unitCostCents;
+        this.totalCostCents = unitCostCents != null
+            ? java.math.BigDecimal.valueOf(unitCostCents).multiply(receivedQty)
+                .setScale(0, java.math.RoundingMode.HALF_UP).longValue()
+            : null;
+        this.productionDate = productionDate;
+        this.expiryDate = expiryDate;
+        this.receivedDate = LocalDate.now();
+        this.batchStatus = "ACTIVE";
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public Long getId() { return id; }
     public Long getStoreId() { return storeId; }
     public Long getInventoryItemId() { return inventoryItemId; }
@@ -104,4 +130,14 @@ public class InventoryBatchEntity {
     public String getBatchStatus() { return batchStatus; }
     public Long getSupplierId() { return supplierId; }
     public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
+
+    public void deductRemainingQty(BigDecimal qty) {
+        this.remainingQty = this.remainingQty.subtract(qty);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void exhaust() {
+        this.batchStatus = "EXHAUSTED";
+        this.updatedAt = LocalDateTime.now();
+    }
 }

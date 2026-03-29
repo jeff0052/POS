@@ -37,6 +37,9 @@ public class SkuEntity extends BaseAuditableEntity {
     @Column(name = "sku_status", nullable = false)
     private String skuStatus;
 
+    @Column(name = "requires_stock_deduct", nullable = false)
+    private boolean requiresStockDeduct = true;
+
     @Column(name = "station_id")
     private Long stationId;
 
@@ -90,6 +93,10 @@ public class SkuEntity extends BaseAuditableEntity {
 
     public String getSkuStatus() {
         return skuStatus;
+    }
+
+    public boolean isRequiresStockDeduct() {
+        return requiresStockDeduct;
     }
 
     public Long getStationId() { return stationId; }

@@ -98,6 +98,11 @@ public class InventoryItemEntity {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void deductStock(BigDecimal qty) {
+        this.currentStock = this.currentStock.subtract(qty);
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public void deactivate() {
         this.itemStatus = "INACTIVE";
         this.updatedAt = LocalDateTime.now();
