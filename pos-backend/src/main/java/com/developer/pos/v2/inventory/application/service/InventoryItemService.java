@@ -86,12 +86,6 @@ public class InventoryItemService implements UseCase {
         return toDto(itemRepository.save(item));
     }
 
-    @Transactional(readOnly = true)
-    public List<InventoryItemDto> listLowStockItems(Long storeId) {
-        return itemRepository.findLowStockByStoreId(storeId)
-                .stream().map(this::toDto).toList();
-    }
-
     private InventoryItemDto toDto(InventoryItemEntity e) {
         return new InventoryItemDto(e.getId(), e.getStoreId(), e.getItemCode(), e.getItemName(),
             e.getCategory(), e.getUnit(), e.getCurrentStock(), e.getSafetyStock(),
