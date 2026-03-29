@@ -71,7 +71,8 @@ public class QrOrderingV2Controller implements V2Api {
                                 item.skuName(),
                                 item.quantity(),
                                 item.unitPriceCents(),
-                                item.remark()
+                                item.remark(),
+                                item.optionSnapshotJson()
                         ))
                         .toList()
         );

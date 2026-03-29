@@ -145,6 +145,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                     next.setQuantity(item.quantity());
                     next.setUnitPriceSnapshotCents(sku.getBasePriceCents());
                     next.setItemRemark(item.remark());
+                    next.setOptionSnapshotJson(item.optionSnapshotJson());
                     next.setLineTotalCents(sku.getBasePriceCents() * item.quantity());
                     return next;
                 })
@@ -360,6 +361,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                     copy.setBuffetIncluded(existing.isBuffetIncluded());
                     copy.setBuffetSurchargeCents(existing.getBuffetSurchargeCents());
                     copy.setBuffetInclusionType(existing.getBuffetInclusionType());
+                    copy.setOptionSnapshotJson(existing.getOptionSnapshotJson());
                     return copy;
                 })
                 .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
@@ -403,6 +405,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         next.setQuantity(item.quantity());
         next.setUnitPriceSnapshotCents(sku.getBasePriceCents());
         next.setItemRemark(item.remark());
+        next.setOptionSnapshotJson(item.optionSnapshotJson());
         next.setLineTotalCents(sku.getBasePriceCents() * item.quantity());
         return next;
     }

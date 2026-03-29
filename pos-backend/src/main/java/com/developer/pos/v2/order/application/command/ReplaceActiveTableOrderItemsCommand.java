@@ -18,7 +18,8 @@ public record ReplaceActiveTableOrderItemsCommand(
             String skuName,
             int quantity,
             long unitPriceCents,
-            String remark
+            String remark,
+            String optionSnapshotJson
     ) {
     }
 }

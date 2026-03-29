@@ -14,7 +14,8 @@ public record SubmitQrOrderingCommand(
             String skuName,
             int quantity,
             long unitPriceCents,
-            String remark
+            String remark,
+            String optionSnapshotJson
     ) {
     }
 }
