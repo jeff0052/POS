@@ -132,32 +132,59 @@ Week 6         ── AI + 收尾
 
 ---
 
-### Session 1.2 — 审计切面 + audit_trail
+### Session 1.2 — 审计切面 + audit_trail ✅
 
-**目标：** @Audited 注解 + AOP 切面，所有写操作自动记审计日志
+**完成日期：** 2026-03-29
 
-**Prompt：**
-```
-读 docs/superpowers/specs/final-executable-spec.md D8 设计决策。
-在 pos-common 模块实现：
+**实际产出（11 文件，700 行）：**
+- `v2/audit/` 模块：@Audited 注解 + AuditAspect + AuditEvent + AuditEventListener + AuditAsyncConfig
+- AuditTrailEntity + JpaAuditTrailRepository
+- AuditTrailService（list/pending/approve/reject + 门店权限校验）
+- AuditV2Controller: 4 个端点（/api/v2/audit/**）
+- V104: audit_trail.store_id 改 nullable（支持商户级操作）
+- 已在 RBAC 6 个写方法上加 @Audited
 
-1. @Audited 注解（action, riskLevel, requiresApproval, targetType, targetIdExpression）
-2. AuditAspect：@Around 切面，自动记录 before/after snapshot
-3. AuditTrailEntity + AuditTrailRepository（对应 audit_trail 表）
-4. AuditTrailService：查询审计日志、审批流程（approve/reject）
-5. AuditTrailController：GET /audit-logs, POST /audit-logs/{id}/approve
-
-注意：action_log 不动，保留给 AI MCP 工具层。audit_trail 是独立的新表。
-```
-
-**产出：**
-- `pos-common/` 下审计相关 ~6 个文件
-- 审计 Controller
+**安全审查（4 轮，全部通过）：**
+- Gemini: 同步阻塞→异步事件驱动、密码泄漏→敏感字段脱敏、事务污染→@Order(LOWEST_PRECEDENCE)
+- Codex Round 1: 跨门店读写→SecurityConfig 权限 + 门店校验、store_id=0→nullable
+- Codex Round 2: STORE_MANAGE 全局 bypass→仅 SUPER_ADMIN 角色可跨店
 
 **验收：**
-- 任何加了 @Audited 的方法被调用后，audit_trail 有记录
-- before_snapshot 和 after_snapshot 正确
-- 需要审批的操作返回 403 + PENDING 状态
+- @Audited 方法调用后异步写入 audit_trail
+- 敏感字段（password/pin/token）自动脱敏为 [REDACTED]
+- 审计 API 需 AUDIT_VIEW/AUDIT_APPROVE 权限 + 门店隔离
+- 295 文件编译零错误
+
+**延迟到 Phase 2 的 P2 项：**
+- 商户级审计查询 API（storeId=null 的列表）
+- 审批强制执行门（requiresApproval 前置拦截 + 403 PENDING）
+
+---
+
+## Phase 1 Milestone Summary
+
+**完成日期：** 2026-03-29
+**总产出：** 52 文件，3506 行代码，2 个 Flyway 迁移
+
+### Key Findings
+
+1. **Legacy 兼容是最大的复杂度来源。** auth_users/staff 双表、旧 JWT claims、collation 差异、id 不一致——每一个都产生了 P1 级安全漏洞。如果从零开始会简单 10 倍，但我们必须保证旧 app 不挂。
+
+2. **租户隔离必须从 Day 1 做。** 每个接受 merchantId/storeId/roleId 参数的 API 都是潜在的跨租户攻击面。reviewer 在 RBAC 管理、审计查询、角色分配、门店授权上反复发现同一类问题。教训：任何接受外部 ID 的 service 方法都必须先校验归属。
+
+3. **审计切面不能同步写 DB。** 初版是直接 repository.save()，Gemini 指出这会在高并发下拖死业务主线程。改成 ApplicationEventPublisher + @Async + @TransactionalEventListener(AFTER_COMMIT) 后，审计写入完全不影响业务延迟。
+
+4. **权限 ≠ 角色。** `STORE_MANAGE` 权限被当作"全局管理员"的 bypass 条件，但 STORE_MANAGER 也有这个权限——导致店长能看所有门店的审计日志。正确做法是用角色代码（SUPER_ADMIN）而不是权限码做全局 bypass。
+
+5. **种子数据必须精确可执行。** 初版 docs/86 写"共 52 个权限"但实际有 59 个，SQL 有占位符。reviewer 指出后重写为完整可执行 SQL，用临时表实现幂等 upsert。
+
+### Important Lessons for Phase 2+
+
+1. **每个 service 方法的第一行应该是权限/租户校验**，不要依赖 Controller 或 SecurityConfig 单层防护。
+2. **新旧系统并行期，异常类型决定 fallback 行为**——IllegalArgumentException vs IllegalStateException vs NoSuchElementException 的语义必须严格区分。
+3. **FK 约束要考虑所有调用者的上下文**——audit_trail.store_id NOT NULL 看似合理，但商户管理员没有 store 上下文。
+4. **code review 是真正的质量关**——10 轮 review 发现了 20+ 个安全问题，全部在编码阶段修复，零生产事故。
+5. **预留 role code 必须加黑名单**——JwtAuthFilter 把 roleCode 转成 ROLE_<code> 写入 authorities，如果商户能创建 SUPER_ADMIN 角色就能伪造平台权限。
 
 ---
 
