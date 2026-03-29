@@ -129,6 +129,11 @@ public class BuffetPackageEntity {
         this.updatedBy = updatedBy;
     }
 
+    public void deactivate(Long updatedBy) {
+        this.packageStatus = "INACTIVE";
+        this.updatedBy = updatedBy;
+    }
+
     // Getters
     public Long getId() { return id; }
     public Long getStoreId() { return storeId; }

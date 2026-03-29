@@ -7,6 +7,7 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.entity.BuffetPack
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.BuffetPackageItemEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaBuffetPackageItemRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaBuffetPackageRepository;
+import com.developer.pos.v2.catalog.interfaces.rest.request.StartBuffetRequest;
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
@@ -184,6 +185,9 @@ public class BuffetSessionService implements UseCase {
             }
 
             if (pi.getMaxQtyPerPerson() != null) {
+                // TODO: When wired into real order flow, query already-ordered qty from
+                // submitted_order_items + active_table_order_items for this session and add to item.quantity()
+                // before comparing against the limit. Currently only validates the current request batch.
                 int limit = pi.getMaxQtyPerPerson() * session.getGuestCount();
                 if (item.quantity() > limit) {
                     results.add(new ValidatedItem(
@@ -228,11 +232,4 @@ public class BuffetSessionService implements UseCase {
         }
     }
 
-    // ─── Inner Request Type ──────────────────────────────────────────────
-
-    /**
-     * Re-export for use within this service; the controller uses
-     * {@link com.developer.pos.v2.catalog.interfaces.rest.request.StartBuffetRequest}.
-     */
-    public record StartBuffetRequest(Long packageId, int guestCount, int childCount) {}
 }

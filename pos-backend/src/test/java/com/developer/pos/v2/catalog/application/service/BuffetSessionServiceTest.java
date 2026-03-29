@@ -2,6 +2,7 @@ package com.developer.pos.v2.catalog.application.service;
 
 import com.developer.pos.auth.security.AuthenticatedActor;
 import com.developer.pos.v2.catalog.application.dto.BuffetStatusDto;
+import com.developer.pos.v2.catalog.interfaces.rest.request.StartBuffetRequest;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.BuffetPackageEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.BuffetPackageItemEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaBuffetPackageItemRepository;
@@ -119,7 +120,7 @@ class BuffetSessionServiceTest {
         when(sessionRepo.save(any())).thenReturn(session);
 
         BuffetStatusDto result = service.startBuffet(10L, 1L,
-                new BuffetSessionService.StartBuffetRequest(42L, 4, 1));
+                new StartBuffetRequest(42L, 4, 1));
 
         assertThat(result).isNotNull();
         assertThat(result.buffetStatus()).isEqualTo("ACTIVE");
@@ -145,7 +146,7 @@ class BuffetSessionServiceTest {
         when(packageRepo.findById(42L)).thenReturn(Optional.of(pkg));
 
         assertThatThrownBy(() -> service.startBuffet(10L, 1L,
-                new BuffetSessionService.StartBuffetRequest(42L, 4, 1)))
+                new StartBuffetRequest(42L, 4, 1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not active");
     }
@@ -166,7 +167,7 @@ class BuffetSessionServiceTest {
                 .thenReturn(Optional.of(session));
 
         assertThatThrownBy(() -> service.startBuffet(10L, 1L,
-                new BuffetSessionService.StartBuffetRequest(42L, 4, 1)))
+                new StartBuffetRequest(42L, 4, 1)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already started");
     }
@@ -183,7 +184,7 @@ class BuffetSessionServiceTest {
         when(packageRepo.findById(42L)).thenReturn(Optional.of(pkg));
 
         assertThatThrownBy(() -> service.startBuffet(10L, 1L,
-                new BuffetSessionService.StartBuffetRequest(42L, 4, 1)))
+                new StartBuffetRequest(42L, 4, 1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("does not belong");
     }
@@ -255,6 +256,27 @@ class BuffetSessionServiceTest {
         // chargeable = max(0, ~20 - 5) = 15, capped at 30 => 15 * 100 = 1500
         assertThat(result.overtimeFeeCents()).isBetween(1400L, 1600L);
         assertThat(result.forceCheckout()).isFalse(); // 20 < 30
+    }
+
+    @Test
+    void getStatus_forceCheckout_whenOvertimeExceedsMax() {
+        // Package: maxOvertimeMinutes=30 — set overtime to 40 minutes to trigger forceCheckout
+        TableSessionEntity session = buildSession("BUFFET");
+        session.setBuffetStartedAt(OffsetDateTime.now().minusMinutes(130));
+        session.setBuffetEndsAt(OffsetDateTime.now().minusMinutes(40));
+        session.setBuffetPackageId(42L);
+        session.setBuffetStatus("ACTIVE");
+        when(sessionRepo.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(10L, 1L, "OPEN"))
+                .thenReturn(Optional.of(session));
+
+        BuffetPackageEntity pkg = buildPackage(10L, "ACTIVE");
+        when(packageRepo.findById(42L)).thenReturn(Optional.of(pkg));
+
+        BuffetStatusDto result = service.getBuffetStatus(10L, 1L);
+
+        assertThat(result.buffetStatus()).isEqualTo("OVERTIME");
+        assertThat(result.overtimeMinutes()).isBetween(39L, 41L);
+        assertThat(result.forceCheckout()).isTrue(); // 40 > maxOvertimeMinutes(30)
     }
 
     // ═══════════════════════════════════════════════════════════════════════

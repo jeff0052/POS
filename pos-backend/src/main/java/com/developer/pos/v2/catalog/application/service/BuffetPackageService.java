@@ -121,28 +121,14 @@ public class BuffetPackageService implements UseCase {
 
         AuthenticatedActor actor = AuthContext.current();
         BuffetPackageEntity entity = findPackageAndVerifyStore(packageId, storeId);
-        entity.update(
-                entity.getPackageCode(),
-                entity.getPackageName(),
-                entity.getDescription(),
-                entity.getPriceCents(),
-                entity.getChildPriceCents(),
-                entity.getChildAgeMax(),
-                entity.getDurationMinutes(),
-                entity.getWarningBeforeMinutes(),
-                entity.getOvertimeFeePerMinuteCents(),
-                entity.getOvertimeGraceMinutes(),
-                entity.getMaxOvertimeMinutes(),
-                "INACTIVE",
-                entity.getApplicableTimeSlots(),
-                entity.getApplicableDays(),
-                entity.getSortOrder(),
-                entity.getImageId(),
-                actor.userId()
-        );
+        entity.deactivate(actor.userId());
         packageRepository.save(entity);
     }
 
+    /**
+     * Returns only ACTIVE packages intentionally — this is a customer-facing endpoint.
+     * If admin needs to list INACTIVE packages, add a separate method with an explicit status filter.
+     */
     @Transactional(readOnly = true)
     public List<BuffetPackageDto> listPackages(Long storeId) {
         enforceBuffetViewOrManage();

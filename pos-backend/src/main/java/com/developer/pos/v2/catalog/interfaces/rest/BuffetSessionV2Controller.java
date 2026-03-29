@@ -27,12 +27,7 @@ public class BuffetSessionV2Controller implements V2Api {
     public ApiResponse<BuffetStatusDto> startBuffet(
             @PathVariable Long storeId, @PathVariable Long tableId,
             @Valid @RequestBody StartBuffetRequest request) {
-        return ApiResponse.success(sessionService.startBuffet(
-                storeId, tableId,
-                new BuffetSessionService.StartBuffetRequest(
-                        request.packageId(), request.guestCount(), request.childCount()
-                )
-        ));
+        return ApiResponse.success(sessionService.startBuffet(storeId, tableId, request));
     }
 
     @GetMapping("/status")
