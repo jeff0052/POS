@@ -349,6 +349,111 @@ API 端点：
 
 ---
 
+### Phase 3 Milestone Summary
+
+**完成日期：** 2026-03-29
+**总产出：** ~76 文件，~3600 行代码，31 个单元测试，1 个 Flyway 迁移（V108）
+**Review 轮次：** Session 3.1 共 8 轮，Session 3.2 共 2 轮（含 final review）
+
+#### 功能框架
+
+Phase 3 构建了完整的**商品管理 + 自助餐引擎**，覆盖从商品配置到顾客点单到结账计价的全链路：
+
+```
+┌─ 管理端（BUFFET_MANAGE / MENU_MANAGE）─────────────────────────┐
+│                                                                 │
+│  商品三层结构          修饰符系统         时段菜单               │
+│  Product → SKU        ModifierGroup     MenuTimeSlot            │
+│  (category归属)       → Option          → SlotProduct           │
+│                       → SKU 绑定          (可见性控制)           │
+│                                                                 │
+│  价格覆盖链                 自助餐档位                          │
+│  SkuPriceOverride          BuffetPackage                        │
+│  4级优先级:                 → PackageItem                       │
+│  STORE > TIME_SLOT         (INCLUDED/SURCHARGE/EXCLUDED)        │
+│  > DELIVERY > BASE         + maxQtyPerPerson 限量               │
+│                                                                 │
+├─ 顾客端（permitAll）────────────────────────────────────────────┤
+│                                                                 │
+│  统一菜单查询 GET /stores/{id}/menu                             │
+│  ├── diningMode=A_LA_CARTE  → MenuQueryService 正常路径         │
+│  ├── diningMode=BUFFET      → 委托 BuffetMenuService            │
+│  │   + packageId              (package_items→sku 路径)          │
+│  └── timeSlotId=X           → 时段可见性过滤                    │
+│                                                                 │
+│  自助餐生命周期                                                 │
+│  POST /buffet/start → session.BUFFET → 计时开始                 │
+│  GET  /buffet/status → 实时计算 ACTIVE/WARNING/OVERTIME         │
+│  GET  /buffet-pricing/calculate → 人头费+差价+套餐外+超时费     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**权限矩阵：**
+
+| 操作 | 权限 | 租户校验 |
+|---|---|---|
+| 商品/修饰符/时段/价格覆盖 写 | MENU_MANAGE | merchant + store access |
+| 商品/修饰符/时段/价格覆盖 读 | MENU_VIEW ∨ MENU_MANAGE | merchant + store access |
+| 自助餐档位 写 | BUFFET_MANAGE | merchant + store access |
+| 自助餐档位 读 | MENU_VIEW ∨ BUFFET_MANAGE | merchant + store access |
+| 开台 | BUFFET_START | merchant + store access |
+| 结账计价 | BUFFET_START | merchant + store access |
+| 查菜单 / 查 buffet 状态 | 无（顾客端） | store 存在性 |
+
+**数据流（自助餐结账）：**
+
+```
+人头费 = package.priceCents × guestCount + childPriceCents × childCount
+差价   = Σ(item.buffetSurchargeCents × quantity)  WHERE buffetIncluded=true
+套餐外 = Σ(item.lineTotalCents)                   WHERE buffetIncluded=false
+超时费 = min(max(0, 超出分钟 - grace), maxOvertime) × feePerMinute
+总计   = 人头费 + 差价 + 套餐外 + 超时费
+```
+
+#### 设计中踩的坑
+
+**1. doc/75 和 final-executable-spec 的 schema 不一致（P0 级）**
+
+doc/75 的 `buffet_package_items` 用 `is_included BOOLEAN`（二态），final-exec-spec V083 用 `inclusion_type VARCHAR(32)`（三态 INCLUDED/SURCHARGE/EXCLUDED）。Session 3.2 一开始差点按 doc/75 来，在 brainstorming 阶段拦住了。**教训：** doc/75 是概览文档，V082/V083 from final-exec-spec 才是 DDL 权威。已在 spec 中加了明确的 authoritative source 声明。
+
+**2. V067 catch-up migration 漏了两个字段（P0 级）**
+
+V067 给 `table_sessions` 加了 buffet 字段，但漏掉了 `child_count` 和 `buffet_overtime_minutes`（这两个在 archive V075 里有但没被 catch-up 收录）。直到 plan review 才发现。补了 V108 migration。**教训：** catch-up migration 必须逐字段对照 archive spec，不能只看"大概有了"。
+
+**3. V074 DDL 的字段名和 spec D6 不一致（P0 级）**
+
+D6 spec 写 order items 有 `buffet_package_id`，但实际 V074 DDL 加的是 `buffet_inclusion_type`。`buffet_package_id` 只在 `table_sessions` 上（session 级别），不冗余到行项。第一版 plan 按 spec 来映射了错误的字段，plan review 发现了。**教训：** DDL 是 source of truth，spec 的字段名仅供参考。
+
+**4. 图片 URL 架构争论三轮（P1 级）**
+
+Session 3.1 reviewer 连续三轮指出 `/api/v2/images/{id}` 硬编码会耗尽 Tomcat 线程池。最终改为 `storage.public-base-url` 配置 + `ImageUploadService.resolvePublicUrls()` 批量解析。但改完 `MenuQueryService` 后，`QrMenuApplicationService` 和 `AdminCatalogReadService` 仍有同样的硬编码。**教训：** 架构级修改必须全代码库 grep，不能只改当前模块。
+
+**5. 权限从 merchant-scope 到 store-scope 的演进（P1 级）**
+
+Session 3.1 初版只做了 merchant-level 校验（`store.merchantId == actor.merchantId`）。reviewer 指出 STORE_MANAGER 是 store-scoped role，必须额外检查 `user_store_access`。修了 3 个 service 后，Session 3.2 从一开始就把 store-scope 做对了。**教训：** 权限模型必须在第一个 service 就建立正确的 pattern，后续 service 复制。
+
+**6. 统一 /menu 端点 vs 独立 /buffet-menu 端点（P1 级）**
+
+初版 spec 给 buffet menu 设计了独立的 `GET /buffet-menu/?packageId=X`。spec reviewer 指出 J02 user journey step 4 用的是统一 `GET /menu?diningMode=BUFFET&packageId=X`。改为在 `MenuQueryService` 里做 BUFFET 委托，避免前端改路由。**教训：** API 设计必须回溯 user journey，不能凭空加端点。
+
+**7. 测试代码膨胀（P2 级）**
+
+31 个 Mockito 单测占了 ~1240 行（总量的 43%）。主要原因：SecurityContextHolder mock setup 每个 test case 都要重复，entity 构造没有 builder/factory。这些测试只验证 Java 逻辑，不连 DB、不起 Spring。**教训：** 当前测试策略是快速反馈回路，不是生产验收。后续考虑共享 test fixture 或改用集成测试。
+
+#### 跨 Session 遗留问题
+
+| # | 来源 | 级别 | 问题 | 影响 | 状态 |
+|---|------|------|------|------|------|
+| 1 | 3.2 | P2 | `validateBuffetOrder` 不查已下单数量 | 限量校验不完整，等新 order service 接入时必须补 | TODO 已标注 |
+| 2 | 3.2 | P2 | `buffet_status=ENDED` 无人写入 | 结算完成后 session 不会标记 ENDED | 等 Session 2.2 结算引擎 |
+| 3 | 3.1 | P2 | `QrMenuApplicationService` + `AdminCatalogReadService` 仍有硬编码图片 URL | 顾客端和管理端图片走 Spring 代理 | 待全代码库清理 |
+| 4 | 3.2 | P2 | `enforceStoreAccess()` 在 4 个 service 里复制粘贴 | 维护成本高，改一处要改四处 | 建议提取 `StoreAccessEnforcer` 共享组件 |
+| 5 | 3.2 | P2 | Mockito inline/ByteBuddy attach 在 Homebrew JDK 17 失败 | 本地跑测试需要特定 JVM 参数 | 环境问题，CI 环境待验证 |
+| 6 | 3.1 | P2 | 审批强制执行门仍是 metadata-only | `@Audited(requiresApproval=true)` 不阻塞操作 | 延迟到后续 Phase |
+
+---
+
 ## Phase 4: 厨房 + 库存（Week 3-4）
 
 ### Session 4.1 — KDS + 厨房票
