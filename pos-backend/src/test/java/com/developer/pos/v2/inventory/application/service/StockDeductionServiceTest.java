@@ -1,14 +1,13 @@
 package com.developer.pos.v2.inventory.application.service;
 
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuEntity;
+import com.developer.pos.v2.inventory.application.dto.ConsumptionResult;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryBatchEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryItemEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryMovementEntity;
-import com.developer.pos.v2.inventory.infrastructure.persistence.entity.RecipeEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryBatchRepository;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryItemRepository;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryMovementRepository;
-import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaRecipeRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderItemEntity;
@@ -26,13 +25,14 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class StockDeductionServiceTest {
 
     @Mock JpaSkuRepository skuRepository;
-    @Mock JpaRecipeRepository recipeRepository;
+    @Mock ConsumptionCalculationService consumptionCalculationService;
     @Mock JpaInventoryItemRepository inventoryItemRepository;
     @Mock JpaInventoryBatchRepository batchRepository;
     @Mock JpaInventoryMovementRepository movementRepository;
@@ -80,7 +80,7 @@ class StockDeductionServiceTest {
 
         stockDeductionService.deductForOrders(10L, List.of(order));
 
-        verifyNoInteractions(skuRepository, recipeRepository, inventoryItemRepository, batchRepository, movementRepository);
+        verifyNoInteractions(skuRepository, consumptionCalculationService, inventoryItemRepository, batchRepository, movementRepository);
     }
 
     @Test
@@ -94,8 +94,7 @@ class StockDeductionServiceTest {
 
         stockDeductionService.deductForOrders(10L, List.of(order));
 
-        verify(recipeRepository, never()).findBySkuIdIn(any());
-        verifyNoInteractions(inventoryItemRepository, batchRepository, movementRepository);
+        verifyNoInteractions(consumptionCalculationService, inventoryItemRepository, batchRepository, movementRepository);
     }
 
     @Test
@@ -105,8 +104,8 @@ class StockDeductionServiceTest {
         SkuEntity sku = makeSkuWithDeductFlag(100L, true);
         when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
 
-        RecipeEntity recipe = makeRecipe(100L, 1L, new BigDecimal("0.5000"), BigDecimal.ONE);
-        when(recipeRepository.findBySkuIdIn(anyCollection())).thenReturn(List.of(recipe));
+        when(consumptionCalculationService.calculate(eq(100L), eq(2), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, new BigDecimal("1.0000"), "kg")));
 
         InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
         inventoryItem.addStock(new BigDecimal("5.0000"));
@@ -132,8 +131,8 @@ class StockDeductionServiceTest {
         SkuEntity sku = makeSkuWithDeductFlag(100L, true);
         when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
 
-        RecipeEntity recipe = makeRecipe(100L, 1L, new BigDecimal("0.5000"), BigDecimal.ONE);
-        when(recipeRepository.findBySkuIdIn(anyCollection())).thenReturn(List.of(recipe));
+        when(consumptionCalculationService.calculate(eq(100L), eq(1), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, new BigDecimal("0.5000"), "kg")));
 
         InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
         inventoryItem.addStock(new BigDecimal("5.0000"));
@@ -162,8 +161,8 @@ class StockDeductionServiceTest {
         SkuEntity sku = makeSkuWithDeductFlag(100L, true);
         when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
 
-        RecipeEntity recipe = makeRecipe(100L, 1L, new BigDecimal("0.5000"), BigDecimal.ONE);
-        when(recipeRepository.findBySkuIdIn(anyCollection())).thenReturn(List.of(recipe));
+        when(consumptionCalculationService.calculate(eq(100L), eq(2), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, new BigDecimal("1.0000"), "kg")));
 
         InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
         inventoryItem.addStock(new BigDecimal("5.3000"));
@@ -192,8 +191,8 @@ class StockDeductionServiceTest {
         SkuEntity sku = makeSkuWithDeductFlag(100L, true);
         when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
 
-        RecipeEntity recipe = makeRecipe(100L, 1L, new BigDecimal("0.5000"), BigDecimal.ONE);
-        when(recipeRepository.findBySkuIdIn(anyCollection())).thenReturn(List.of(recipe));
+        when(consumptionCalculationService.calculate(eq(100L), eq(2), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, new BigDecimal("1.0000"), "kg")));
 
         InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
         inventoryItem.addStock(new BigDecimal("0.2000"));
@@ -218,8 +217,8 @@ class StockDeductionServiceTest {
         SkuEntity sku = makeSkuWithDeductFlag(100L, true);
         when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
 
-        RecipeEntity recipe = makeRecipe(100L, 1L, new BigDecimal("0.5000"), new BigDecimal("1.5"));
-        when(recipeRepository.findBySkuIdIn(anyCollection())).thenReturn(List.of(recipe));
+        when(consumptionCalculationService.calculate(eq(100L), eq(1), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, new BigDecimal("0.7500"), "kg")));
 
         InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
         inventoryItem.addStock(new BigDecimal("5.0000"));
@@ -239,10 +238,11 @@ class StockDeductionServiceTest {
 
     @Test
     void deductForOrders_skuHasNoRecipe_skipped() {
-        // SKU 100 requires deduct but has no recipe — should load SKU, load recipes (empty), then do nothing
+        // SKU 100 requires deduct but has no recipe — should load SKU, calculate (empty), then do nothing
         SkuEntity sku = makeSkuWithDeductFlag(100L, true);
         when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
-        when(recipeRepository.findBySkuIdIn(anyCollection())).thenReturn(List.of()); // no recipes
+        when(consumptionCalculationService.calculate(eq(100L), eq(2), any()))
+            .thenReturn(List.of()); // no consumptions
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
         when(order.getItems()).thenReturn(List.of(makeOrderItem(100L, 2)));
@@ -262,19 +262,6 @@ class StockDeductionServiceTest {
             f.set(batch, id);
         } catch (Exception e) { throw new RuntimeException(e); }
         return batch;
-    }
-
-    private RecipeEntity makeRecipe(Long skuId, Long inventoryItemId, BigDecimal consumptionQty, BigDecimal baseMultiplier) {
-        try {
-            java.lang.reflect.Constructor<RecipeEntity> ctor = RecipeEntity.class.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            RecipeEntity r = ctor.newInstance();
-            setField(r, "skuId", skuId);
-            setField(r, "inventoryItemId", inventoryItemId);
-            setField(r, "consumptionQty", consumptionQty);
-            setField(r, "baseMultiplier", baseMultiplier);
-            return r;
-        } catch (Exception e) { throw new RuntimeException(e); }
     }
 
     private SkuEntity makeSkuWithDeductFlag(Long id, boolean requiresDeduct) {

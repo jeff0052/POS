@@ -2,14 +2,13 @@ package com.developer.pos.v2.inventory.application.service;
 
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
+import com.developer.pos.v2.inventory.application.dto.ConsumptionResult;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryBatchEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryItemEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryMovementEntity;
-import com.developer.pos.v2.inventory.infrastructure.persistence.entity.RecipeEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryBatchRepository;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryItemRepository;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryMovementRepository;
-import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaRecipeRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderItemEntity;
 import org.slf4j.Logger;
@@ -18,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,20 +29,20 @@ public class StockDeductionService {
     private static final Logger log = LoggerFactory.getLogger(StockDeductionService.class);
 
     private final JpaSkuRepository skuRepository;
-    private final JpaRecipeRepository recipeRepository;
+    private final ConsumptionCalculationService consumptionCalculationService;
     private final JpaInventoryItemRepository inventoryItemRepository;
     private final JpaInventoryBatchRepository batchRepository;
     private final JpaInventoryMovementRepository movementRepository;
 
     public StockDeductionService(
             JpaSkuRepository skuRepository,
-            JpaRecipeRepository recipeRepository,
+            ConsumptionCalculationService consumptionCalculationService,
             JpaInventoryItemRepository inventoryItemRepository,
             JpaInventoryBatchRepository batchRepository,
             JpaInventoryMovementRepository movementRepository
     ) {
         this.skuRepository = skuRepository;
-        this.recipeRepository = recipeRepository;
+        this.consumptionCalculationService = consumptionCalculationService;
         this.inventoryItemRepository = inventoryItemRepository;
         this.batchRepository = batchRepository;
         this.movementRepository = movementRepository;
@@ -74,23 +72,14 @@ public class StockDeductionService {
                 .collect(Collectors.toSet());
         if (deductableSkuIds.isEmpty()) return;
 
-        // 3. Load recipes for deductable SKUs
-        List<RecipeEntity> recipes = recipeRepository.findBySkuIdIn(deductableSkuIds);
-        Map<Long, List<RecipeEntity>> recipesBySkuId = recipes.stream()
-                .collect(Collectors.groupingBy(RecipeEntity::getSkuId));
-
-        // 4. Compute total deduction per inventoryItemId across all orders
+        // 3. Compute total deduction per inventoryItemId using ConsumptionCalculationService
         Map<Long, BigDecimal> deductionByItemId = new HashMap<>();
         for (SubmittedOrderItemEntity orderItem : allItems) {
             if (!deductableSkuIds.contains(orderItem.getSkuId())) continue;
-            List<RecipeEntity> skuRecipes = recipesBySkuId.getOrDefault(orderItem.getSkuId(), List.of());
-            for (RecipeEntity recipe : skuRecipes) {
-                BigDecimal multiplier = recipe.getBaseMultiplier() != null ? recipe.getBaseMultiplier() : BigDecimal.ONE;
-                BigDecimal qty = BigDecimal.valueOf(orderItem.getQuantity())
-                        .multiply(recipe.getConsumptionQty())
-                        .multiply(multiplier)
-                        .setScale(4, RoundingMode.HALF_UP);
-                deductionByItemId.merge(recipe.getInventoryItemId(), qty, BigDecimal::add);
+            List<ConsumptionResult> consumptions = consumptionCalculationService.calculate(
+                orderItem.getSkuId(), orderItem.getQuantity(), orderItem.getOptionSnapshotJson());
+            for (ConsumptionResult c : consumptions) {
+                deductionByItemId.merge(c.inventoryItemId(), c.qty(), BigDecimal::add);
             }
         }
 
