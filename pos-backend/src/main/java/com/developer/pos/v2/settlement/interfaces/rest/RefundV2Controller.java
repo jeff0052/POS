@@ -29,7 +29,7 @@ public class RefundV2Controller implements V2Api {
     public ApiResponse<RefundRecordDto> createRefund(@Valid @RequestBody CreateRefundRequest request) {
         List<CreateRefundCommand.RefundItemCommand> items = request.refundItems() == null ? null :
                 request.refundItems().stream()
-                        .map(i -> new CreateRefundCommand.RefundItemCommand(i.itemId(), i.quantity()))
+                        .map(i -> new CreateRefundCommand.RefundItemCommand(i.itemId(), i.quantity(), i.amountCents()))
                         .toList();
 
         CreateRefundCommand command = new CreateRefundCommand(
@@ -80,7 +80,8 @@ public class RefundV2Controller implements V2Api {
 
     public record RefundItemRequest(
         @NotNull Long itemId,
-        @Positive int quantity
+        @Positive int quantity,
+        @PositiveOrZero long amountCents
     ) {}
 
     public record ApproveRefundRequest(

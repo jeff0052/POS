@@ -93,14 +93,45 @@ public class RefundApplicationService implements UseCase {
         long roleThreshold = actor.maxRefundCents();
         boolean needsApproval = roleThreshold > 0 && refundAmount > roleThreshold;
 
-        // Calculate reversal amounts proportionally
-        double refundRatio = "FULL".equals(refundType) ? 1.0 : (double) refundAmount / settlement.getCollectedAmountCents();
-        long pointsReversed = "FULL".equals(refundType) ? settlement.getPointsDeductCents()
-                : Math.round(settlement.getPointsDeductCents() * refundRatio);
-        long cashReversed = "FULL".equals(refundType) ? settlement.getCashBalanceDeductCents()
-                : Math.round(settlement.getCashBalanceDeductCents() * refundRatio);
-        boolean couponReversed = "FULL".equals(refundType) && settlement.getCouponDiscountCents() > 0;
-        String externalRefundStatus = settlement.getExternalPaymentCents() > 0 ? "PENDING" : null;
+        // Calculate reversal amounts based on REMAINING unreversed totals (not original)
+        // This prevents cumulative drift across multiple partial refunds
+        List<RefundRecordEntity> priorRefunds = refundRecordRepository.findBySettlementId(settlement.getId());
+        long alreadyReversedPoints = priorRefunds.stream()
+                .filter(r -> "COMPLETED".equals(r.getRefundStatus()) || "AWAITING_EXTERNAL_REFUND".equals(r.getRefundStatus()))
+                .mapToLong(RefundRecordEntity::getPointsReversedCents).sum();
+        long alreadyReversedCash = priorRefunds.stream()
+                .filter(r -> "COMPLETED".equals(r.getRefundStatus()) || "AWAITING_EXTERNAL_REFUND".equals(r.getRefundStatus()))
+                .mapToLong(RefundRecordEntity::getCashReversedCents).sum();
+        boolean alreadyReversedCoupon = priorRefunds.stream()
+                .filter(r -> "COMPLETED".equals(r.getRefundStatus()) || "AWAITING_EXTERNAL_REFUND".equals(r.getRefundStatus()))
+                .anyMatch(RefundRecordEntity::isCouponReversed);
+
+        long remainingPoints = settlement.getPointsDeductCents() - alreadyReversedPoints;
+        long remainingCash = settlement.getCashBalanceDeductCents() - alreadyReversedCash;
+
+        long pointsReversed;
+        long cashReversed;
+        boolean couponReversed;
+
+        if ("FULL".equals(refundType)) {
+            // Full refund: reverse whatever remains
+            pointsReversed = Math.max(0, remainingPoints);
+            cashReversed = Math.max(0, remainingCash);
+            couponReversed = !alreadyReversedCoupon && settlement.getCouponDiscountCents() > 0;
+        } else {
+            // Partial: proportional to this refund's share, capped by remaining
+            double refundRatio = (double) refundAmount / settlement.getCollectedAmountCents();
+            pointsReversed = Math.min(
+                    Math.round(settlement.getPointsDeductCents() * refundRatio),
+                    Math.max(0, remainingPoints));
+            cashReversed = Math.min(
+                    Math.round(settlement.getCashBalanceDeductCents() * refundRatio),
+                    Math.max(0, remainingCash));
+            couponReversed = false; // partial refunds do not restore coupons
+        }
+
+        boolean hasExternalPayment = settlement.getExternalPaymentCents() > 0;
+        String externalRefundStatus = hasExternalPayment ? "PENDING" : null;
 
         RefundRecordEntity refund = new RefundRecordEntity();
         refund.setRefundNo("REF" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
@@ -122,36 +153,32 @@ public class RefundApplicationService implements UseCase {
             refund.setRefundStatus("PENDING");
             refund.setApprovalStatus("PENDING_APPROVAL");
         } else {
-            refund.setRefundStatus("COMPLETED");
             refund.setApprovalStatus("AUTO_APPROVED");
             applyRefundToSettlement(settlement, refundAmount);
             reverseAssets(settlement, pointsReversed, cashReversed, couponReversed);
+            // Final status depends on whether external refund is still pending
+            refund.setRefundStatus(hasExternalPayment ? "AWAITING_EXTERNAL_REFUND" : "COMPLETED");
         }
 
         refundRecordRepository.save(refund);
 
-        // Save line items if provided — distribute refund amount evenly across items
+        // Save line items — amounts come from client (validated to sum to refundAmount)
         List<RefundLineItemEntity> savedLineItems = new ArrayList<>();
         if (command.refundItems() != null && !command.refundItems().isEmpty()) {
-            int totalItems = command.refundItems().stream().mapToInt(CreateRefundCommand.RefundItemCommand::quantity).sum();
-            long perItemCents = totalItems > 0 ? refundAmount / totalItems : 0;
-            long remainder = totalItems > 0 ? refundAmount - (perItemCents * totalItems) : 0;
-
-            List<RefundLineItemEntity> lineItems = new ArrayList<>();
-            boolean firstItem = true;
-            for (CreateRefundCommand.RefundItemCommand item : command.refundItems()) {
+            long itemTotal = command.refundItems().stream()
+                    .mapToLong(CreateRefundCommand.RefundItemCommand::amountCents).sum();
+            if (itemTotal != refundAmount) {
+                throw new IllegalArgumentException(
+                        "Refund item amounts sum (" + itemTotal + ") does not match refundAmountCents (" + refundAmount + ")");
+            }
+            List<RefundLineItemEntity> lineItems = command.refundItems().stream().map(item -> {
                 RefundLineItemEntity li = new RefundLineItemEntity();
                 li.setRefundId(refund.getId());
                 li.setOrderItemId(item.itemId());
                 li.setQuantity(item.quantity());
-                long itemAmount = perItemCents * item.quantity();
-                if (firstItem) {
-                    itemAmount += remainder; // assign rounding remainder to first item
-                    firstItem = false;
-                }
-                li.setRefundAmountCents(itemAmount);
-                lineItems.add(li);
-            }
+                li.setRefundAmountCents(item.amountCents());
+                return li;
+            }).toList();
             savedLineItems = refundLineItemRepository.saveAll(lineItems);
         }
 
@@ -175,13 +202,15 @@ public class RefundApplicationService implements UseCase {
 
         if (command.approved()) {
             refund.setApprovalStatus("APPROVED");
-            refund.setRefundStatus("COMPLETED");
 
             SettlementRecordEntity settlement = settlementRecordRepository.findByIdForUpdate(refund.getSettlementId())
                     .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + refund.getSettlementId()));
             applyRefundToSettlement(settlement, refund.getRefundAmountCents());
             reverseAssets(settlement, refund.getPointsReversedCents(),
                     refund.getCashReversedCents(), refund.isCouponReversed());
+
+            boolean hasExternalPayment = settlement.getExternalPaymentCents() > 0;
+            refund.setRefundStatus(hasExternalPayment ? "AWAITING_EXTERNAL_REFUND" : "COMPLETED");
         } else {
             refund.setApprovalStatus("REJECTED");
             refund.setRefundStatus("REJECTED");
@@ -236,7 +265,6 @@ public class RefundApplicationService implements UseCase {
      */
     private void reverseAssets(SettlementRecordEntity settlement,
                                long pointsReversedCents, long cashReversedCents, boolean couponReversed) {
-        // Find confirmed payment holds to locate the member
         List<SettlementPaymentHoldEntity> confirmedHolds =
                 paymentHoldRepository.findAllBySettlementRecordIdAndHoldStatus(settlement.getId(), "CONFIRMED");
 
@@ -247,7 +275,7 @@ public class RefundApplicationService implements UseCase {
                 .orElse(null);
 
         if (memberId != null && (pointsReversedCents > 0 || cashReversedCents > 0)) {
-            // For points reversal: convert cents back to points count proportionally
+            // Convert points-cents to points-count proportionally
             long totalPointsCents = confirmedHolds.stream()
                     .filter(h -> "POINTS".equals(h.getHoldType()))
                     .mapToLong(SettlementPaymentHoldEntity::getHoldAmountCents)
@@ -257,8 +285,6 @@ public class RefundApplicationService implements UseCase {
                     .mapToLong(SettlementPaymentHoldEntity::getPointsHeld)
                     .sum();
 
-            // Proportional points: if we're reversing X cents out of Y total points-cents,
-            // reverse (X / Y) * totalPointsCount points
             long pointsToReverse = 0;
             if (pointsReversedCents > 0 && totalPointsCents > 0 && totalPointsCount > 0) {
                 pointsToReverse = Math.round((double) pointsReversedCents / totalPointsCents * totalPointsCount);
@@ -278,17 +304,8 @@ public class RefundApplicationService implements UseCase {
             });
         }
 
-        // Restore coupon to AVAILABLE
         if (couponReversed && settlement.getCouponId() != null) {
-            Long couponId = settlement.getCouponId();
-            // Find the COUPON hold to get the session that locked it
-            Long sessionId = confirmedHolds.stream()
-                    .filter(h -> "COUPON".equals(h.getHoldType()))
-                    .map(SettlementPaymentHoldEntity::getTableSessionId)
-                    .findFirst()
-                    .orElse(null);
-            // Direct update: set coupon back to AVAILABLE, clear usage fields
-            memberCouponRepository.findById(couponId).ifPresent(coupon -> {
+            memberCouponRepository.findById(settlement.getCouponId()).ifPresent(coupon -> {
                 coupon.setCouponStatus("AVAILABLE");
                 coupon.setUsedAt(null);
                 coupon.setUsedOrderId(null);

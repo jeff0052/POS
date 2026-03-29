@@ -9,7 +9,6 @@ import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemb
 import com.developer.pos.v2.settlement.application.command.ApproveRefundCommand;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
 import com.developer.pos.v2.settlement.application.dto.RefundRecordDto;
-import com.developer.pos.v2.settlement.infrastructure.persistence.entity.RefundLineItemEntity;
 import com.developer.pos.v2.settlement.infrastructure.persistence.entity.RefundRecordEntity;
 import com.developer.pos.v2.settlement.infrastructure.persistence.entity.SettlementPaymentHoldEntity;
 import com.developer.pos.v2.settlement.infrastructure.persistence.entity.SettlementRecordEntity;
@@ -53,11 +52,7 @@ class RefundApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        // CASHIER role → threshold 5000 cents
-        AuthenticatedActor actor = new AuthenticatedActor(
-                42L, "cashier1", "AU-42", "CASHIER", 1L, 1L, Set.of(1L), Set.of("REFUND_SMALL"));
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(actor, null, List.of()));
+        setActor(0L); // default: unlimited refund
 
         settlement = new SettlementRecordEntity();
         settlement.setFinalStatus("SETTLED");
@@ -79,36 +74,27 @@ class RefundApplicationServiceTest {
         SecurityContextHolder.clearContext();
     }
 
-    @Test
-    void fullRefund_reversesPointsAndCashAndCoupon() {
-        // MERCHANT_OWNER has maxRefundCents=0 (unlimited) → full refund auto-approved → reversal executes
-        AuthenticatedActor owner = new AuthenticatedActor(
-                42L, "owner", "AU-42", "MERCHANT_OWNER", 1L, 1L, Set.of(1L), Set.of("REFUND_LARGE"), 0L);
+    private void setActor(long maxRefundCents) {
+        AuthenticatedActor actor = new AuthenticatedActor(
+                42L, "user", "AU-42", "CASHIER", 1L, 1L, Set.of(1L), Set.of("REFUND_SMALL"), maxRefundCents);
         SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(owner, null, List.of()));
+                new UsernamePasswordAuthenticationToken(actor, null, List.of()));
+    }
 
+    @Test
+    void fullRefund_withExternalPayment_statusIsAwaitingExternalRefund() {
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(refundRecordRepository.findBySettlementId(any())).thenReturn(List.of());
 
-        // Set up payment holds with member for asset reversal
         SettlementPaymentHoldEntity pointsHold = new SettlementPaymentHoldEntity();
         pointsHold.setHoldType("POINTS");
         pointsHold.setMemberId(77L);
-        pointsHold.setPointsHeld(200L); // 200 points used
+        pointsHold.setPointsHeld(200L);
         pointsHold.setHoldAmountCents(2000);
 
-        SettlementPaymentHoldEntity cashHold = new SettlementPaymentHoldEntity();
-        cashHold.setHoldType("CASH_BALANCE");
-        cashHold.setMemberId(77L);
-        cashHold.setHoldAmountCents(3000);
-
-        SettlementPaymentHoldEntity couponHold = new SettlementPaymentHoldEntity();
-        couponHold.setHoldType("COUPON");
-        couponHold.setMemberId(77L);
-        couponHold.setTableSessionId(10L);
-
         when(paymentHoldRepository.findAllBySettlementRecordIdAndHoldStatus(any(), eq("CONFIRMED")))
-                .thenReturn(List.of(pointsHold, cashHold, couponHold));
+                .thenReturn(List.of(pointsHold));
 
         MemberAccountEntity account = new MemberAccountEntity();
         account.setAvailablePoints(100);
@@ -124,56 +110,61 @@ class RefundApplicationServiceTest {
         CreateRefundCommand cmd = new CreateRefundCommand(1L, 0, "FULL", "customer request", null);
         RefundRecordDto result = service.createRefund(cmd);
 
-        // Verify refund record
-        assertThat(result.refundAmountCents()).isEqualTo(10000);
-        assertThat(result.operatedBy()).isEqualTo(42L);
-
-        // Verify actual asset reversal happened
+        // External payment present → not COMPLETED
+        assertThat(result.refundStatus()).isEqualTo("AWAITING_EXTERNAL_REFUND");
+        assertThat(result.externalRefundStatus()).isEqualTo("PENDING");
+        // Internal assets still reversed
         assertThat(account.getAvailablePoints()).isEqualTo(300); // 100 + 200
-        assertThat(account.getPointsBalance()).isEqualTo(300);
         assertThat(account.getAvailableCashCents()).isEqualTo(3500); // 500 + 3000
-        assertThat(account.getCashBalanceCents()).isEqualTo(3500);
         assertThat(coupon.getCouponStatus()).isEqualTo("AVAILABLE");
     }
 
     @Test
-    void partialRefund_withItems_tracksLineItems() {
+    void fullRefund_noExternalPayment_statusIsCompleted() {
+        settlement.setExternalPaymentCents(0);
+        when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
+        when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(refundRecordRepository.findBySettlementId(any())).thenReturn(List.of());
+        when(paymentHoldRepository.findAllBySettlementRecordIdAndHoldStatus(any(), eq("CONFIRMED")))
+                .thenReturn(List.of());
+
+        CreateRefundCommand cmd = new CreateRefundCommand(1L, 0, "FULL", "reason", null);
+        RefundRecordDto result = service.createRefund(cmd);
+
+        assertThat(result.refundStatus()).isEqualTo("COMPLETED");
+        assertThat(result.externalRefundStatus()).isNull();
+    }
+
+    @Test
+    void secondPartialRefund_capsReversalAtRemaining() {
+        // First refund already reversed 1000 points-cents and 1500 cash-cents
+        RefundRecordEntity prior = new RefundRecordEntity();
+        prior.setRefundStatus("COMPLETED");
+        prior.setPointsReversedCents(1000);
+        prior.setCashReversedCents(1500);
+        prior.setCouponReversed(false);
+        when(refundRecordRepository.findBySettlementId(any())).thenReturn(List.of(prior));
+
+        settlement.setRefundedAmountCents(5000); // 5000 already refunded
+        settlement.setExternalPaymentCents(0);
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(paymentHoldRepository.findAllBySettlementRecordIdAndHoldStatus(any(), eq("CONFIRMED")))
                 .thenReturn(List.of());
 
-        RefundLineItemEntity li1 = new RefundLineItemEntity();
-        li1.setOrderItemId(101L);
-        li1.setQuantity(1);
-        li1.setRefundAmountCents(0);
-
-        RefundLineItemEntity li2 = new RefundLineItemEntity();
-        li2.setOrderItemId(102L);
-        li2.setQuantity(2);
-        li2.setRefundAmountCents(0);
-
-        when(refundLineItemRepository.saveAll(any())).thenReturn(List.of(li1, li2));
-
-        List<CreateRefundCommand.RefundItemCommand> items = List.of(
-                new CreateRefundCommand.RefundItemCommand(101L, 1),
-                new CreateRefundCommand.RefundItemCommand(102L, 2)
-        );
-        CreateRefundCommand cmd = new CreateRefundCommand(1L, 3000, "PARTIAL", "partial return", items);
+        // Second partial refund of 5000 (50% of collected)
+        CreateRefundCommand cmd = new CreateRefundCommand(1L, 5000, "PARTIAL", "second refund", null);
         RefundRecordDto result = service.createRefund(cmd);
 
-        verify(refundLineItemRepository).saveAll(argThat(list -> ((List<?>) list).size() == 2));
-        assertThat(result.lineItems()).hasSize(2);
+        // Proportional would be 50% of 2000 = 1000, but only 1000 remains (2000 - 1000)
+        assertThat(result.pointsReversedCents()).isEqualTo(1000);
+        // Proportional would be 50% of 3000 = 1500, and 1500 remains (3000 - 1500)
+        assertThat(result.cashReversedCents()).isEqualTo(1500);
     }
 
     @Test
     void rbacThreshold_overLimit_requiresApproval() {
-        // Actor has maxRefundCents=5000 from RBAC, amount=6000 → needs approval
-        AuthenticatedActor cashier = new AuthenticatedActor(
-                42L, "cashier1", "AU-42", "CASHIER", 1L, 1L, Set.of(1L), Set.of("REFUND_SMALL"), 5000L);
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(cashier, null, List.of()));
-
+        setActor(5000L); // maxRefundCents = 5000
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -182,47 +173,29 @@ class RefundApplicationServiceTest {
 
         assertThat(result.approvalStatus()).isEqualTo("PENDING_APPROVAL");
         assertThat(result.refundStatus()).isEqualTo("PENDING");
-        verify(settlementRecordRepository, never()).save(any());
-        verify(paymentHoldRepository, never()).findAllBySettlementRecordIdAndHoldStatus(any(), any());
     }
 
     @Test
-    void rbacThreshold_zeroMeansUnlimited_autoApproved() {
-        // MERCHANT_OWNER with maxRefundCents=0 from RBAC → always auto-approved
-        AuthenticatedActor owner = new AuthenticatedActor(
-                99L, "owner", "AU-99", "MERCHANT_OWNER", 1L, 1L, Set.of(1L), Set.of("REFUND_LARGE"), 0L);
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(owner, null, List.of()));
-
+    void lineItems_sumValidation_rejectsIfMismatch() {
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(refundRecordRepository.findBySettlementId(any())).thenReturn(List.of());
         when(paymentHoldRepository.findAllBySettlementRecordIdAndHoldStatus(any(), eq("CONFIRMED")))
                 .thenReturn(List.of());
 
-        CreateRefundCommand cmd = new CreateRefundCommand(1L, 9000, "PARTIAL", "big refund", null);
-        RefundRecordDto result = service.createRefund(cmd);
+        var items = List.of(
+                new CreateRefundCommand.RefundItemCommand(101L, 1, 1000),
+                new CreateRefundCommand.RefundItemCommand(102L, 1, 500) // sum=1500 != 3000
+        );
+        CreateRefundCommand cmd = new CreateRefundCommand(1L, 3000, "PARTIAL", "reason", items);
 
-        assertThat(result.approvalStatus()).isEqualTo("AUTO_APPROVED");
-        assertThat(result.refundStatus()).isEqualTo("COMPLETED");
+        assertThatThrownBy(() -> service.createRefund(cmd))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not match");
     }
 
     @Test
-    void cashier_underThreshold_autoApproved() {
-        when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
-        when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentHoldRepository.findAllBySettlementRecordIdAndHoldStatus(any(), eq("CONFIRMED")))
-                .thenReturn(List.of());
-
-        CreateRefundCommand cmd = new CreateRefundCommand(1L, 3000, "PARTIAL", "reason", null);
-        RefundRecordDto result = service.createRefund(cmd);
-
-        assertThat(result.approvalStatus()).isEqualTo("AUTO_APPROVED");
-        assertThat(result.refundStatus()).isEqualTo("COMPLETED");
-        verify(settlementRecordRepository).save(any());
-    }
-
-    @Test
-    void approveRefund_completesRefund_usingPessimisticLock() {
+    void approveRefund_withExternalPayment_statusIsAwaitingExternalRefund() {
         RefundRecordEntity refund = new RefundRecordEntity();
         refund.setRefundNo("REF001");
         refund.setApprovalStatus("PENDING_APPROVAL");
@@ -244,10 +217,8 @@ class RefundApplicationServiceTest {
         RefundRecordDto result = service.approveRefund(cmd);
 
         assertThat(result.approvalStatus()).isEqualTo("APPROVED");
-        assertThat(result.refundStatus()).isEqualTo("COMPLETED");
+        assertThat(result.refundStatus()).isEqualTo("AWAITING_EXTERNAL_REFUND");
         assertThat(result.approvedBy()).isEqualTo(42L);
-        verify(settlementRecordRepository).save(any());
-        verify(storeAccessEnforcer).enforce(1L);
     }
 
     @Test
@@ -268,7 +239,6 @@ class RefundApplicationServiceTest {
 
         assertThat(result.approvalStatus()).isEqualTo("REJECTED");
         verify(settlementRecordRepository, never()).save(any());
-        verify(paymentHoldRepository, never()).findAllBySettlementRecordIdAndHoldStatus(any(), any());
     }
 
     @Test

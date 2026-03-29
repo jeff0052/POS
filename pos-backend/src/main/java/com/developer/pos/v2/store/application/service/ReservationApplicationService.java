@@ -76,7 +76,8 @@ public class ReservationApplicationService implements UseCase {
                     .filter(t -> "AVAILABLE".equalsIgnoreCase(t.getTableStatus()))
                     .map(StoreTableEntity::getId)
                     .findFirst()
-                    .orElse(null);
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Cannot confirm reservation: no available table in store " + storeId));
         }
         final Long assignedTableId = resolvedTableId;
 
@@ -128,6 +129,22 @@ public class ReservationApplicationService implements UseCase {
         entity.setPartySize(partySize);
         entity.setReservationStatus(nextStatus);
         entity.setArea(area);
+
+        // When transitioning INTO CONFIRMED and no table assigned, auto-assign one
+        if ("CONFIRMED".equals(nextStatus) && entity.getTableId() == null) {
+            Long autoTableId = storeTableRepository.findAllByStoreIdOrderByIdAsc(storeId).stream()
+                    .filter(t -> "AVAILABLE".equalsIgnoreCase(t.getTableStatus()))
+                    .map(StoreTableEntity::getId)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Cannot confirm reservation: no available table in store " + storeId));
+            StoreTableEntity table = storeTableRepository.findByIdAndStoreId(autoTableId, storeId)
+                    .orElseThrow(() -> new IllegalArgumentException("Table not found: " + autoTableId));
+            table.setTableStatus("RESERVED");
+            storeTableRepository.save(table);
+            entity.setTableId(autoTableId);
+        }
+
         return toDto(reservationRepository.save(entity));
     }
 

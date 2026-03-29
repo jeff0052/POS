@@ -9,5 +9,5 @@ public record CreateRefundCommand(
         String reason,
         List<RefundItemCommand> refundItems
 ) {
-    public record RefundItemCommand(Long itemId, int quantity) {}
+    public record RefundItemCommand(Long itemId, int quantity, long amountCents) {}
 }
