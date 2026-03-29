@@ -73,6 +73,13 @@ public class TableMergeApplicationService implements UseCase {
             throw new IllegalStateException("Merged table is already merged into another table.");
         }
 
+        // Reject nested chains: if mergedSession is already master of other active merges,
+        // merging it into another table would create grandchildren that settlement cannot traverse.
+        if (!tableSessionRepository.findAllByMergedIntoSessionIdAndSessionStatus(mergedSession.getId(), "OPEN").isEmpty()) {
+            throw new IllegalStateException(
+                    "Cannot merge a table that is itself a master of other merged tables. Unmerge its children first.");
+        }
+
         // Set session pointer
         mergedSession.setMergedIntoSessionId(masterSession.getId());
         tableSessionRepository.saveAndFlush(mergedSession);

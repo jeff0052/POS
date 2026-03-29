@@ -9,6 +9,7 @@ import com.developer.pos.v2.order.application.dto.QrOrderingContextDto;
 import com.developer.pos.v2.order.application.dto.QrOrderingSubmitResultDto;
 import com.developer.pos.v2.order.application.service.ActiveTableOrderApplicationService;
 import com.developer.pos.v2.order.interfaces.rest.request.QrOrderingSubmitRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,13 +41,20 @@ public class QrOrderingV2Controller implements V2Api {
     @GetMapping("/context")
     public ApiResponse<QrOrderingContextDto> getContext(
             @RequestParam String storeCode,
-            @RequestParam String tableCode
+            @RequestParam String tableCode,
+            HttpServletRequest httpRequest
     ) {
+        enforceTokenBinding(httpRequest, tableCode);
         return ApiResponse.success(activeTableOrderApplicationService.getQrOrderingContext(storeCode, tableCode));
     }
 
     @PostMapping("/submit")
-    public ApiResponse<QrOrderingSubmitResultDto> submit(@Valid @RequestBody QrOrderingSubmitRequest request) {
+    public ApiResponse<QrOrderingSubmitResultDto> submit(
+            @Valid @RequestBody QrOrderingSubmitRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        enforceTokenBinding(httpRequest, request.tableCode());
+
         SubmitQrOrderingCommand command = new SubmitQrOrderingCommand(
                 request.storeCode(),
                 request.tableCode(),
@@ -64,5 +72,21 @@ public class QrOrderingV2Controller implements V2Api {
         );
 
         return ApiResponse.success(activeTableOrderApplicationService.submitQrOrdering(command));
+    }
+
+    /**
+     * Verify that the tableCode in the request matches the tableCode bound in the ordering JWT.
+     * Prevents cross-table ordering: scan table A, submit to table B.
+     */
+    private void enforceTokenBinding(HttpServletRequest request, String requestTableCode) {
+        String tokenTableCode = (String) request.getAttribute("qr.tableCode");
+        if (tokenTableCode == null) {
+            throw new IllegalStateException("Ordering token claims not found. Is QrOrderingFilter active?");
+        }
+        if (!tokenTableCode.equals(requestTableCode)) {
+            throw new IllegalArgumentException(
+                    "Table code mismatch: token is bound to table " + tokenTableCode +
+                    " but request targets table " + requestTableCode);
+        }
     }
 }

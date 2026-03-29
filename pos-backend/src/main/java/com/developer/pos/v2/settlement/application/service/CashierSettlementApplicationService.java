@@ -67,6 +67,16 @@ public class CashierSettlementApplicationService implements UseCase {
      * Build the full session chain for a master session: [masterSessionId] + all merged session IDs.
      * Used by preview, payment-pending, and settlement to aggregate across merged tables.
      */
+    /**
+     * Reject settlement operations on a merged child table. Settlement must go through the master table.
+     */
+    private void rejectMergedChildSession(TableSessionEntity session) {
+        if (session.getMergedIntoSessionId() != null) {
+            throw new IllegalStateException(
+                    "This table is merged into another table. Settlement must be initiated from the master table.");
+        }
+    }
+
     private List<Long> buildSessionChain(TableSessionEntity masterSession) {
         List<Long> chain = new ArrayList<>();
         chain.add(masterSession.getId());
@@ -120,6 +130,8 @@ public class CashierSettlementApplicationService implements UseCase {
         TableSessionEntity session = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
 
+        rejectMergedChildSession(session);
+
         List<Long> sessionChain = buildSessionChain(session);
         List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository
                 .findByTableSessionIdInAndSettlementStatusOrderByIdAsc(sessionChain, "UNPAID");
@@ -169,6 +181,8 @@ public class CashierSettlementApplicationService implements UseCase {
         TableSessionEntity session = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
 
+        rejectMergedChildSession(session);
+
         List<Long> sessionChain = buildSessionChain(session);
         List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository
                 .findByTableSessionIdInAndSettlementStatusOrderByIdAsc(sessionChain, "UNPAID");
@@ -211,6 +225,8 @@ public class CashierSettlementApplicationService implements UseCase {
     public CashierSettlementResultDto collectForTable(Long storeId, Long tableId, CollectCashierSettlementCommand command) {
         TableSessionEntity masterSession = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
+
+        rejectMergedChildSession(masterSession);
 
         SettlementRecordEntity existingRecord = settlementRecordRepository.findByActiveOrderId(masterSession.getSessionId()).orElse(null);
         if (existingRecord != null) {

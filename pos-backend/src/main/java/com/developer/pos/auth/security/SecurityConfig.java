@@ -63,6 +63,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/mark-clean").hasAuthority("TABLE_CLEAN")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/qr/refresh").hasAuthority("TABLE_MANAGE")
 
+                // Settlement/payment endpoints require SETTLEMENT_COLLECT (BEFORE the broad /stores/** matcher)
+                .requestMatchers("/api/v2/stores/*/tables/*/payment/**").hasAuthority("SETTLEMENT_COLLECT")
+
                 // POS tablet endpoints (WebView, no auth token)
                 .requestMatchers("/api/v2/stores/**").permitAll()
                 .requestMatchers("/api/v1/stores/**").permitAll()
