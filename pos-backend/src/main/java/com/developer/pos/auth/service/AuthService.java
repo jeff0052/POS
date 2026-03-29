@@ -49,8 +49,11 @@ public class AuthService {
             // Account locked/disabled — do NOT fallback, propagate the error
             throw e;
         } catch (IllegalArgumentException e) {
-            // "Invalid credentials" from RBAC — could mean user not in users table yet, try legacy
-            log.debug("RBAC login failed for {}, falling back to legacy: {}", request.username(), e.getMessage());
+            // Password mismatch — user exists in RBAC but wrong password. Do NOT fallback.
+            throw e;
+        } catch (java.util.NoSuchElementException e) {
+            // User not found in RBAC users table — fallback to legacy auth_users
+            log.debug("User {} not in RBAC, falling back to legacy: {}", request.username(), e.getMessage());
         }
 
         // Fallback to legacy auth_users

@@ -120,9 +120,20 @@ public class RbacManagementService implements UseCase {
 
         userRepository.save(user);
 
-        // Assign roles
-        if (request.getRoleIds() != null) {
+        // Assign roles (with same validation as assignRoles)
+        if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            Long callerMerchant = enforceCallerMerchant();
             for (Long roleId : request.getRoleIds()) {
+                if (callerMerchant != null) {
+                    CustomRoleEntity role = customRoleRepository.findById(roleId)
+                            .orElseThrow(() -> new IllegalArgumentException("Role not found: " + roleId));
+                    if ("PLATFORM".equals(role.getRoleLevel())) {
+                        throw new SecurityException("Cannot assign platform-level role: " + role.getRoleCode());
+                    }
+                    if (role.getMerchantId() != null && !role.getMerchantId().equals(callerMerchant)) {
+                        throw new SecurityException("Access denied: role belongs to another merchant");
+                    }
+                }
                 UserRoleEntity userRole = new UserRoleEntity();
                 userRole.setUserId(user.getId());
                 userRole.setRoleId(roleId);
@@ -131,9 +142,17 @@ public class RbacManagementService implements UseCase {
             }
         }
 
-        // Grant store access
-        if (request.getStoreIds() != null) {
+        // Grant store access (with same validation as setStoreAccess)
+        if (request.getStoreIds() != null && !request.getStoreIds().isEmpty()) {
+            Long callerMerchant = enforceCallerMerchant();
             for (Long storeId : request.getStoreIds()) {
+                if (callerMerchant != null) {
+                    var store = storeRepository.findById(storeId)
+                            .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeId));
+                    if (!callerMerchant.equals(store.getMerchantId())) {
+                        throw new SecurityException("Access denied: store belongs to another merchant");
+                    }
+                }
                 UserStoreAccessEntity access = new UserStoreAccessEntity();
                 access.setUserId(user.getId());
                 access.setStoreId(storeId);
@@ -233,9 +252,25 @@ public class RbacManagementService implements UseCase {
         return roles.stream().map(this::toRoleDto).collect(Collectors.toList());
     }
 
+    private static final java.util.Set<String> RESERVED_ROLE_CODES = java.util.Set.of(
+            "SUPER_ADMIN", "MERCHANT_OWNER", "PLATFORM_ADMIN", "ADMIN",
+            "STORE_MANAGER", "CASHIER", "KITCHEN_STAFF", "WAITER", "INVENTORY_CLERK", "FINANCE"
+    );
+
     @Transactional
     public CustomRoleDto createCustomRole(CreateCustomRoleRequest request) {
         assertSameMerchant(request.getMerchantId());
+
+        // Block reserved role codes that would forge admin authorities
+        if (RESERVED_ROLE_CODES.contains(request.getRoleCode())) {
+            throw new IllegalArgumentException("Role code is reserved: " + request.getRoleCode());
+        }
+
+        // Custom roles cannot be PLATFORM level
+        if ("PLATFORM".equals(request.getRoleLevel())) {
+            throw new SecurityException("Cannot create platform-level role");
+        }
+
         CustomRoleEntity role = new CustomRoleEntity();
         role.setMerchantId(request.getMerchantId());
         role.setRoleCode(request.getRoleCode());

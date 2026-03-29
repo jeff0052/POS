@@ -62,7 +62,10 @@ public class RbacAuthService implements UseCase {
     @Transactional
     public RbacLoginResponse login(String username, String password) {
         UserEntity user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
+                .orElse(null);
+        if (user == null) {
+            throw new java.util.NoSuchElementException("User not found in RBAC");
+        }
 
         validateUserNotDisabledOrLocked(user);
         verifyPassword(user, password);
