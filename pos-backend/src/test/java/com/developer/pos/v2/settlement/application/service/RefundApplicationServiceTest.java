@@ -81,9 +81,9 @@ class RefundApplicationServiceTest {
 
     @Test
     void fullRefund_reversesPointsAndCashAndCoupon() {
-        // MERCHANT_OWNER has no threshold → full refund auto-approved → reversal executes
+        // MERCHANT_OWNER has maxRefundCents=0 (unlimited) → full refund auto-approved → reversal executes
         AuthenticatedActor owner = new AuthenticatedActor(
-                42L, "owner", "AU-42", "MERCHANT_OWNER", 1L, 1L, Set.of(1L), Set.of("REFUND_LARGE"));
+                42L, "owner", "AU-42", "MERCHANT_OWNER", 1L, 1L, Set.of(1L), Set.of("REFUND_LARGE"), 0L);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(owner, null, List.of()));
 
@@ -167,11 +167,16 @@ class RefundApplicationServiceTest {
     }
 
     @Test
-    void cashier_overThreshold_requiresApproval() {
+    void rbacThreshold_overLimit_requiresApproval() {
+        // Actor has maxRefundCents=5000 from RBAC, amount=6000 → needs approval
+        AuthenticatedActor cashier = new AuthenticatedActor(
+                42L, "cashier1", "AU-42", "CASHIER", 1L, 1L, Set.of(1L), Set.of("REFUND_SMALL"), 5000L);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(cashier, null, List.of()));
+
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        // CASHIER role has threshold 5000, amount 6000 → needs approval
         CreateRefundCommand cmd = new CreateRefundCommand(1L, 6000, "PARTIAL", "reason", null);
         RefundRecordDto result = service.createRefund(cmd);
 
@@ -182,10 +187,10 @@ class RefundApplicationServiceTest {
     }
 
     @Test
-    void merchantOwner_anyAmount_autoApproved() {
-        // MERCHANT_OWNER has no threshold → always auto-approved
+    void rbacThreshold_zeroMeansUnlimited_autoApproved() {
+        // MERCHANT_OWNER with maxRefundCents=0 from RBAC → always auto-approved
         AuthenticatedActor owner = new AuthenticatedActor(
-                99L, "owner", "AU-99", "MERCHANT_OWNER", 1L, 1L, Set.of(1L), Set.of("REFUND_LARGE"));
+                99L, "owner", "AU-99", "MERCHANT_OWNER", 1L, 1L, Set.of(1L), Set.of("REFUND_LARGE"), 0L);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(owner, null, List.of()));
 

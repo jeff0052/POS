@@ -65,7 +65,11 @@ public class ReservationApplicationService implements UseCase {
         entity.setReservationStatus(reservationStatus.toUpperCase());
         entity.setArea(area);
 
-        // Table assignment: explicit tableId, or auto-select when CONFIRMED
+        // Table assignment only allowed for CONFIRMED reservations
+        if (tableId != null && !"CONFIRMED".equals(entity.getReservationStatus())) {
+            throw new IllegalStateException("Cannot reserve a table for non-CONFIRMED reservation. Status: " + entity.getReservationStatus());
+        }
+
         Long resolvedTableId = tableId;
         if (resolvedTableId == null && "CONFIRMED".equals(entity.getReservationStatus())) {
             resolvedTableId = storeTableRepository.findAllByStoreIdOrderByIdAsc(storeId).stream()

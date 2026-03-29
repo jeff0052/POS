@@ -24,17 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class RefundApplicationService implements UseCase {
-
-    /** Per-role refund auto-approval thresholds (cents). 0 = no limit. */
-    private static final Map<String, Long> ROLE_REFUND_THRESHOLDS = Map.of(
-            "CASHIER", 5000L,
-            "STORE_MANAGER", 50000L
-    );
 
     private final JpaRefundRecordRepository refundRecordRepository;
     private final JpaSettlementRecordRepository settlementRecordRepository;
@@ -96,8 +89,8 @@ public class RefundApplicationService implements UseCase {
                     "Refund amount " + refundAmount + " exceeds refundable " + maxRefundable);
         }
 
-        // Determine approval threshold from actor's role, not client input
-        long roleThreshold = ROLE_REFUND_THRESHOLDS.getOrDefault(actor.role(), 0L);
+        // Approval threshold from RBAC-resolved maxRefundCents (0 = unlimited)
+        long roleThreshold = actor.maxRefundCents();
         boolean needsApproval = roleThreshold > 0 && refundAmount > roleThreshold;
 
         // Calculate reversal amounts proportionally
@@ -137,17 +130,28 @@ public class RefundApplicationService implements UseCase {
 
         refundRecordRepository.save(refund);
 
-        // Save line items if provided
+        // Save line items if provided — distribute refund amount evenly across items
         List<RefundLineItemEntity> savedLineItems = new ArrayList<>();
         if (command.refundItems() != null && !command.refundItems().isEmpty()) {
-            List<RefundLineItemEntity> lineItems = command.refundItems().stream().map(item -> {
+            int totalItems = command.refundItems().stream().mapToInt(CreateRefundCommand.RefundItemCommand::quantity).sum();
+            long perItemCents = totalItems > 0 ? refundAmount / totalItems : 0;
+            long remainder = totalItems > 0 ? refundAmount - (perItemCents * totalItems) : 0;
+
+            List<RefundLineItemEntity> lineItems = new ArrayList<>();
+            boolean firstItem = true;
+            for (CreateRefundCommand.RefundItemCommand item : command.refundItems()) {
                 RefundLineItemEntity li = new RefundLineItemEntity();
                 li.setRefundId(refund.getId());
                 li.setOrderItemId(item.itemId());
                 li.setQuantity(item.quantity());
-                li.setRefundAmountCents(0);
-                return li;
-            }).toList();
+                long itemAmount = perItemCents * item.quantity();
+                if (firstItem) {
+                    itemAmount += remainder; // assign rounding remainder to first item
+                    firstItem = false;
+                }
+                li.setRefundAmountCents(itemAmount);
+                lineItems.add(li);
+            }
             savedLineItems = refundLineItemRepository.saveAll(lineItems);
         }
 
@@ -243,15 +247,28 @@ public class RefundApplicationService implements UseCase {
                 .orElse(null);
 
         if (memberId != null && (pointsReversedCents > 0 || cashReversedCents > 0)) {
-            long pointsCount = confirmedHolds.stream()
+            // For points reversal: convert cents back to points count proportionally
+            long totalPointsCents = confirmedHolds.stream()
+                    .filter(h -> "POINTS".equals(h.getHoldType()))
+                    .mapToLong(SettlementPaymentHoldEntity::getHoldAmountCents)
+                    .sum();
+            long totalPointsCount = confirmedHolds.stream()
                     .filter(h -> "POINTS".equals(h.getHoldType()) && h.getPointsHeld() != null)
                     .mapToLong(SettlementPaymentHoldEntity::getPointsHeld)
                     .sum();
 
+            // Proportional points: if we're reversing X cents out of Y total points-cents,
+            // reverse (X / Y) * totalPointsCount points
+            long pointsToReverse = 0;
+            if (pointsReversedCents > 0 && totalPointsCents > 0 && totalPointsCount > 0) {
+                pointsToReverse = Math.round((double) pointsReversedCents / totalPointsCents * totalPointsCount);
+            }
+
+            final long finalPointsToReverse = pointsToReverse;
             memberAccountRepository.findByMemberId(memberId).ifPresent(account -> {
-                if (pointsCount > 0) {
-                    account.setAvailablePoints(account.getAvailablePoints() + pointsCount);
-                    account.setPointsBalance(account.getPointsBalance() + pointsCount);
+                if (finalPointsToReverse > 0) {
+                    account.setAvailablePoints(account.getAvailablePoints() + finalPointsToReverse);
+                    account.setPointsBalance(account.getPointsBalance() + finalPointsToReverse);
                 }
                 if (cashReversedCents > 0) {
                     account.setAvailableCashCents(account.getAvailableCashCents() + cashReversedCents);
