@@ -6,12 +6,15 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSku
 import com.developer.pos.v2.image.infrastructure.persistence.entity.ImageAssetEntity;
 import com.developer.pos.v2.image.infrastructure.persistence.repository.JpaImageAssetRepository;
 import com.developer.pos.v2.image.infrastructure.s3.S3ImageStorage;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -32,6 +35,13 @@ public class ImageUploadService {
     private final JpaProductRepository productRepo;
     private final JpaSkuRepository skuRepo;
     private final S3ImageStorage s3Storage;
+
+    /**
+     * When set (e.g. "https://cdn.example.com/images"), image URLs bypass Spring Boot
+     * and go directly to CDN/nginx. When empty, falls back to /api/v2/images/{imageId}.
+     */
+    @Value("${storage.public-base-url:}")
+    private String publicBaseUrl;
 
     public ImageUploadService(JpaImageAssetRepository imageRepo,
                               JpaProductRepository productRepo,
@@ -109,5 +119,43 @@ public class ImageUploadService {
         if (!image.getMerchantId().equals(merchantId)) {
             throw new SecurityException("Image does not belong to your merchant");
         }
+    }
+
+    /**
+     * Resolve a single imageId to a public URL.
+     * When storage.public-base-url is configured, returns CDN/nginx direct URL (bypasses Spring threads).
+     * Otherwise falls back to the legacy /api/v2/images/{imageId} proxy endpoint.
+     */
+    @Transactional(readOnly = true)
+    public String resolvePublicUrl(String imageId) {
+        if (imageId == null) return null;
+        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            ImageAssetEntity image = imageRepo.findByImageIdAndStatus(imageId, "ACTIVE").orElse(null);
+            if (image != null) {
+                return publicBaseUrl + "/" + image.getS3Key();
+            }
+        }
+        return "/api/v2/images/" + imageId;
+    }
+
+    /**
+     * Batch-resolve imageIds to public URLs in one DB query.
+     * Returns map of imageId → publicUrl. Missing/deleted images are omitted.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, String> resolvePublicUrls(Collection<String> imageIds) {
+        if (imageIds == null || imageIds.isEmpty()) return Map.of();
+
+        Map<String, String> result = new HashMap<>();
+        if (publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            for (ImageAssetEntity image : imageRepo.findByImageIdInAndStatus(imageIds, "ACTIVE")) {
+                result.put(image.getImageId(), publicBaseUrl + "/" + image.getS3Key());
+            }
+        } else {
+            for (String imageId : imageIds) {
+                result.put(imageId, "/api/v2/images/" + imageId);
+            }
+        }
+        return result;
     }
 }

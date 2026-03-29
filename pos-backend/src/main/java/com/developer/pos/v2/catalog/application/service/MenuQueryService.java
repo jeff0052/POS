@@ -27,6 +27,7 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSku
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaStoreSkuAvailabilityRepository;
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.image.application.service.ImageUploadService;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +54,7 @@ public class MenuQueryService implements UseCase {
     private final JpaModifierOptionRepository modifierOptionRepository;
     private final JpaMenuTimeSlotRepository timeSlotRepository;
     private final JpaMenuTimeSlotProductRepository timeSlotProductRepository;
+    private final ImageUploadService imageUploadService;
 
     public MenuQueryService(
             JpaStoreLookupRepository storeLookupRepository,
@@ -65,7 +67,8 @@ public class MenuQueryService implements UseCase {
             JpaModifierGroupRepository modifierGroupRepository,
             JpaModifierOptionRepository modifierOptionRepository,
             JpaMenuTimeSlotRepository timeSlotRepository,
-            JpaMenuTimeSlotProductRepository timeSlotProductRepository
+            JpaMenuTimeSlotProductRepository timeSlotProductRepository,
+            ImageUploadService imageUploadService
     ) {
         this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
@@ -78,6 +81,7 @@ public class MenuQueryService implements UseCase {
         this.modifierOptionRepository = modifierOptionRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.timeSlotProductRepository = timeSlotProductRepository;
+        this.imageUploadService = imageUploadService;
     }
 
     @Transactional(readOnly = true)
@@ -123,6 +127,16 @@ public class MenuQueryService implements UseCase {
         // 4. Load modifier bindings + groups + options
         Map<Long, List<MenuModifierGroupDto>> skuModifierMap = buildSkuModifierMap(skuIds);
 
+        // 4b. Batch-resolve all image URLs (CDN/nginx when configured, avoids per-image Spring thread)
+        Set<String> allImageIds = new java.util.HashSet<>();
+        for (ProductEntity p : filteredProducts) {
+            if (p.getImageId() != null) allImageIds.add(p.getImageId());
+        }
+        for (SkuEntity s : allSkus) {
+            if (s.getImageId() != null) allImageIds.add(s.getImageId());
+        }
+        Map<String, String> imageUrlMap = imageUploadService.resolvePublicUrls(allImageIds);
+
         // 5. Assemble result grouped by category
         Map<Long, List<MenuProductDto>> categoryProducts = new LinkedHashMap<>();
         Map<Long, ProductEntity> productMap = new HashMap<>();
@@ -149,7 +163,7 @@ public class MenuQueryService implements UseCase {
             }
 
             long effectivePrice = effectivePriceMap.getOrDefault(sku.getId(), sku.getBasePriceCents());
-            String skuImageUrl = sku.getImageId() != null ? "/api/v2/images/" + sku.getImageId() : null;
+            String skuImageUrl = sku.getImageId() != null ? imageUrlMap.get(sku.getImageId()) : null;
             List<MenuModifierGroupDto> modifiers = skuModifierMap.getOrDefault(sku.getId(), List.of());
 
             MenuSkuDto skuDto = new MenuSkuDto(
@@ -171,7 +185,7 @@ public class MenuQueryService implements UseCase {
             }
 
             if (existingProduct == null) {
-                String productImageUrl = product.getImageId() != null ? "/api/v2/images/" + product.getImageId() : null;
+                String productImageUrl = product.getImageId() != null ? imageUrlMap.get(product.getImageId()) : null;
                 productsInCategory.add(new MenuProductDto(
                         product.getId(), product.getProductName(), productImageUrl,
                         new ArrayList<>(List.of(skuDto))));
