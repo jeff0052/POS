@@ -136,16 +136,20 @@ class PaymentStackingServiceTest {
     void confirmStacking_alreadySettled_idempotent() {
         SettlementRecordEntity settled = new SettlementRecordEntity();
         settled.setFinalStatus("SETTLED");
+        settled.setStoreId(5L);
+        settled.setTableId(10L);
         when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(settled));
-        assertThatNoException().isThrownBy(() -> service.confirmStacking(1L));
+        assertThatNoException().isThrownBy(() -> service.confirmStacking(5L, 10L, 1L));
     }
 
     @Test
     void confirmStacking_cancelled_throws() {
         SettlementRecordEntity cancelled = new SettlementRecordEntity();
         cancelled.setFinalStatus("CANCELLED");
+        cancelled.setStoreId(5L);
+        cancelled.setTableId(10L);
         when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
-        assertThatThrownBy(() -> service.confirmStacking(1L))
+        assertThatThrownBy(() -> service.confirmStacking(5L, 10L, 1L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("CANCELLED");
     }
@@ -154,16 +158,20 @@ class PaymentStackingServiceTest {
     void releaseStacking_alreadyCancelled_idempotent() {
         SettlementRecordEntity cancelled = new SettlementRecordEntity();
         cancelled.setFinalStatus("CANCELLED");
+        cancelled.setStoreId(5L);
+        cancelled.setTableId(10L);
         when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
-        assertThatNoException().isThrownBy(() -> service.releaseStacking(1L, "TEST"));
+        assertThatNoException().isThrownBy(() -> service.releaseStacking(5L, 10L, 1L, "TEST"));
     }
 
     @Test
     void releaseStacking_alreadySettled_throws() {
         SettlementRecordEntity settled = new SettlementRecordEntity();
         settled.setFinalStatus("SETTLED");
+        settled.setStoreId(5L);
+        settled.setTableId(10L);
         when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(settled));
-        assertThatThrownBy(() -> service.releaseStacking(1L, "TEST"))
+        assertThatThrownBy(() -> service.releaseStacking(5L, 10L, 1L, "TEST"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("SETTLED");
     }
@@ -172,6 +180,8 @@ class PaymentStackingServiceTest {
     void releaseStacking_withSucceededAttempt_throwsCannotRelease() {
         SettlementRecordEntity pending = new SettlementRecordEntity();
         pending.setFinalStatus("PENDING");
+        pending.setStoreId(5L);
+        pending.setTableId(10L);
         setId(pending, 1L);
         when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(pending));
 
@@ -180,7 +190,7 @@ class PaymentStackingServiceTest {
         when(attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(1L))
                 .thenReturn(List.of(succeededAttempt));
 
-        assertThatThrownBy(() -> service.releaseStacking(1L, "TEST"))
+        assertThatThrownBy(() -> service.releaseStacking(5L, 10L, 1L, "TEST"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already charged");
     }
