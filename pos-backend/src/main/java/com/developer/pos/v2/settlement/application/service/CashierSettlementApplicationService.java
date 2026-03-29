@@ -1,6 +1,7 @@
 package com.developer.pos.v2.settlement.application.service;
 
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.inventory.application.service.StockDeductionService;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.order.application.dto.OrderStageTransitionDto;
@@ -42,6 +43,7 @@ public class CashierSettlementApplicationService implements UseCase {
     private final ObjectMapper objectMapper;
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
+    private final StockDeductionService stockDeductionService;
 
     public CashierSettlementApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -51,7 +53,8 @@ public class CashierSettlementApplicationService implements UseCase {
             JpaPromotionHitRepository promotionHitRepository,
             ObjectMapper objectMapper,
             JpaTableSessionRepository tableSessionRepository,
-            JpaSubmittedOrderRepository submittedOrderRepository
+            JpaSubmittedOrderRepository submittedOrderRepository,
+            StockDeductionService stockDeductionService
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.settlementRecordRepository = settlementRecordRepository;
@@ -61,6 +64,7 @@ public class CashierSettlementApplicationService implements UseCase {
         this.objectMapper = objectMapper;
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
+        this.stockDeductionService = stockDeductionService;
     }
 
     /**
@@ -312,6 +316,9 @@ public class CashierSettlementApplicationService implements UseCase {
         });
         submittedOrderRepository.saveAllAndFlush(unpaidOrders);
 
+        // Deduct inventory stock for settled orders (SOP recipe-based FIFO deduction)
+        stockDeductionService.deductForOrders(storeId, unpaidOrders);
+
         // Close master session
         masterSession.setSessionStatus("CLOSED");
         masterSession.setClosedAt(now);
@@ -396,6 +403,7 @@ public class CashierSettlementApplicationService implements UseCase {
                         submittedOrder.setSettledAt(OffsetDateTime.now());
                     });
                     submittedOrderRepository.saveAllAndFlush(unpaidSubmittedOrders);
+                    stockDeductionService.deductForOrders(activeOrder.getStoreId(), unpaidSubmittedOrders);
                     session.setSessionStatus("CLOSED");
                     session.setClosedAt(OffsetDateTime.now());
                     tableSessionRepository.saveAndFlush(session);
