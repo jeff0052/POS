@@ -151,4 +151,17 @@ class InventoryItemServiceTest {
         assertThat(item.getItemStatus()).isEqualTo("INACTIVE");
         verify(itemRepository).save(item);
     }
+
+    @Test
+    void listLowStockItems_returnsOnlyItemsBelowSafetyStock() {
+        InventoryItemEntity lowItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("5.0000"));
+        lowItem.addStock(new BigDecimal("2.0000")); // currentStock=2, safetyStock=5 → low
+
+        when(itemRepository.findLowStockByStoreId(10L)).thenReturn(List.of(lowItem));
+
+        List<InventoryItemDto> result = buildService().listLowStockItems(10L);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).itemCode()).isEqualTo("BEEF-001");
+    }
 }
