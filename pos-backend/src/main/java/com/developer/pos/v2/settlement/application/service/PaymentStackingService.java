@@ -2,6 +2,7 @@ package com.developer.pos.v2.settlement.application.service;
 
 import com.developer.pos.auth.security.AuthContext;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaCouponTemplateRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCouponRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
@@ -44,6 +45,7 @@ public class PaymentStackingService {
     private final JpaPaymentAttemptRepository attemptRepo;
     private final JpaMemberAccountRepository memberAccountRepo;
     private final JpaMemberCouponRepository couponRepo;
+    private final JpaCouponTemplateRepository couponTemplateRepo;
     private final CouponLockingService couponLockingService;
     private final TableSettlementFinalizer finalizer;
     private final VibeCashPaymentApplicationService vibecashService;
@@ -57,6 +59,7 @@ public class PaymentStackingService {
             JpaPaymentAttemptRepository attemptRepo,
             JpaMemberAccountRepository memberAccountRepo,
             JpaMemberCouponRepository couponRepo,
+            JpaCouponTemplateRepository couponTemplateRepo,
             CouponLockingService couponLockingService,
             TableSettlementFinalizer finalizer,
             VibeCashPaymentApplicationService vibecashService) {
@@ -68,6 +71,7 @@ public class PaymentStackingService {
         this.attemptRepo = attemptRepo;
         this.memberAccountRepo = memberAccountRepo;
         this.couponRepo = couponRepo;
+        this.couponTemplateRepo = couponTemplateRepo;
         this.couponLockingService = couponLockingService;
         this.finalizer = finalizer;
         this.vibecashService = vibecashService;
@@ -107,10 +111,14 @@ public class PaymentStackingService {
                     remaining -= pointsDeductCents;
                 }
                 var coupons = couponRepo.findAllByMemberIdAndCouponStatus(memberId, "AVAILABLE");
+                long finalRemaining = remaining;
                 availableCoupons = coupons.stream()
                         .filter(c -> c.getValidUntil().isAfter(OffsetDateTime.now()))
-                        .map(c -> new StackingPreviewDto.AvailableCouponItem(
-                                c.getId(), c.getCouponNo(), 0L /* TODO: calculate discount from coupon template */, c.getLockVersion()))
+                        .map(c -> {
+                            long discount = calculateCouponDiscount(c.getTemplateId(), finalRemaining);
+                            return new StackingPreviewDto.AvailableCouponItem(
+                                    c.getId(), c.getCouponNo(), discount, c.getLockVersion());
+                        })
                         .toList();
                 long availCash = account.getCashBalanceCents() - account.getFrozenCashCents();
                 if (availCash > 0 && remaining > 0) {
@@ -194,12 +202,18 @@ public class PaymentStackingService {
 
         if (choices.couponId() != null && choices.couponLockVersion() != null && memberId != null) {
             couponLockingService.lockCoupon(choices.couponId(), choices.couponLockVersion(), masterSession.getId());
+            var couponOpt = couponRepo.findById(choices.couponId());
+            long couponDiscount = couponOpt.isPresent()
+                    ? calculateCouponDiscount(couponOpt.get().getTemplateId(), remaining)
+                    : 0L;
             var hold = buildHold(settlement.getId(), masterSession.getId(), storeId, memberId,
-                    "COUPON", 0L, ++stepOrder);
+                    "COUPON", couponDiscount, ++stepOrder);
             hold.setCouponId(choices.couponId());
             hold = holdRepo.save(hold);
             holdIds.add(hold.getId());
             settlement.setCouponId(choices.couponId());
+            settlement.setCouponDiscountCents(couponDiscount);
+            remaining -= couponDiscount;
         }
 
         if (choices.useCashBalance() && memberId != null && remaining > 0) {
@@ -232,7 +246,9 @@ public class PaymentStackingService {
 
         String checkoutUrl = null;
         if (remaining > 0) {
-            checkoutUrl = "PENDING_VIBECASH";
+            var attemptDto = vibecashService.startStackingPayment(
+                    storeId, tableId, settlement.getId(), choices.externalPaymentMethod());
+            checkoutUrl = attemptDto.checkoutUrl();
         } else {
             confirmStacking(storeId, settlement.getId());
         }
@@ -401,6 +417,27 @@ public class PaymentStackingService {
         TableSessionEntity master = sessionRepo.findById(settlement.getStackingSessionId()).orElse(null);
         if (master == null) return Collections.emptyList();
         return buildSessionChain(master);
+    }
+
+    private long calculateCouponDiscount(Long templateId, long baseAmountCents) {
+        if (templateId == null || baseAmountCents <= 0) return 0L;
+        var template = couponTemplateRepo.findById(templateId).orElse(null);
+        if (template == null) return 0L;
+        return switch (template.getCouponType()) {
+            case "FIXED" -> {
+                long d = template.getDiscountAmountCents() != null ? template.getDiscountAmountCents() : 0L;
+                yield Math.min(d, baseAmountCents);
+            }
+            case "PERCENT" -> {
+                if (template.getDiscountPercent() == null) yield 0L;
+                long d = baseAmountCents * template.getDiscountPercent() / 100L;
+                if (template.getMaxDiscountCents() != null) {
+                    d = Math.min(d, template.getMaxDiscountCents());
+                }
+                yield Math.min(d, baseAmountCents);
+            }
+            default -> 0L;
+        };
     }
 
     // NO @Transactional here - each confirmStacking/releaseStacking runs its own transaction
