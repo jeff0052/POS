@@ -314,15 +314,15 @@ public class PaymentStackingService {
             if (pointsDeduct > 0) memberAccountRepo.deductPoints(memberId, pointsDeduct);
             long cashDeduct = settlement.getCashBalanceDeductCents();
             if (cashDeduct > 0) memberAccountRepo.deductCash(memberId, cashDeduct);
+        }
 
-            // Confirm coupon
-            if (settlement.getCouponId() != null) {
-                Long sessionId = holds.stream()
-                        .filter(h -> "COUPON".equals(h.getHoldType()))
-                        .map(h -> h.getTableSessionId()).findFirst().orElse(null);
-                couponLockingService.confirmCoupon(settlement.getCouponId(), sessionId,
-                        settlement.getActiveOrderId(), settlement.getStoreId());
-            }
+        // Confirm coupon — runs regardless of memberId (coupon may be non-member)
+        if (settlement.getCouponId() != null) {
+            Long sessionId = holds.stream()
+                    .filter(h -> "COUPON".equals(h.getHoldType()))
+                    .map(h -> h.getTableSessionId()).findFirst().orElse(null);
+            couponLockingService.confirmCoupon(settlement.getCouponId(), sessionId,
+                    settlement.getActiveOrderId(), settlement.getStoreId());
         }
 
         // Settlement → SETTLED
@@ -344,6 +344,9 @@ public class PaymentStackingService {
             throw new IllegalStateException("Cannot release a SETTLED settlement: " + settlementId);
         }
 
+        // Lock holds early to prevent concurrent mutation during attempt checks
+        var holds = holdRepo.findHeldBySettlementForUpdate(settlementId);
+
         // Check live attempts — block release if already charged
         var attempts = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(settlementId);
         for (var attempt : attempts) {
@@ -359,7 +362,6 @@ public class PaymentStackingService {
         }
 
         // Transition holds HELD → RELEASED
-        var holds = holdRepo.findHeldBySettlementForUpdate(settlementId);
         holds.forEach(h -> {
             h.setHoldStatus("RELEASED");
             h.setReleasedAt(OffsetDateTime.now());
@@ -374,12 +376,14 @@ public class PaymentStackingService {
             if (pointsDeduct > 0) memberAccountRepo.unfreezePoints(memberId, pointsDeduct);
             long cashDeduct = settlement.getCashBalanceDeductCents();
             if (cashDeduct > 0) memberAccountRepo.unfreezeCash(memberId, cashDeduct);
-            if (settlement.getCouponId() != null) {
-                Long sessionId = holds.stream()
-                        .filter(h -> "COUPON".equals(h.getHoldType()))
-                        .map(h -> h.getTableSessionId()).findFirst().orElse(null);
-                couponLockingService.releaseCoupon(settlement.getCouponId(), sessionId);
-            }
+        }
+
+        // Release coupon — runs regardless of memberId (coupon may be non-member)
+        if (settlement.getCouponId() != null) {
+            Long sessionId = holds.stream()
+                    .filter(h -> "COUPON".equals(h.getHoldType()))
+                    .map(h -> h.getTableSessionId()).findFirst().orElse(null);
+            couponLockingService.releaseCoupon(settlement.getCouponId(), sessionId);
         }
 
         settlement.setFinalStatus("CANCELLED");

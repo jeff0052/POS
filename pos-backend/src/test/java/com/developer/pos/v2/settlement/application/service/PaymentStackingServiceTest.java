@@ -136,7 +136,7 @@ class PaymentStackingServiceTest {
     void confirmStacking_alreadySettled_idempotent() {
         SettlementRecordEntity settled = new SettlementRecordEntity();
         settled.setFinalStatus("SETTLED");
-        lenient().when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(settled));
+        when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(settled));
         assertThatNoException().isThrownBy(() -> service.confirmStacking(1L));
     }
 
@@ -154,7 +154,7 @@ class PaymentStackingServiceTest {
     void releaseStacking_alreadyCancelled_idempotent() {
         SettlementRecordEntity cancelled = new SettlementRecordEntity();
         cancelled.setFinalStatus("CANCELLED");
-        lenient().when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
+        when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
         assertThatNoException().isThrownBy(() -> service.releaseStacking(1L, "TEST"));
     }
 
