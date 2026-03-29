@@ -6,6 +6,7 @@ import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberAccou
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberCouponEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCouponRepository;
+import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderItemRepository;
 import com.developer.pos.v2.settlement.application.command.ApproveRefundCommand;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
 import com.developer.pos.v2.settlement.application.dto.RefundRecordDto;
@@ -44,6 +45,7 @@ class RefundApplicationServiceTest {
     @Mock private JpaSettlementPaymentHoldRepository paymentHoldRepository;
     @Mock private JpaMemberAccountRepository memberAccountRepository;
     @Mock private JpaMemberCouponRepository memberCouponRepository;
+    @Mock private JpaSubmittedOrderItemRepository orderItemRepository;
     @Mock private StoreAccessEnforcer storeAccessEnforcer;
 
     @InjectMocks private RefundApplicationService service;
@@ -178,10 +180,6 @@ class RefundApplicationServiceTest {
     @Test
     void lineItems_sumValidation_rejectsIfMismatch() {
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
-        when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(refundRecordRepository.findBySettlementId(any())).thenReturn(List.of());
-        when(paymentHoldRepository.findAllBySettlementRecordIdAndHoldStatus(any(), eq("CONFIRMED")))
-                .thenReturn(List.of());
 
         var items = List.of(
                 new CreateRefundCommand.RefundItemCommand(101L, 1, 1000),

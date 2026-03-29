@@ -2,6 +2,7 @@ package com.developer.pos.v2.settlement.interfaces.rest.internal;
 
 import com.developer.pos.v2.settlement.application.command.CollectCashierSettlementCommand;
 import com.developer.pos.v2.settlement.application.service.CashierSettlementApplicationService;
+import com.developer.pos.v2.settlement.application.service.RefundApplicationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.commons.codec.digest.HmacUtils;
 import org.slf4j.Logger;
@@ -25,9 +26,12 @@ public class PaymentCallbackController {
     private String callbackSecret;
 
     private final CashierSettlementApplicationService settlementService;
+    private final RefundApplicationService refundService;
 
-    public PaymentCallbackController(CashierSettlementApplicationService settlementService) {
+    public PaymentCallbackController(CashierSettlementApplicationService settlementService,
+                                     RefundApplicationService refundService) {
         this.settlementService = settlementService;
+        this.refundService = refundService;
     }
 
     @PostMapping("/payment-callback")
@@ -89,6 +93,61 @@ public class PaymentCallbackController {
                             "settlementTriggered", false,
                             "error", e.getMessage() != null ? e.getMessage() : "Settlement failed",
                             "paymentIntentId", paymentIntentId
+                    ));
+        }
+    }
+
+    /**
+     * External refund completion callback — called by the payment service after
+     * the external provider confirms the refund has actually succeeded.
+     * Books the deferred external portion into settlement accounting.
+     */
+    @PostMapping("/refund-callback")
+    public ResponseEntity<Map<String, Object>> handleRefundCallback(
+            @RequestHeader(value = "X-Payment-Signature", required = false) String signature,
+            @RequestBody JsonNode payload
+    ) {
+        if (callbackSecret != null && !callbackSecret.isBlank()) {
+            String payloadText = payload.toString();
+            String expectedSignature = new HmacUtils("HmacSHA256", callbackSecret).hmacHex(payloadText);
+            if (signature == null || !MessageDigest.isEqual(
+                    expectedSignature.getBytes(StandardCharsets.UTF_8),
+                    signature.getBytes(StandardCharsets.UTF_8)
+            )) {
+                log.error("Invalid refund callback signature");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Invalid signature", "refundCompleted", false));
+            }
+        }
+
+        String refundNo = payload.path("refundNo").asText("");
+        String status = payload.path("status").asText("");
+
+        log.info("Refund callback: refundNo={}, status={}", refundNo, status);
+
+        if (!"SUCCEEDED".equals(status)) {
+            return ResponseEntity.ok(Map.of(
+                    "acknowledged", true,
+                    "refundCompleted", false,
+                    "refundNo", refundNo
+            ));
+        }
+
+        try {
+            refundService.completeExternalRefund(refundNo);
+            return ResponseEntity.ok(Map.of(
+                    "acknowledged", true,
+                    "refundCompleted", true,
+                    "refundNo", refundNo
+            ));
+        } catch (Exception e) {
+            log.error("Refund completion FAILED for refundNo={}: {}", refundNo, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "acknowledged", true,
+                            "refundCompleted", false,
+                            "error", e.getMessage() != null ? e.getMessage() : "Refund completion failed",
+                            "refundNo", refundNo
                     ));
         }
     }
