@@ -1,6 +1,8 @@
 package com.developer.pos.v2.store.application.service;
 
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
+import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
 import com.developer.pos.v2.store.application.dto.ReservationDto;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.ReservationEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
@@ -20,15 +22,18 @@ public class ReservationApplicationService implements UseCase {
     private final JpaReservationRepository reservationRepository;
     private final JpaStoreRepository storeRepository;
     private final JpaStoreTableRepository storeTableRepository;
+    private final JpaTableSessionRepository tableSessionRepository;
 
     public ReservationApplicationService(
             JpaReservationRepository reservationRepository,
             JpaStoreRepository storeRepository,
-            JpaStoreTableRepository storeTableRepository
+            JpaStoreTableRepository storeTableRepository,
+            JpaTableSessionRepository tableSessionRepository
     ) {
         this.reservationRepository = reservationRepository;
         this.storeRepository = storeRepository;
         this.storeTableRepository = storeTableRepository;
+        this.tableSessionRepository = tableSessionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -37,7 +42,7 @@ public class ReservationApplicationService implements UseCase {
     }
 
     @Transactional
-    public ReservationDto create(Long storeId, String guestName, String reservationTime, int partySize, String reservationStatus, String area) {
+    public ReservationDto create(Long storeId, String guestName, String contactPhone, String reservationTime, int partySize, String reservationStatus, String area) {
         StoreEntity store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeId));
         ReservationEntity entity = new ReservationEntity();
@@ -45,6 +50,7 @@ public class ReservationApplicationService implements UseCase {
         entity.setMerchantId(store.getMerchantId());
         entity.setStoreId(storeId);
         entity.setGuestName(guestName);
+        entity.setContactPhone(contactPhone);
         entity.setReservationTime(reservationTime);
         entity.setPartySize(partySize);
         entity.setReservationStatus(reservationStatus.toUpperCase());
@@ -53,7 +59,7 @@ public class ReservationApplicationService implements UseCase {
     }
 
     @Transactional
-    public ReservationDto update(Long storeId, Long reservationId, String guestName, String reservationTime, int partySize, String reservationStatus, String area) {
+    public ReservationDto update(Long storeId, Long reservationId, String guestName, String contactPhone, String reservationTime, int partySize, String reservationStatus, String area) {
         ReservationEntity entity = reservationRepository.findByIdAndStoreId(reservationId, storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found: " + reservationId));
         String nextStatus = reservationStatus.toUpperCase();
@@ -62,7 +68,7 @@ public class ReservationApplicationService implements UseCase {
                 && entity.getTableId() != null
                 && !"CHECKED_IN".equals(nextStatus)) {
             storeTableRepository.findByIdAndStoreId(entity.getTableId(), storeId).ifPresent(table -> {
-                if ("RESERVED".equalsIgnoreCase(table.getTableStatus())) {
+                if ("RESERVED".equalsIgnoreCase(table.getTableStatus()) || "OCCUPIED".equalsIgnoreCase(table.getTableStatus())) {
                     table.setTableStatus("AVAILABLE");
                     storeTableRepository.save(table);
                 }
@@ -71,6 +77,7 @@ public class ReservationApplicationService implements UseCase {
         }
 
         entity.setGuestName(guestName);
+        entity.setContactPhone(contactPhone);
         entity.setReservationTime(reservationTime);
         entity.setPartySize(partySize);
         entity.setReservationStatus(nextStatus);
@@ -82,6 +89,10 @@ public class ReservationApplicationService implements UseCase {
     public ReservationDto seat(Long storeId, Long reservationId, Long requestedTableId) {
         ReservationEntity entity = reservationRepository.findByIdAndStoreId(reservationId, storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found: " + reservationId));
+
+        if (!"CONFIRMED".equals(entity.getReservationStatus()) && !"PENDING".equals(entity.getReservationStatus())) {
+            throw new IllegalStateException("Cannot seat reservation in status: " + entity.getReservationStatus());
+        }
 
         StoreTableEntity targetTable = requestedTableId != null
                 ? storeTableRepository.findByIdAndStoreId(requestedTableId, storeId)
@@ -95,7 +106,18 @@ public class ReservationApplicationService implements UseCase {
             throw new IllegalStateException("Target table is not available for seating.");
         }
 
-        targetTable.setTableStatus("RESERVED");
+        // Create TableSession for the seated guest
+        TableSessionEntity session = new TableSessionEntity();
+        session.setSessionId("SES" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+        session.setMerchantId(entity.getMerchantId());
+        session.setStoreId(storeId);
+        session.setTableId(targetTable.getId());
+        session.setSessionStatus("ACTIVE");
+        session.setGuestCount(entity.getPartySize());
+        tableSessionRepository.save(session);
+
+        // Mark table as OCCUPIED (not RESERVED — guest is physically seated)
+        targetTable.setTableStatus("OCCUPIED");
         storeTableRepository.save(targetTable);
 
         entity.setTableId(targetTable.getId());
@@ -105,15 +127,10 @@ public class ReservationApplicationService implements UseCase {
 
     private ReservationDto toDto(ReservationEntity entity) {
         return new ReservationDto(
-                entity.getId(),
-                entity.getReservationNo(),
-                entity.getStoreId(),
-                entity.getTableId(),
-                entity.getGuestName(),
-                entity.getReservationTime(),
-                entity.getPartySize(),
-                entity.getReservationStatus(),
-                entity.getArea()
+                entity.getId(), entity.getReservationNo(), entity.getStoreId(),
+                entity.getTableId(), entity.getGuestName(), entity.getContactPhone(),
+                entity.getReservationTime(), entity.getPartySize(),
+                entity.getReservationStatus(), entity.getArea()
         );
     }
 }

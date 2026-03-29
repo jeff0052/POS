@@ -32,6 +32,9 @@ public class ReservationEntity {
     @Column(name = "guest_name", nullable = false)
     private String guestName;
 
+    @Column(name = "contact_phone", length = 32)
+    private String contactPhone;
+
     @Column(name = "reservation_time", nullable = false)
     private String reservationTime;
 
@@ -61,6 +64,8 @@ public class ReservationEntity {
     public void setTableId(Long tableId) { this.tableId = tableId; }
     public String getGuestName() { return guestName; }
     public void setGuestName(String guestName) { this.guestName = guestName; }
+    public String getContactPhone() { return contactPhone; }
+    public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
     public String getReservationTime() { return reservationTime; }
     public void setReservationTime(String reservationTime) { this.reservationTime = reservationTime; }
     public int getPartySize() { return partySize; }
