@@ -27,6 +27,27 @@ public class SettlementRecordEntity extends BaseAuditableEntity {
     @Column(name = "active_order_id", nullable = false)
     private String activeOrderId;
 
+    @Column(name = "stacking_session_id")
+    private Long stackingSessionId;
+
+    @Column(name = "points_deduct_cents", nullable = false)
+    private long pointsDeductCents;
+
+    @Column(name = "points_deducted", nullable = false)
+    private long pointsDeducted;
+
+    @Column(name = "cash_balance_deduct_cents", nullable = false)
+    private long cashBalanceDeductCents;
+
+    @Column(name = "coupon_discount_cents", nullable = false)
+    private long couponDiscountCents;
+
+    @Column(name = "external_payment_cents", nullable = false)
+    private long externalPaymentCents;
+
+    @Column(name = "coupon_id")
+    private Long couponId;
+
     @Column(name = "merchant_id", nullable = false)
     private Long merchantId;
 
@@ -36,7 +57,7 @@ public class SettlementRecordEntity extends BaseAuditableEntity {
     @Column(name = "table_id", nullable = false)
     private Long tableId;
 
-    @Column(name = "cashier_id", nullable = false)
+    @Column(name = "cashier_id")
     private Long cashierId;
 
     @Column(name = "payment_method", nullable = false)
@@ -78,6 +99,62 @@ public class SettlementRecordEntity extends BaseAuditableEntity {
 
     public void setActiveOrderId(String activeOrderId) {
         this.activeOrderId = activeOrderId;
+    }
+
+    public Long getStackingSessionId() {
+        return stackingSessionId;
+    }
+
+    public void setStackingSessionId(Long stackingSessionId) {
+        this.stackingSessionId = stackingSessionId;
+    }
+
+    public long getPointsDeductCents() {
+        return pointsDeductCents;
+    }
+
+    public void setPointsDeductCents(long pointsDeductCents) {
+        this.pointsDeductCents = pointsDeductCents;
+    }
+
+    public long getPointsDeducted() {
+        return pointsDeducted;
+    }
+
+    public void setPointsDeducted(long pointsDeducted) {
+        this.pointsDeducted = pointsDeducted;
+    }
+
+    public long getCashBalanceDeductCents() {
+        return cashBalanceDeductCents;
+    }
+
+    public void setCashBalanceDeductCents(long cashBalanceDeductCents) {
+        this.cashBalanceDeductCents = cashBalanceDeductCents;
+    }
+
+    public long getCouponDiscountCents() {
+        return couponDiscountCents;
+    }
+
+    public void setCouponDiscountCents(long couponDiscountCents) {
+        this.couponDiscountCents = couponDiscountCents;
+    }
+
+    public long getExternalPaymentCents() {
+        return externalPaymentCents;
+    }
+
+    public void setExternalPaymentCents(long externalPaymentCents) {
+        this.externalPaymentCents = externalPaymentCents;
+    }
+
+    public Long getCouponId() {
+        return couponId;
+    }
+
+    public void setCouponId(Long couponId) {
+        this.couponId = couponId;
     }
 
     public Long getMerchantId() {

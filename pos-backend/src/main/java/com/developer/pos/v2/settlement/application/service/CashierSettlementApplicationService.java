@@ -1,7 +1,6 @@
 package com.developer.pos.v2.settlement.application.service;
 
 import com.developer.pos.v2.common.application.UseCase;
-import com.developer.pos.v2.inventory.application.service.StockDeductionService;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.order.application.dto.OrderStageTransitionDto;
@@ -43,7 +42,7 @@ public class CashierSettlementApplicationService implements UseCase {
     private final ObjectMapper objectMapper;
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
-    private final StockDeductionService stockDeductionService;
+    private final TableSettlementFinalizer tableSettlementFinalizer;
 
     public CashierSettlementApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -54,7 +53,7 @@ public class CashierSettlementApplicationService implements UseCase {
             ObjectMapper objectMapper,
             JpaTableSessionRepository tableSessionRepository,
             JpaSubmittedOrderRepository submittedOrderRepository,
-            StockDeductionService stockDeductionService
+            TableSettlementFinalizer tableSettlementFinalizer
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.settlementRecordRepository = settlementRecordRepository;
@@ -64,7 +63,7 @@ public class CashierSettlementApplicationService implements UseCase {
         this.objectMapper = objectMapper;
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
-        this.stockDeductionService = stockDeductionService;
+        this.tableSettlementFinalizer = tableSettlementFinalizer;
     }
 
     /**
@@ -308,52 +307,8 @@ public class CashierSettlementApplicationService implements UseCase {
                     .orElseThrow(() -> exception);
         }
 
-        // Mark all orders across session chain as SETTLED
-        OffsetDateTime now = OffsetDateTime.now();
-        unpaidOrders.forEach(submittedOrder -> {
-            submittedOrder.setSettlementStatus("SETTLED");
-            submittedOrder.setSettledAt(now);
-        });
-        submittedOrderRepository.saveAllAndFlush(unpaidOrders);
-
-        // Deduct inventory stock for settled orders (SOP recipe-based FIFO deduction)
-        stockDeductionService.deductForOrders(storeId, unpaidOrders);
-
-        // Close master session
-        masterSession.setSessionStatus("CLOSED");
-        masterSession.setClosedAt(now);
-        tableSessionRepository.saveAndFlush(masterSession);
-
-        // Close merged sessions + clear merge pointer + set merged tables to PENDING_CLEAN
-        for (TableSessionEntity mergedSession : mergedSessions) {
-            mergedSession.setSessionStatus("CLOSED");
-            mergedSession.setClosedAt(now);
-            mergedSession.setMergedIntoSessionId(null);
-            tableSessionRepository.saveAndFlush(mergedSession);
-
-            // Delete active order on merged table if exists
-            activeTableOrderRepository.findByStoreIdAndTableId(storeId, mergedSession.getTableId())
-                    .ifPresent(activeTableOrderRepository::delete);
-
-            // Set merged table to PENDING_CLEAN
-            storeTableRepository.findByIdAndStoreId(mergedSession.getTableId(), storeId)
-                    .ifPresent(mergedTable -> {
-                        mergedTable.setTableStatus("PENDING_CLEAN");
-                        storeTableRepository.saveAndFlush(mergedTable);
-                    });
-        }
-
-        // Delete active order on master table
-        ActiveTableOrderEntity currentActiveOrder = activeTableOrderRepository.findByStoreIdAndTableId(storeId, tableId).orElse(null);
-        if (currentActiveOrder != null) {
-            activeTableOrderRepository.delete(currentActiveOrder);
-        }
-
-        // Set master table to PENDING_CLEAN
-        StoreTableEntity table = storeTableRepository.findByIdAndStoreId(tableId, storeId)
-                .orElseThrow(() -> new IllegalStateException("Store table not found for settlement."));
-        table.setTableStatus("PENDING_CLEAN");
-        storeTableRepository.saveAndFlush(table);
+        // Finalize settlement: mark orders SETTLED, close sessions, set tables PENDING_CLEAN, delete active orders
+        tableSettlementFinalizer.finalize(sessionChain);
 
         return toSettlementResult(masterSession.getSessionId(), settlementRecord);
     }
@@ -403,7 +358,6 @@ public class CashierSettlementApplicationService implements UseCase {
                         submittedOrder.setSettledAt(OffsetDateTime.now());
                     });
                     submittedOrderRepository.saveAllAndFlush(unpaidSubmittedOrders);
-                    stockDeductionService.deductForOrders(activeOrder.getStoreId(), unpaidSubmittedOrders);
                     session.setSessionStatus("CLOSED");
                     session.setClosedAt(OffsetDateTime.now());
                     tableSessionRepository.saveAndFlush(session);

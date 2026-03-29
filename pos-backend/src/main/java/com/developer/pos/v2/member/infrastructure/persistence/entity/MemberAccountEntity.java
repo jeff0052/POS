@@ -24,6 +24,18 @@ public class MemberAccountEntity {
     @Column(name = "cash_balance_cents", nullable = false)
     private long cashBalanceCents;
 
+    @Column(name = "available_points", nullable = false)
+    private long availablePoints;
+
+    @Column(name = "frozen_points", nullable = false)
+    private long frozenPoints;
+
+    @Column(name = "available_cash_cents", nullable = false)
+    private long availableCashCents;
+
+    @Column(name = "frozen_cash_cents", nullable = false)
+    private long frozenCashCents;
+
     @Column(name = "lifetime_spend_cents", nullable = false)
     private long lifetimeSpendCents;
 
@@ -43,6 +55,38 @@ public class MemberAccountEntity {
 
     public void setCashBalanceCents(long cashBalanceCents) {
         this.cashBalanceCents = cashBalanceCents;
+    }
+
+    public long getAvailablePoints() {
+        return availablePoints;
+    }
+
+    public void setAvailablePoints(long availablePoints) {
+        this.availablePoints = availablePoints;
+    }
+
+    public long getFrozenPoints() {
+        return frozenPoints;
+    }
+
+    public void setFrozenPoints(long frozenPoints) {
+        this.frozenPoints = frozenPoints;
+    }
+
+    public long getAvailableCashCents() {
+        return availableCashCents;
+    }
+
+    public void setAvailableCashCents(long availableCashCents) {
+        this.availableCashCents = availableCashCents;
+    }
+
+    public long getFrozenCashCents() {
+        return frozenCashCents;
+    }
+
+    public void setFrozenCashCents(long frozenCashCents) {
+        this.frozenCashCents = frozenCashCents;
     }
 
     public void setLifetimeSpendCents(long lifetimeSpendCents) {

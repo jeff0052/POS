@@ -37,3 +37,6 @@ tmp/
 founderoscodex/
 pos-backend/target/
 .git-github-backup/
+
+# Git worktrees
+.worktrees/

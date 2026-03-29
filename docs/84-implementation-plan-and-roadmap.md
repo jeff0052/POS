@@ -45,7 +45,8 @@ Phase 1: 能登录、能审计 (Week 1)
 Phase 2: 交易核心 (Week 2)
   ✅ Session 2.1  订单引擎重构（并台、状态机、sessionChain、QR、buffet 字段透传）
      → 48 文件, ~2170 行, 4 轮安全审查
-  ⬜ Session 2.2  结算引擎（支付叠加、幂等、冻结/确认/释放）
+  ✅ Session 2.2  结算引擎（支付叠加、幂等、冻结/确认/释放）
+     → 5 migrations, 2 new entities, 3 modified entities, 7 repositories
   ⬜ Session 2.3  退款 + 预约→入座
 
 Phase 3: 商品升级 (Week 3)
@@ -224,11 +225,46 @@ Phase 6: 联调收尾 (Week 5-6)
 
 ---
 
-### Session 2.2 — 结算引擎
+### Session 2.2 — 结算引擎 ✅
+
+**完成日期：** 2026-03-29
+**总产出：** 5 migrations (V109–V113), 2 new entities, 3 modified entities, 7 repositories
 
 **设计规格：** `docs/superpowers/specs/2026-03-29-session-2.2-payment-stacking-design.md`
 
 **目标：** 支付叠加、幂等、冻结→确认→释放三态完整
+
+**实际产出：**
+
+*支付叠加核心（Payment Stacking）：*
+- `pos-settlement/` 模块：PaymentStackingService (preview/collect/confirm/release 四阶段)
+- PaymentRetryService（switchMethod 支持换支付方式）
+- CouponLockingService（CAS 并发锁 + 超时回收）
+- TableSettlementFinalizer + StoreAccessEnforcer
+- PaymentStackingV2Controller（5 个新端点）
+
+*数据冻结与确认：*
+- SettlementPaymentHoldEntity (新)，MemberCouponEntity (新)
+- MemberAccountEntity + SettlementRecordEntity + PaymentAttemptEntity (修改)
+- V109–V113 migrations：holds 表、coupon locked_by_session、settlement stacking 字段、payment retry 链、stacking_session_id
+
+*并发控制与定时任务：*
+- 5 个 Repository 修改：freeze/unfreeze/deduct/CAS 方法
+- 2 个新 Repository (Holds + CouponLocked)
+- StackingMaintenanceScheduler：券超时回收 + 结算超时回收
+- SecurityConfig explicit matchers（SETTLEMENT_STACKING / PAYMENT_SWITCH）
+
+*API 与 DTO：*
+- PaymentStackingRequest + StackingPreviewResponse + StackingCollectResponse (3 DTOs)
+- SwitchPaymentMethodRequest + ConfirmStackingRequest (2 request records)
+- 5 个 endpoints：/preview-stacking, /collect-stacking, /confirm-stacking, /release-stacking, /switch-method
+
+**验收：**
+- ✅ 积分 + 券 + 储值 + 现金混合支付成功
+- ✅ 券并发 CAS 正确（两个终端同时锁同一张券，后者失败）
+- ✅ 支付失败 → 冻结释放 → 余额恢复
+- ✅ 并台结账金额 = 两桌合计
+- ✅ 18 个单元测试通过 (CouponLockingServiceTest 6, PaymentStackingServiceTest 9, PaymentRetryServiceTest 3)
 
 **Prompt：**
 ```
