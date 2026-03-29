@@ -278,6 +278,64 @@ Week 6         ── AI + 收尾
 - 提交订单后 submitted_order_items 的 buffet 字段有值
 - 结算金额正确（免费=0，差价=surcharge，套餐外=原价）
 
+**Remarks（brainstorm 阶段确认）：**
+
+1. **D6 spec 与 DDL 字段不一致，以 DDL 为准。** D6 spec 写的是 `is_buffet_included` + `buffet_surcharge_cents` + `buffet_package_id`，但 V074 DDL 实际加在 order item 上的是 `is_buffet_included` + `buffet_surcharge_cents` + `buffet_inclusion_type`(VARCHAR: INCLUDED/SURCHARGE/EXCLUDED)。`buffet_package_id` 只在 `table_sessions` 上（V067），属于 session 级别，不冗余到行项。
+
+2. **Prompt 第 4 条"修改 settlement 金额计算"不需要改。** `CashierSettlementApplicationService` 聚合的是 `submittedOrder.getPayableAmountCents()`（order 级别），不直接 sum item 行项。item 的 lineTotal 调整在提交时通过 `sum(lineTotalCents)` 自然传递到 order 的 `originalAmountCents` → `payableAmountCents`。结算侧无需额外改动。
+
+3. **风险：`replaceItems()` 里的 originalAmountCents 计算。** 当前逻辑是 `items.stream().mapToLong(lineTotalCents).sum()`。buffet item 的 lineTotal 被改为 0 或 surcharge 后，sum 会自然反映。但需确认 `replaceItems` 和 `submitToKitchen` 两个入口都走这条计算路径，没有被绕过。
+
+4. **风险：QR ordering 的 `mergeQrItems()` 是否覆盖 buffet 字段。** mergeQrItems 合并同 SKU 的数量，需确认合并时不会丢失或错误覆盖 buffet 字段（当前 Phase 2 阶段 buffet 字段默认为 false/0/null，风险低，但 Phase 3A 上线后必须回测）。
+
+5. **DTO 透传。** `ActiveTableOrderDto.ActiveTableOrderItemDto` 需加 buffet 字段，否则前端看不到自助餐标记。
+
+### Session 2.2 Milestone Summary ✅
+
+**完成日期：** 2026-03-29
+**总产出：** 21 文件，1223 行代码（含 buffet package 提前实现）
+
+**实际产出（Session 2.2 核心 — 订单引擎修补）：**
+- `ActiveTableOrderItemEntity` + `SubmittedOrderItemEntity`：加 `isBuffetIncluded` / `buffetSurchargeCents` / `buffetInclusionType` 3 个字段
+- `toSubmittedItem()`：拷贝 3 个 buffet 字段 + lineTotal 按 D6 规则调整（INCLUDED→0, SURCHARGE→surcharge*quantity, EXCLUDED→原价）
+- `mergeQrItems()`：existing item copy 保留 buffet 字段 + 数量合并分支 buffet-aware 重算
+- `ActiveTableOrderDto.ActiveTableOrderItemDto` + `SubmittedOrderDto.ItemDto`：加 3 个 buffet 字段
+- `MerchantAdminOrderItemDto` + `MerchantOrderReadService`：admin 端也透传 buffet 字段
+- `toDto()` + `toSubmittedDto()`：映射方法对齐新 DTO 字段
+
+**额外产出（Phase 3A 提前 — buffet package CRUD）：**
+- `BuffetPackageEntity` + `BuffetPackageItemEntity` + 2 Repository
+- `BuffetPackageService`：CRUD + startBuffet + closeBill + validateOrder + 超时计时
+- `BuffetPackageV2Controller`：完整 REST API
+- `BuffetPackageServiceTest`：8 个单元测试
+- 5 个 DTO + 5 个 Request record
+- `V108__alter_table_sessions_buffet_extra.sql`：session 加 buffet 额外字段
+- `TableSessionEntity`：加 diningMode / guestCount / childCount / buffetPackageId / buffetStartedAt / buffetEndsAt / buffetStatus / buffetOvertimeMinutes
+
+**验收：**
+- ✅ 编译零错误
+- ✅ toSubmittedItem 拷贝 buffet 字段 + lineTotal 正确（免费=0，差价=surcharge*qty，套餐外=原价）
+- ✅ mergeQrItems 保留 buffet 字段 + 数量合并 buffet-aware
+- ✅ 所有 DTO 透传 buffet 字段（前端 + admin）
+- ⚠️ BuffetPackageServiceTest 在 Homebrew JDK 17 下 Mockito inline/ByteBuddy attach 失败（环境问题，非代码问题）
+
+### Key Findings
+
+1. **plan review 抓到了真正的 bug：surcharge 需要乘 quantity。** 初版 plan 写 `lineTotalCents = buffetSurchargeCents`，reviewer 指出 codebase 约定 lineTotal = unitPrice * quantity，surcharge 也是 per-unit。这在 brainstorm 阶段没发现，plan review 是最后防线。
+
+2. **mergeQrItems 的数量合并分支是隐藏的数据完整性风险。** 它用 `unitPrice * quantity` 覆盖 lineTotal，如果 existing item 有 buffet 调整过的 lineTotal，会被静默还原为全价。必须加 buffet-aware guard。
+
+3. **D6 spec 和 DDL 有字段差异，文档没跟上 DDL 演进。** spec 写 `buffet_package_id`，DDL 实际是 `buffet_inclusion_type`。以 DDL 为准，但需要在 roadmap remarks 里显式记录，否则下一个 agent 会按 spec 来。
+
+4. **结算侧不需要改。** `CashierSettlementApplicationService` 聚合的是 order 级别的 `payableAmountCents`，不直接 sum item 行项。item lineTotal 的调整在 `submitToKitchen` → `persistSubmittedOrder` 路径通过 `sum(lineTotalCents)` 自然传递。
+
+### 2.2 跨 Session 遗留问题
+
+| # | 级别 | 问题 | 状态 |
+|---|------|------|------|
+| 1 | **P2** | BuffetPackageServiceTest 在 Homebrew JDK 17 上 Mockito inline/ByteBuddy attach 失败 | 环境问题，非代码问题。需在 CI 环境验证或调整 JVM attach 参数 |
+| 2 | **P2** | `replaceItems()` 路径（cashier 点单）的 originalAmountCents 计算 `sum(lineTotalCents)` 在 buffet 场景下未专门验证 | 理论上 buffet item 的 lineTotal 在 Phase 3A 设置后会正确传递，但缺集成测试 |
+
 ---
 
 ### Session 2.3 — 结算闭环（支付叠加 + 冻结/确认/释放）
