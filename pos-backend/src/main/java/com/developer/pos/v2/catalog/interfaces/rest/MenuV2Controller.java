@@ -39,9 +39,10 @@ public class MenuV2Controller implements V2Api {
     public ApiResponse<MenuQueryResultDto> queryMenu(
             @PathVariable Long storeId,
             @RequestParam(required = false) String diningMode,
-            @RequestParam(required = false) Long timeSlotId
+            @RequestParam(required = false) Long timeSlotId,
+            @RequestParam(required = false) Long packageId
     ) {
-        return ApiResponse.success(menuQueryService.queryMenu(storeId, diningMode, timeSlotId));
+        return ApiResponse.success(menuQueryService.queryMenu(storeId, diningMode, timeSlotId, packageId));
     }
 
     // ─── Time Slot Management ───────────────────────────────────────────

@@ -26,7 +26,11 @@ public record MenuQueryResultDto(
             String skuName,
             long priceCents,
             String imageUrl,
-            List<MenuModifierGroupDto> modifierGroups
+            List<MenuModifierGroupDto> modifierGroups,
+            // Buffet-only fields (null when not in buffet mode)
+            String buffetInclusionType,
+            Long buffetSurchargeCents,
+            Integer maxQtyPerPerson
     ) {
     }
 

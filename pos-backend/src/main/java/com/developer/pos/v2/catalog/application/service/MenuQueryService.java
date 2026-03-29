@@ -55,6 +55,7 @@ public class MenuQueryService implements UseCase {
     private final JpaMenuTimeSlotRepository timeSlotRepository;
     private final JpaMenuTimeSlotProductRepository timeSlotProductRepository;
     private final ImageUploadService imageUploadService;
+    private final BuffetMenuService buffetMenuService;
 
     public MenuQueryService(
             JpaStoreLookupRepository storeLookupRepository,
@@ -68,7 +69,8 @@ public class MenuQueryService implements UseCase {
             JpaModifierOptionRepository modifierOptionRepository,
             JpaMenuTimeSlotRepository timeSlotRepository,
             JpaMenuTimeSlotProductRepository timeSlotProductRepository,
-            ImageUploadService imageUploadService
+            ImageUploadService imageUploadService,
+            BuffetMenuService buffetMenuService
     ) {
         this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
@@ -82,10 +84,24 @@ public class MenuQueryService implements UseCase {
         this.timeSlotRepository = timeSlotRepository;
         this.timeSlotProductRepository = timeSlotProductRepository;
         this.imageUploadService = imageUploadService;
+        this.buffetMenuService = buffetMenuService;
     }
 
     @Transactional(readOnly = true)
     public MenuQueryResultDto queryMenu(Long storeId, String diningMode, Long timeSlotId) {
+        return queryMenu(storeId, diningMode, timeSlotId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MenuQueryResultDto queryMenu(Long storeId, String diningMode, Long timeSlotId, Long packageId) {
+        if ("BUFFET".equalsIgnoreCase(diningMode) && packageId != null) {
+            return buffetMenuService.getBuffetMenu(storeId, packageId);
+        }
+        return queryMenuInternal(storeId, diningMode, timeSlotId);
+    }
+
+    @Transactional(readOnly = true)
+    private MenuQueryResultDto queryMenuInternal(Long storeId, String diningMode, Long timeSlotId) {
         // 0. Validate store exists (tenant isolation: store data is scoped by storeId FK)
         storeLookupRepository.findById(storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeId));
@@ -168,7 +184,8 @@ public class MenuQueryService implements UseCase {
 
             MenuSkuDto skuDto = new MenuSkuDto(
                     sku.getId(), sku.getSkuCode(), sku.getSkuName(),
-                    effectivePrice, skuImageUrl, modifiers);
+                    effectivePrice, skuImageUrl, modifiers,
+                    null, null, null);
 
             categoryProducts.computeIfAbsent(catId, k -> new ArrayList<>());
 
