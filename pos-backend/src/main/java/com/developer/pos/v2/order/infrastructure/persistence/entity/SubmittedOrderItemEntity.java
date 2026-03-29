@@ -52,6 +52,9 @@ public class SubmittedOrderItemEntity {
     @Column(name = "buffet_inclusion_type", length = 32)
     private String buffetInclusionType; // INCLUDED, SURCHARGE, EXCLUDED
 
+    @Column(name = "option_snapshot_json", columnDefinition = "JSON")
+    private String optionSnapshotJson;
+
     public void setSubmittedOrder(SubmittedOrderEntity submittedOrder) {
         this.submittedOrder = submittedOrder;
     }
@@ -134,5 +137,13 @@ public class SubmittedOrderItemEntity {
 
     public void setBuffetInclusionType(String buffetInclusionType) {
         this.buffetInclusionType = buffetInclusionType;
+    }
+
+    public String getOptionSnapshotJson() {
+        return optionSnapshotJson;
+    }
+
+    public void setOptionSnapshotJson(String optionSnapshotJson) {
+        this.optionSnapshotJson = optionSnapshotJson;
     }
 }

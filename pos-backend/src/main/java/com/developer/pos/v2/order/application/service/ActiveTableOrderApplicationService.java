@@ -488,6 +488,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         next.setBuffetIncluded(item.isBuffetIncluded());
         next.setBuffetSurchargeCents(item.getBuffetSurchargeCents());
         next.setBuffetInclusionType(item.getBuffetInclusionType());
+        next.setOptionSnapshotJson(item.getOptionSnapshotJson());
         if (item.isBuffetIncluded()) {
             if (item.getBuffetSurchargeCents() > 0) {
                 next.setLineTotalCents(item.getBuffetSurchargeCents() * item.getQuantity());

@@ -15,7 +15,6 @@ import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStore
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -91,19 +90,19 @@ public class TicketRoutingService implements UseCase {
                 stationRepository.save(station); // persist OFFLINE state
             }
 
-            // Millisecond precision prevents collision when two orders route concurrently
-            String ticketNo = "KT-" + order.getStoreId() + "-"
-                + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
-                + "-" + seq++;
+            // submittedOrderId is a DB PK — globally unique per order; seq unique within an order
+            String ticketNo = "KT-" + order.getStoreId() + "-" + order.getId() + "-" + seq++;
 
             KitchenTicketEntity ticket = new KitchenTicketEntity(
                 ticketNo, order.getStoreId(), order.getTableId(),
                 table.getTableCode(), stationId, order.getId(), roundNumber);
 
             for (SubmittedOrderItemEntity item : entry.getValue()) {
-                ticket.addItem(new KitchenTicketItemEntity(
+                KitchenTicketItemEntity ticketItem = new KitchenTicketItemEntity(
                     ticket, item.getSkuId(), item.getSkuNameSnapshot(),
-                    item.getQuantity(), item.getItemRemark()));
+                    item.getQuantity(), item.getItemRemark());
+                ticketItem.setOptionSnapshotJson(item.getOptionSnapshotJson());
+                ticket.addItem(ticketItem);
             }
 
             created.add(ticketRepository.save(ticket));
