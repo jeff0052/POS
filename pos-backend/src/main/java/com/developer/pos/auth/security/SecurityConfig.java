@@ -69,6 +69,17 @@ public class SecurityConfig {
                 // Settlement/payment endpoints require SETTLEMENT_COLLECT (BEFORE the broad /stores/** matcher)
                 .requestMatchers("/api/v2/stores/*/tables/*/payment/**").hasAuthority("SETTLEMENT_COLLECT")
 
+                // Inventory endpoints (BEFORE the broad /stores/** permitAll)
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/inventory-items").hasAnyAuthority("INVENTORY_VIEW", "INVENTORY_MANAGE")
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/inventory-items/*").hasAnyAuthority("INVENTORY_VIEW", "INVENTORY_MANAGE")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/inventory-items").hasAuthority("INVENTORY_MANAGE")
+                .requestMatchers(HttpMethod.PUT, "/api/v2/stores/*/inventory-items/*").hasAuthority("INVENTORY_MANAGE")
+                .requestMatchers(HttpMethod.DELETE, "/api/v2/stores/*/inventory-items/*").hasAuthority("INVENTORY_MANAGE")
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/invoices").hasAuthority("INVENTORY_VIEW") // V102: every PURCHASE_CREATE/PURCHASE_APPROVE role also has INVENTORY_VIEW
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/invoices").hasAuthority("PURCHASE_CREATE")
+                .requestMatchers("/api/v2/stores/*/invoices/*/ocr-scan").hasAuthority("PURCHASE_CREATE")
+                .requestMatchers("/api/v2/stores/*/invoices/*/ocr-confirm").hasAuthority("PURCHASE_APPROVE")
+
                 // Kitchen endpoints (BEFORE the broad /stores/** permitAll)
                 .requestMatchers("/api/v2/stores/*/kitchen-tickets").hasAuthority("KDS_OPERATE")
                 .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/kitchen-stations").hasAnyAuthority("KDS_OPERATE", "KDS_MANAGE")

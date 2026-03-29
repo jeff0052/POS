@@ -1,0 +1,263 @@
+package com.developer.pos.v2.inventory.application.service;
+
+import com.developer.pos.auth.security.AuthenticatedActor;
+import com.developer.pos.v2.common.application.StoreAccessEnforcer;
+import com.developer.pos.v2.inventory.application.dto.ConfirmedItemInput;
+import com.developer.pos.v2.inventory.application.dto.PurchaseInvoiceDto;
+import com.developer.pos.v2.inventory.infrastructure.persistence.entity.*;
+import com.developer.pos.v2.inventory.infrastructure.persistence.repository.*;
+import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
+import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class PurchaseInvoiceServiceTest {
+
+    @Mock JpaPurchaseInvoiceRepository invoiceRepository;
+    @Mock JpaPurchaseInvoiceItemRepository invoiceItemRepository;
+    @Mock JpaInventoryItemRepository inventoryItemRepository;
+    @Mock JpaInventoryBatchRepository batchRepository;
+    @Mock JpaInventoryMovementRepository movementRepository;
+    @Mock JpaStoreLookupRepository storeLookupRepository;
+    MockedStatic<SecurityContextHolder> securityMock;
+
+    @AfterEach
+    void tearDown() {
+        if (securityMock != null) securityMock.close();
+    }
+
+    private PurchaseInvoiceService buildService() {
+        StoreAccessEnforcer enforcer = new StoreAccessEnforcer(storeLookupRepository);
+        return new PurchaseInvoiceService(invoiceRepository, invoiceItemRepository,
+            inventoryItemRepository, batchRepository, movementRepository, enforcer);
+    }
+
+    private void setupActor(Long merchantId, Long storeId, Set<String> permissions) {
+        AuthenticatedActor actor = new AuthenticatedActor(
+            1L, "manager", "M001", "STORE_MANAGER",
+            merchantId, storeId, Set.of(storeId), permissions);
+        SecurityContext ctx = mock(SecurityContext.class);
+        Authentication auth = mock(Authentication.class);
+        lenient().when(auth.getPrincipal()).thenReturn(actor);
+        lenient().when(ctx.getAuthentication()).thenReturn(auth);
+        securityMock = mockStatic(SecurityContextHolder.class);
+        securityMock.when(SecurityContextHolder::getContext).thenReturn(ctx);
+    }
+
+    private StoreEntity buildStore(Long merchantId) {
+        StoreEntity store = mock(StoreEntity.class);
+        lenient().when(store.getMerchantId()).thenReturn(merchantId);
+        return store;
+    }
+
+    private PurchaseInvoiceEntity buildInvoice(Long id, Long storeId, String ocrStatus) {
+        PurchaseInvoiceEntity inv = new PurchaseInvoiceEntity(
+            storeId, "INV-001", null, "Supplier A", LocalDate.now());
+        try {
+            var f = PurchaseInvoiceEntity.class.getDeclaredField("id");
+            f.setAccessible(true); f.set(inv, id);
+            if (ocrStatus != null) {
+                var s = PurchaseInvoiceEntity.class.getDeclaredField("ocrStatus");
+                s.setAccessible(true); s.set(inv, ocrStatus);
+            }
+        } catch (Exception e) { throw new RuntimeException(e); }
+        return inv;
+    }
+
+    // ─── createInvoice tests ───────────────────────────────────────────────
+
+    @Test
+    void createInvoice_happy_createsPendingInvoice() {
+        setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        when(invoiceRepository.existsByStoreIdAndInvoiceNo(10L, "INV-001")).thenReturn(false);
+        when(invoiceRepository.save(any())).thenAnswer(inv -> {
+            PurchaseInvoiceEntity e = inv.getArgument(0);
+            try {
+                var f = PurchaseInvoiceEntity.class.getDeclaredField("id");
+                f.setAccessible(true); f.set(e, 1L);
+            } catch (Exception ex) { throw new RuntimeException(ex); }
+            return e;
+        });
+
+        PurchaseInvoiceDto result = buildService().createInvoice(
+            10L, "INV-001", null, "Supplier A", LocalDate.now());
+
+        assertThat(result.invoiceStatus()).isEqualTo("PENDING");
+        assertThat(result.invoiceNo()).isEqualTo("INV-001");
+        verify(invoiceRepository).save(any());
+    }
+
+    @Test
+    void createInvoice_duplicateNo_throwsIllegalArgument() {
+        setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        when(invoiceRepository.existsByStoreIdAndInvoiceNo(10L, "INV-DUP")).thenReturn(true);
+
+        assertThatThrownBy(() -> buildService().createInvoice(
+            10L, "INV-DUP", null, "X", LocalDate.now()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("INV-DUP");
+    }
+
+    @Test
+    void triggerOcr_happy_setsProcessingStatus() {
+
+        setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, null);
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PurchaseInvoiceDto result = buildService().triggerOcrScan(10L, 1L, "asset-abc-123");
+
+        assertThat(result.ocrStatus()).isEqualTo("PROCESSING");
+        assertThat(result.scanImageUrl()).contains("asset-abc-123");
+    }
+
+    @Test
+    void triggerOcr_alreadyProcessing_throwsIllegalState() {
+        setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING"); // already processing
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> buildService().triggerOcrScan(10L, 1L, "asset-xyz"))
+            .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void listInvoices_returnsStoreInvoices() {
+        setupActor(100L, 10L, Set.of("INVENTORY_VIEW"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, null);
+        when(invoiceRepository.findByStoreIdOrderByCreatedAtDesc(10L)).thenReturn(List.of(invoice));
+
+        List<PurchaseInvoiceDto> result = buildService().listInvoices(10L);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).invoiceNo()).isEqualTo("INV-001");
+    }
+
+    // ─── confirmOcr tests ─────────────────────────────────────────────────
+
+    @Test
+    void confirmOcr_singleItem_createsBatchMovementAndUpdatesStock() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING");
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        InventoryItemEntity item = new InventoryItemEntity(10L, "BEEF-001", "牛腩", "kg", BigDecimal.valueOf(5));
+        when(inventoryItemRepository.findById(20L)).thenReturn(Optional.of(item));
+        when(invoiceItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(batchRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(movementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(inventoryItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<ConfirmedItemInput> items = List.of(
+            new ConfirmedItemInput(20L, BigDecimal.valueOf(10), "kg", 5000L, null));
+
+        buildService().confirmOcr(10L, 1L, items);
+
+        // stock incremented
+        assertThat(item.getCurrentStock()).isEqualByComparingTo(BigDecimal.valueOf(10));
+        // invoice confirmed
+        assertThat(invoice.getInvoiceStatus()).isEqualTo("CONFIRMED");
+        verify(batchRepository).save(any());
+        verify(movementRepository).save(any());
+    }
+
+    @Test
+    void confirmOcr_multipleItems_updatesEachItemStock() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING");
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        InventoryItemEntity beef = new InventoryItemEntity(10L, "BEEF-001", "牛腩", "kg", BigDecimal.ZERO);
+        InventoryItemEntity chili = new InventoryItemEntity(10L, "CHILI-001", "辣椒", "kg", BigDecimal.ZERO);
+        when(inventoryItemRepository.findById(20L)).thenReturn(Optional.of(beef));
+        when(inventoryItemRepository.findById(21L)).thenReturn(Optional.of(chili));
+        when(invoiceItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(batchRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(movementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(inventoryItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<ConfirmedItemInput> items = List.of(
+            new ConfirmedItemInput(20L, BigDecimal.valueOf(10), "kg", 5000L, null),
+            new ConfirmedItemInput(21L, BigDecimal.valueOf(2), "kg", 3000L, LocalDate.now().plusDays(30)));
+
+        buildService().confirmOcr(10L, 1L, items);
+
+        assertThat(beef.getCurrentStock()).isEqualByComparingTo(BigDecimal.valueOf(10));
+        assertThat(chili.getCurrentStock()).isEqualByComparingTo(BigDecimal.valueOf(2));
+        verify(batchRepository, times(2)).save(any());
+        verify(movementRepository, times(2)).save(any());
+    }
+
+    @Test
+    void confirmOcr_invoiceNotInProcessingState_throwsIllegalState() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, null); // not PROCESSING
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L,
+            List.of(new ConfirmedItemInput(20L, BigDecimal.TEN, "kg", 5000L, null))))
+            .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void confirmOcr_inventoryItemNotFound_throwsIllegalArgument() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING");
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(inventoryItemRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L,
+            List.of(new ConfirmedItemInput(99L, BigDecimal.TEN, "kg", 5000L, null))))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("99");
+    }
+
+    @Test
+    void confirmOcr_wrongStore_throwsSecurityException() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(999L); // different merchant
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+
+        assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L, List.of()))
+            .isInstanceOf(SecurityException.class);
+    }
+}
