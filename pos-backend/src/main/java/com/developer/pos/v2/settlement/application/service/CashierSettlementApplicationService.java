@@ -104,8 +104,16 @@ public class CashierSettlementApplicationService implements UseCase {
 
             List<Long> sessionChain = buildSessionChain(session);
             if (sessionChain.size() > 1) {
-                // Merged tables exist — delegate to session-chain-aware preview
-                return getTableSettlementPreview(activeOrder.getStoreId(), activeOrder.getTableId());
+                // Merged tables exist — delegate to session-chain-aware preview,
+                // but preserve the original activeOrderId so the response matches the route parameter.
+                SettlementPreviewDto merged = getTableSettlementPreview(activeOrder.getStoreId(), activeOrder.getTableId());
+                return new SettlementPreviewDto(
+                        activeOrderId,
+                        merged.status(),
+                        merged.member(),
+                        merged.pricing(),
+                        merged.giftItems()
+                );
             }
         }
 
