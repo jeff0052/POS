@@ -1,11 +1,14 @@
 package com.developer.pos.v2.catalog.infrastructure.persistence.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import java.util.List;
 
 @Entity(name = "V2ProductEntity")
 @Table(name = "products")
@@ -31,7 +34,8 @@ public class ProductEntity {
     private String imageId;
 
     @Column(name = "menu_modes", columnDefinition = "JSON")
-    private String menuModesJson;
+    @Convert(converter = StringListConverter.class)
+    private List<String> menuModes;
 
     @Column(name = "sort_order")
     private int sortOrder;
@@ -103,8 +107,8 @@ public class ProductEntity {
         return productStatus;
     }
 
-    public String getMenuModesJson() {
-        return menuModesJson;
+    public List<String> getMenuModes() {
+        return menuModes;
     }
 
     public int getSortOrder() {

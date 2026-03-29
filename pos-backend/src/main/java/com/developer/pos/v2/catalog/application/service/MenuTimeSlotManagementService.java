@@ -48,6 +48,7 @@ public class MenuTimeSlotManagementService implements UseCase {
 
     @Transactional(readOnly = true)
     public MenuTimeSlotDto getSlot(Long slotId, Long expectedStoreId) {
+        enforceStoreAccess(expectedStoreId);
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
         enforceSlotStoreMatch(slot, expectedStoreId);
         return toDto(slot);
@@ -94,6 +95,7 @@ public class MenuTimeSlotManagementService implements UseCase {
     @Transactional
     public void deleteSlot(Long slotId, Long expectedStoreId) {
         enforceMenuManage();
+        enforceStoreAccess(expectedStoreId);
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
         enforceSlotStoreMatch(slot, expectedStoreId);
         slotProductRepository.deleteByTimeSlotId(slot.getId());

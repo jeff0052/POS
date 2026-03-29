@@ -27,12 +27,7 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSku
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaStoreSkuAvailabilityRepository;
 import com.developer.pos.v2.common.application.UseCase;
-import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,8 +42,6 @@ import java.util.stream.Collectors;
 @Service
 public class MenuQueryService implements UseCase {
 
-    private static final Logger log = LoggerFactory.getLogger(MenuQueryService.class);
-
     private final JpaStoreLookupRepository storeLookupRepository;
     private final JpaProductCategoryRepository categoryRepository;
     private final JpaProductRepository productRepository;
@@ -60,7 +53,6 @@ public class MenuQueryService implements UseCase {
     private final JpaModifierOptionRepository modifierOptionRepository;
     private final JpaMenuTimeSlotRepository timeSlotRepository;
     private final JpaMenuTimeSlotProductRepository timeSlotProductRepository;
-    private final ObjectMapper objectMapper;
 
     public MenuQueryService(
             JpaStoreLookupRepository storeLookupRepository,
@@ -73,8 +65,7 @@ public class MenuQueryService implements UseCase {
             JpaModifierGroupRepository modifierGroupRepository,
             JpaModifierOptionRepository modifierOptionRepository,
             JpaMenuTimeSlotRepository timeSlotRepository,
-            JpaMenuTimeSlotProductRepository timeSlotProductRepository,
-            ObjectMapper objectMapper
+            JpaMenuTimeSlotProductRepository timeSlotProductRepository
     ) {
         this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
@@ -87,7 +78,6 @@ public class MenuQueryService implements UseCase {
         this.modifierOptionRepository = modifierOptionRepository;
         this.timeSlotRepository = timeSlotRepository;
         this.timeSlotProductRepository = timeSlotProductRepository;
-        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -233,17 +223,11 @@ public class MenuQueryService implements UseCase {
     }
 
     private boolean productMatchesDiningMode(ProductEntity product, String diningMode) {
-        String menuModesJson = product.getMenuModesJson();
-        if (menuModesJson == null || menuModesJson.isBlank()) {
+        List<String> modes = product.getMenuModes();
+        if (modes == null || modes.isEmpty()) {
             return true; // no restriction = available for all modes
         }
-        try {
-            List<String> modes = objectMapper.readValue(menuModesJson, new TypeReference<>() {});
-            return modes.contains(diningMode);
-        } catch (Exception e) {
-            log.warn("Failed to parse menu_modes JSON for product {}: {}", product.getId(), e.getMessage());
-            return true;
-        }
+        return modes.contains(diningMode);
     }
 
     private Map<Long, Boolean> buildAvailabilityMap(Long storeId, List<Long> skuIds) {
