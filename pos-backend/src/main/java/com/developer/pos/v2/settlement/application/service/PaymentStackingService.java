@@ -28,6 +28,7 @@ import java.util.*;
 public class PaymentStackingService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentStackingService.class);
+    private static final Set<String> VALID_EXTERNAL_SCHEMES = Set.of("WECHAT_QR", "ALIPAY_QR", "PAYNOW_QR");
 
     public record StackingChoices(
         boolean usePoints,
@@ -108,14 +109,18 @@ public class PaymentStackingService {
                     remaining -= pointsDeductCents;
                 }
                 var coupons = couponRepo.findAllByMemberIdAndCouponStatus(memberId, "AVAILABLE");
+                OffsetDateTime previewNow = OffsetDateTime.now();
                 long finalRemaining = remaining;
                 availableCoupons = coupons.stream()
-                        .filter(c -> c.getValidUntil().isAfter(OffsetDateTime.now()))
+                        // Mirror collectStacking validity window exactly: validFrom <= now < validUntil
+                        .filter(c -> !previewNow.isBefore(c.getValidFrom()) && c.getValidUntil().isAfter(previewNow))
                         .map(c -> {
                             long discount = calculateCouponDiscount(c.getTemplateId(), finalRemaining);
                             return new StackingPreviewDto.AvailableCouponItem(
                                     c.getId(), c.getCouponNo(), discount, c.getLockVersion());
                         })
+                        // Exclude coupons whose effective discount is 0 (minSpendCents not met, etc.)
+                        .filter(item -> item.discountCents() > 0)
                         .toList();
                 long availCash = account.getCashBalanceCents() - account.getFrozenCashCents();
                 if (availCash > 0 && remaining > 0) {
@@ -132,6 +137,14 @@ public class PaymentStackingService {
 
     @Transactional
     public StackingCollectResultDto collectStacking(Long storeId, Long tableId, StackingChoices choices) {
+        // Validate external payment scheme before any DB writes — prevents stranding a
+        // committed settlement/holds with an un-buildable provider link
+        if (choices.externalPaymentMethod() != null
+                && !VALID_EXTERNAL_SCHEMES.contains(choices.externalPaymentMethod())) {
+            throw new IllegalArgumentException("Unsupported external payment scheme: "
+                    + choices.externalPaymentMethod() + ". Valid values: " + VALID_EXTERNAL_SCHEMES);
+        }
+
         var table = storeTableRepo.findByStoreIdAndId(storeId, tableId)
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableId));
         if (table.getMergedIntoTableId() != null) {
@@ -144,10 +157,21 @@ public class PaymentStackingService {
         var existing = settlementRepo.findByStackingSessionIdAndFinalStatusForUpdate(masterSession.getId(), "PENDING");
         if (existing.isPresent()) {
             var s = existing.get();
+            var allAttempts = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(s.getId());
+            // Guard: if any attempt is already SUCCEEDED, payment has been captured.
+            // Creating a new checkout link would risk a duplicate charge. Reject and let the
+            // settlement-timeout scheduler (or explicit confirm-stacking) finalise the settlement.
+            boolean alreadyPaid = allAttempts.stream()
+                    .anyMatch(a -> "SUCCEEDED".equals(a.getAttemptStatus()));
+            if (alreadyPaid) {
+                throw new IllegalStateException(
+                        "Settlement " + s.getSettlementNo()
+                        + " already has a SUCCEEDED payment; confirmation is pending."
+                        + " Call confirm-stacking or wait for the scheduler.");
+            }
             var holds = holdRepo.findAllBySettlementRecordIdAndHoldStatus(s.getId(), "HELD");
             // For idempotent response: re-surface existing PENDING_CUSTOMER checkout URL if present
-            String existingUrl = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(s.getId())
-                    .stream()
+            String existingUrl = allAttempts.stream()
                     .filter(a -> "PENDING_CUSTOMER".equals(a.getAttemptStatus()))
                     .map(a -> a.getProviderCheckoutUrl())
                     .findFirst()
