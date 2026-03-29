@@ -9,5 +9,4 @@ ALTER TABLE settlement_payment_holds
   ADD COLUMN coupon_id BIGINT NULL AFTER points_held,
   ADD COLUMN payment_attempt_id BIGINT NULL AFTER release_reason,
   MODIFY COLUMN member_id BIGINT NULL,
-  ADD INDEX idx_sph_session (table_session_id, hold_status),
-  ADD INDEX idx_sph_held_at (hold_status, held_at);
+  ADD INDEX idx_sph_session (table_session_id, hold_status);
