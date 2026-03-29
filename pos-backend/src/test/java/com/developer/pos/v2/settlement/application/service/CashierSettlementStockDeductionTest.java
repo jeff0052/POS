@@ -1,6 +1,8 @@
 package com.developer.pos.v2.settlement.application.service;
 
 import com.developer.pos.v2.inventory.application.service.StockDeductionService;
+import com.developer.pos.v2.order.domain.status.ActiveOrderStatus;
+import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaActiveTableOrderRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderRepository;
@@ -75,5 +77,49 @@ class CashierSettlementStockDeductionTest {
         service.collectForTable(storeId, tableId, command);
 
         verify(stockDeductionService).deductForOrders(eq(storeId), eq(List.of(order)));
+    }
+
+    @Test
+    void collect_callsStockDeductionAfterSettlement() {
+        // arrange
+        String activeOrderId = "ORDER-001";
+        Long storeId = 10L;
+        Long tableId = 1L;
+
+        ActiveTableOrderEntity activeOrder = mock(ActiveTableOrderEntity.class);
+        when(activeOrder.getActiveOrderId()).thenReturn(activeOrderId);
+        when(activeOrder.getStatus()).thenReturn(ActiveOrderStatus.PENDING_SETTLEMENT);
+        when(activeOrder.getStoreId()).thenReturn(storeId);
+        when(activeOrder.getTableId()).thenReturn(tableId);
+        when(activeOrder.getMerchantId()).thenReturn(1L);
+        when(activeOrder.getPayableAmountCents()).thenReturn(1000L);
+        when(activeTableOrderRepository.findByActiveOrderId(activeOrderId)).thenReturn(Optional.of(activeOrder));
+        when(settlementRecordRepository.findByActiveOrderId(activeOrderId)).thenReturn(Optional.empty());
+
+        SettlementRecordEntity savedRecord = mock(SettlementRecordEntity.class);
+        when(savedRecord.getSettlementNo()).thenReturn("SET-002");
+        when(savedRecord.getPayableAmountCents()).thenReturn(1000L);
+        when(savedRecord.getCollectedAmountCents()).thenReturn(1000L);
+        when(settlementRecordRepository.saveAndFlush(any())).thenReturn(savedRecord);
+
+        TableSessionEntity session = mock(TableSessionEntity.class);
+        when(session.getId()).thenReturn(200L);
+        when(tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN"))
+            .thenReturn(Optional.of(session));
+
+        SubmittedOrderEntity submittedOrder = mock(SubmittedOrderEntity.class);
+        when(submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(200L, "UNPAID"))
+            .thenReturn(List.of(submittedOrder));
+
+        StoreTableEntity table = mock(StoreTableEntity.class);
+        when(storeTableRepository.findByIdAndStoreId(tableId, storeId)).thenReturn(Optional.of(table));
+
+        CollectCashierSettlementCommand command = new CollectCashierSettlementCommand(activeOrderId, null, "CASH", 1000L);
+
+        // act
+        service.collect(command);
+
+        // assert
+        verify(stockDeductionService).deductForOrders(eq(storeId), eq(List.of(submittedOrder)));
     }
 }
