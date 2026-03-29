@@ -2,6 +2,7 @@ package com.developer.pos.v2.settlement.application.service;
 
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberCouponEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCouponRepository;
+import java.time.OffsetDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,23 @@ public class CouponLockingService {
     @Transactional
     public void releaseCoupon(Long couponId, Long sessionId) {
         couponRepo.releaseCouponCas(couponId, sessionId);
+    }
+
+    @Transactional
+    public void reclaimExpiredLocks() {
+        var expired = couponRepo.findAllByCouponStatusAndLockedAtBefore(
+                "LOCKED", OffsetDateTime.now().minusMinutes(10));
+        expired.stream()
+                .collect(java.util.stream.Collectors.groupingBy(c ->
+                        c.getLockedBySession() != null ? c.getLockedBySession() : -c.getId()))
+                .values().forEach(group -> {
+                    var coupon = group.get(0);
+                    if (coupon.getLockedBySession() == null) {
+                        couponRepo.releaseCouponCas(coupon.getId(), null);
+                    } else {
+                        couponRepo.releaseCouponCas(coupon.getId(), coupon.getLockedBySession());
+                    }
+                });
     }
 
     /**
