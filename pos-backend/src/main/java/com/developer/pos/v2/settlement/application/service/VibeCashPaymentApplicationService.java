@@ -359,6 +359,23 @@ public class VibeCashPaymentApplicationService implements UseCase {
         }
     }
 
+    /**
+     * Returns the most recently created PENDING_CUSTOMER attempt for a stacking settlement.
+     * Used by the recovery endpoint when the frontend has lost the newAttemptId (e.g. the
+     * switch-method response never arrived due to a network error).
+     */
+    @Transactional(readOnly = true)
+    public VibeCashPaymentAttemptDto getActiveStackingAttempt(Long storeId, Long tableId, Long settlementId) {
+        return paymentAttemptRepository.findBySettlementRecordIdOrderByCreatedAtDesc(settlementId)
+                .stream()
+                .filter(a -> a.getStoreId().equals(storeId) && a.getTableId().equals(tableId))
+                .filter(a -> "PENDING_CUSTOMER".equals(a.getAttemptStatus()))
+                .findFirst()
+                .map(this::toDto)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "No active attempt found for settlement " + settlementId));
+    }
+
     @Transactional(readOnly = true)
     public VibeCashPaymentAttemptDto getAttempt(Long storeId, Long tableId, String paymentAttemptId) {
         PaymentAttemptEntity paymentAttempt = paymentAttemptRepository.findByPaymentAttemptId(paymentAttemptId)

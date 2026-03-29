@@ -2,19 +2,24 @@ package com.developer.pos.v2.settlement.interfaces.rest;
 
 import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
+import com.developer.pos.v2.settlement.application.dto.PaymentRetryResultDto;
 import com.developer.pos.v2.settlement.application.dto.StackingCollectResultDto;
 import com.developer.pos.v2.settlement.application.dto.StackingPreviewDto;
-import com.developer.pos.v2.settlement.application.dto.PaymentRetryResultDto;
+import com.developer.pos.v2.settlement.application.dto.VibeCashPaymentAttemptDto;
 import com.developer.pos.v2.settlement.application.service.PaymentRetryService;
 import com.developer.pos.v2.settlement.application.service.PaymentStackingService;
 import com.developer.pos.v2.settlement.application.service.VibeCashPaymentApplicationService;
 import com.developer.pos.v2.settlement.interfaces.rest.request.CollectStackingRequest;
 import com.developer.pos.v2.settlement.interfaces.rest.request.SwitchMethodRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v2")
 public class PaymentStackingV2Controller implements V2Api {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentStackingV2Controller.class);
 
     private final PaymentStackingService stackingService;
     private final PaymentRetryService retryService;
@@ -78,9 +83,36 @@ public class PaymentStackingV2Controller implements V2Api {
             @PathVariable Long storeId,
             @PathVariable Long tableId,
             @RequestBody SwitchMethodRequest req) {
-        // DB transaction commits inside switchMethod(); VibeCash called here, outside that transaction
+        // DB transaction commits inside switchMethod(); VibeCash called here, outside that transaction.
+        // Even if VibeCash link creation fails, we always return newAttemptId so the frontend is not
+        // left without a reference — it can call GET active-attempt to retry or recover.
         PaymentRetryResultDto result = retryService.switchMethod(storeId, tableId, req.paymentAttemptId(), req.newPaymentScheme());
-        var attemptDto = vibecashService.createPaymentLinkForSavedAttempt(result.newAttemptId());
-        return ApiResponse.success(new PaymentRetryResultDto(result.newAttemptId(), attemptDto.checkoutUrl()));
+        try {
+            var attemptDto = vibecashService.createPaymentLinkForSavedAttempt(result.newAttemptId());
+            return ApiResponse.success(new PaymentRetryResultDto(result.newAttemptId(), attemptDto.checkoutUrl()));
+        } catch (Exception e) {
+            log.warn("VibeCash link creation failed for replacement attempt {}: {}. " +
+                     "Returning newAttemptId without URL; client should call GET active-attempt to recover.",
+                     result.newAttemptId(), e.getMessage());
+            return ApiResponse.success(new PaymentRetryResultDto(result.newAttemptId(), null));
+        }
+    }
+
+    /**
+     * Recovery endpoint: returns the current PENDING_CUSTOMER attempt for a stacking settlement.
+     *
+     * Use when:
+     * - switch-method succeeded in DB but VibeCash link creation failed (checkoutUrl was null)
+     * - the switch-method response was lost entirely (network timeout)
+     *
+     * The response contains the active attemptId and checkoutUrl (null if link not yet created).
+     * The client can present the URL to the customer or trigger a retry.
+     */
+    @GetMapping("/stores/{storeId}/tables/{tableId}/payment/{settlementId}/active-attempt")
+    public ApiResponse<VibeCashPaymentAttemptDto> getActiveAttempt(
+            @PathVariable Long storeId,
+            @PathVariable Long tableId,
+            @PathVariable Long settlementId) {
+        return ApiResponse.success(vibecashService.getActiveStackingAttempt(storeId, tableId, settlementId));
     }
 }
