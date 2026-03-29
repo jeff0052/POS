@@ -169,7 +169,10 @@ public class MerchantOrderReadService implements UseCase {
                 item.getLineTotalCents(),
                 0,
                 0,
-                false
+                false,
+                item.isBuffetIncluded(),
+                item.getBuffetSurchargeCents(),
+                item.getBuffetInclusionType()
         );
     }
 
@@ -181,7 +184,10 @@ public class MerchantOrderReadService implements UseCase {
                 item.getLineTotalCents(),
                 0,
                 0,
-                false
+                false,
+                item.isBuffetIncluded(),
+                item.getBuffetSurchargeCents(),
+                item.getBuffetInclusionType()
         );
     }
 }

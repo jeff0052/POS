@@ -10,4 +10,6 @@ public interface JpaTableSessionRepository extends JpaRepository<TableSessionEnt
     Optional<TableSessionEntity> findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(Long storeId, Long tableId, String sessionStatus);
 
     List<TableSessionEntity> findAllByStoreIdOrderByIdDesc(Long storeId);
+
+    List<TableSessionEntity> findAllByMergedIntoSessionIdAndSessionStatus(Long mergedIntoSessionId, String sessionStatus);
 }

@@ -9,6 +9,7 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaPro
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaQrMenuRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.QrMenuProjection;
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.image.application.service.ImageUploadService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -16,9 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -28,15 +31,18 @@ public class QrMenuApplicationService implements UseCase {
     private final JpaQrMenuRepository qrMenuRepository;
     private final JpaProductRepository productRepository;
     private final ObjectMapper objectMapper;
+    private final ImageUploadService imageUploadService;
 
     public QrMenuApplicationService(
             JpaQrMenuRepository qrMenuRepository,
             JpaProductRepository productRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ImageUploadService imageUploadService
     ) {
         this.qrMenuRepository = qrMenuRepository;
         this.productRepository = productRepository;
         this.objectMapper = objectMapper;
+        this.imageUploadService = imageUploadService;
     }
 
     @Transactional(readOnly = true)
@@ -53,6 +59,14 @@ public class QrMenuApplicationService implements UseCase {
                 ).stream()
                 .collect(Collectors.toMap(ProductEntity::getId, Function.identity()));
 
+        // Batch-resolve all image URLs (CDN/nginx when configured)
+        Set<String> allImageIds = new HashSet<>();
+        for (QrMenuProjection row : rows) {
+            if (row.getSkuImageId() != null) allImageIds.add(row.getSkuImageId());
+            if (row.getProductImageId() != null) allImageIds.add(row.getProductImageId());
+        }
+        Map<String, String> imageUrlMap = imageUploadService.resolvePublicUrls(allImageIds);
+
         for (QrMenuProjection row : rows) {
             CategoryAccumulator category = categories.computeIfAbsent(
                     row.getCategoryId(),
@@ -67,7 +81,7 @@ public class QrMenuApplicationService implements UseCase {
 
             // Image priority: SKU imageId → product imageId → null
             String effectiveImageId = row.getSkuImageId() != null ? row.getSkuImageId() : row.getProductImageId();
-            String menuImageUrl = effectiveImageId != null ? "/api/v2/images/" + effectiveImageId : null;
+            String menuImageUrl = effectiveImageId != null ? imageUrlMap.get(effectiveImageId) : null;
 
             category.items().add(new QrMenuDto.MenuItemDto(
                     row.getProductId(),

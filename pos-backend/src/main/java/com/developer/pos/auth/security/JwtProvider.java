@@ -28,15 +28,42 @@ public class JwtProvider {
     }
 
     public String generateToken(Long userId, String username, String role, Long merchantId, Long storeId) {
+        return generateToken(userId, username, null, role, merchantId, storeId);
+    }
+
+    public String generateToken(Long userId, String username, String userCode, String role, Long merchantId, Long storeId) {
         Date now = new Date();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(userId.toString())
                 .claim("username", username)
                 .claim("role", role)
                 .claim("merchantId", merchantId)
-                .claim("storeId", storeId)
+                .claim("storeId", storeId);
+        if (userCode != null) {
+            builder.claim("userCode", userCode);
+        }
+        return builder
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMs))
+                .signWith(key)
+                .compact();
+    }
+
+    public String generateOrderingToken(Long storeId, Long tableId, Long sessionId, String tableCode, Long qrTokenId) {
+        Date now = new Date();
+        long orderingExpirationMs = 4 * 60 * 60 * 1000L; // 4 hours
+        var builder = Jwts.builder()
+                .subject("qr-ordering")
+                .claim("storeId", storeId)
+                .claim("tableId", tableId)
+                .claim("tableCode", tableCode)
+                .claim("qrTokenId", qrTokenId);
+        if (sessionId != null) {
+            builder.claim("sessionId", sessionId);
+        }
+        return builder
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + orderingExpirationMs))
                 .signWith(key)
                 .compact();
     }

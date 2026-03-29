@@ -42,21 +42,15 @@ ALTER TABLE table_sessions
   ADD INDEX idx_ts_merged (merged_into_session_id);
 ```
 
-### V071__alter_store_tables_and_stores.sql
+### V071__create_qr_tokens.sql
+
+> **SUPERSEDED**: 本 spec 原方案为 `store_tables.qr_token` + `stores.jwt_secret`。
+> 实际采用 `qr_tokens` 独立表方案（见 docs/80 D4 决策）。
+> QR 签发/校验/旋转逻辑以 `qr_tokens` 表为准。
 
 ```sql
-ALTER TABLE store_tables
-  ADD COLUMN zone VARCHAR(64) NULL COMMENT '区域(大厅/包间/露台)' AFTER table_name,
-  ADD COLUMN min_guests INT NOT NULL DEFAULT 1 AFTER zone,
-  ADD COLUMN max_guests INT NOT NULL DEFAULT 4 AFTER min_guests,
-  ADD COLUMN qr_token VARCHAR(64) NULL COMMENT 'UUID, DB lookup 验证' AFTER max_guests,
-  ADD COLUMN qr_generated_at TIMESTAMP NULL AFTER qr_token,
-  ADD COLUMN qr_expires_at TIMESTAMP NULL AFTER qr_generated_at,
-  MODIFY COLUMN table_status VARCHAR(32) NOT NULL DEFAULT 'AVAILABLE'
-    COMMENT 'AVAILABLE|OCCUPIED|RESERVED|PENDING_CLEAN|MERGED|DISABLED';
-
-ALTER TABLE stores
-  ADD COLUMN jwt_secret VARCHAR(128) NULL COMMENT 'QR ordering JWT 签名密钥';
+-- 见 V071__create_qr_tokens.sql（已在 DB 中）
+-- store_tables 的 zone/min_guests/max_guests 列已在 V067 中通过 ALTER 添加
 ```
 
 ### V072__create_table_merge_records.sql
@@ -443,41 +437,34 @@ memberId 来源: 从 submitted_orders.member_id 取（和现有 collectForTable 
   → 释放为 AVAILABLE（settlement_payment_holds 也做 RELEASED）
 ```
 
-### D4 动态 QR：DB lookup + JWT，支持空桌扫码
+### D4 动态 QR：qr_tokens 独立表 + JWT，支持空桌扫码
+
+> **已统一**: 采用 `qr_tokens` 独立表方案（V071）。
+> 不再使用 `store_tables.qr_token` / `stores.jwt_secret`。
 
 ```
 QR 生成:
-  qr_token = UUID.randomUUID()
-  store_tables.qr_token = token
+  INSERT INTO qr_tokens (store_id, table_id, token, token_type, expires_at)
   QR URL = https://{domain}/qr/{storeId}/{tableId}/{token}
 
 扫码验证:
   GET /qr/{storeId}/{tableId}/{token}
-  1. DB 查 store_tables WHERE id = tableId AND store_id = storeId AND qr_token = token
-  2. qr_expires_at < NOW() → 400
-  3. 查当前 session: sessions.findByStoreIdAndTableIdAndSessionStatus(storeId, tableId, "OPEN")
-  4. 生成 JWT:
+  1. DB 查 qr_tokens WHERE store_id = storeId AND table_id = tableId AND token = token AND is_active = TRUE
+  2. expires_at < NOW() → 400
+  3. 查当前 session
+  4. 生成 JWT (用 app-level secret，非 per-store secret):
      {
-       storeId: 1,
-       tableId: 101,
-       sessionId: session != null ? session.id : null,  // 空桌时为 null
-       tableCode: "A01",
-       exp: NOW() + 4h
+       storeId, tableId, sessionId (nullable), tableCode, exp: NOW() + 4h
      }
   5. 302 → /ordering?token={jwt}
 
-后续 API 验证:
-  QrOrderingFilter 解析 X-Ordering-Token header:
-    - 验证 JWT 签名 (用 stores.jwt_secret)
-    - 验证未过期
-    - 从 payload 取 storeId, tableId
-    - 如果 sessionId == null: 第一次下单时 findOrCreateOpenSession 创建，
-      但不需要刷新 JWT（后端从 DB 查 session）
-    - 如果 sessionId != null: 验证 session 仍然 OPEN
+清台刷新:
+  UPDATE qr_tokens SET is_active = FALSE WHERE table_id = tableId;
+  INSERT INTO qr_tokens ... (新 token)
 
 关键: 后端不依赖 JWT 中的 sessionId 做业务决策。
      storeId + tableId 是必要的（防止跨桌操作）。
-     sessionId 只是优化（避免多查一次 DB）。
+     qr_tokens 表支持审计、旋转、多 token 类型。
 ```
 
 ### D5 自助餐开台：用 tableId 找 session
@@ -624,7 +611,7 @@ MCP tool handler 写 action_log（现有逻辑不变）。
 | session_status = SETTLED | OPEN / CLOSED (真实值) |
 | attempt_status 新状态集 | 保留 PENDING_CUSTOMER/SUCCEEDED/SETTLED/FAILED/EXPIRED + REPLACED |
 | member.available_points | points_balance - frozen_points |
-| HMAC QR | UUID DB lookup + JWT session token |
+| HMAC QR | qr_tokens 独立表 + JWT session token (D4 已统一) |
 | JWT 必带 sessionId | sessionId 可为 null (空桌扫码) |
 | POST /sessions/{id}/buffet/start | POST /tables/{tableId}/buffet/start |
 | buffet 字段只在 active_items | active + submitted 都有 |

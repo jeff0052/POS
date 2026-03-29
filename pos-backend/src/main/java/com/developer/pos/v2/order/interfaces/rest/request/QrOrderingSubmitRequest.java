@@ -20,7 +20,8 @@ public record QrOrderingSubmitRequest(
             @NotBlank String skuName,
             @Positive int quantity,
             @Positive long unitPriceCents,
-            String remark
+            String remark,
+            String optionSnapshotJson
     ) {
     }
 }

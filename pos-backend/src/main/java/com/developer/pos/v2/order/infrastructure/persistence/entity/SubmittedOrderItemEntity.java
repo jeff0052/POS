@@ -43,6 +43,18 @@ public class SubmittedOrderItemEntity {
     @Column(name = "line_total_cents", nullable = false)
     private long lineTotalCents;
 
+    @Column(name = "is_buffet_included")
+    private boolean buffetIncluded;
+
+    @Column(name = "buffet_surcharge_cents")
+    private long buffetSurchargeCents;
+
+    @Column(name = "buffet_inclusion_type", length = 32)
+    private String buffetInclusionType; // INCLUDED, SURCHARGE, EXCLUDED
+
+    @Column(name = "option_snapshot_json", columnDefinition = "JSON")
+    private String optionSnapshotJson;
+
     public void setSubmittedOrder(SubmittedOrderEntity submittedOrder) {
         this.submittedOrder = submittedOrder;
     }
@@ -101,5 +113,37 @@ public class SubmittedOrderItemEntity {
 
     public long getLineTotalCents() {
         return lineTotalCents;
+    }
+
+    public boolean isBuffetIncluded() {
+        return buffetIncluded;
+    }
+
+    public void setBuffetIncluded(boolean buffetIncluded) {
+        this.buffetIncluded = buffetIncluded;
+    }
+
+    public long getBuffetSurchargeCents() {
+        return buffetSurchargeCents;
+    }
+
+    public void setBuffetSurchargeCents(long buffetSurchargeCents) {
+        this.buffetSurchargeCents = buffetSurchargeCents;
+    }
+
+    public String getBuffetInclusionType() {
+        return buffetInclusionType;
+    }
+
+    public void setBuffetInclusionType(String buffetInclusionType) {
+        this.buffetInclusionType = buffetInclusionType;
+    }
+
+    public String getOptionSnapshotJson() {
+        return optionSnapshotJson;
+    }
+
+    public void setOptionSnapshotJson(String optionSnapshotJson) {
+        this.optionSnapshotJson = optionSnapshotJson;
     }
 }

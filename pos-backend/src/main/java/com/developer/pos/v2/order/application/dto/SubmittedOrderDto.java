@@ -27,7 +27,10 @@ public record SubmittedOrderDto(
             int quantity,
             long unitPriceCents,
             String remark,
-            long lineTotalCents
+            long lineTotalCents,
+            boolean isBuffetIncluded,
+            long buffetSurchargeCents,
+            String buffetInclusionType
     ) {
     }
 }

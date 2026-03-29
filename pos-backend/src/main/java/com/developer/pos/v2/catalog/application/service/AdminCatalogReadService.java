@@ -7,6 +7,7 @@ import com.developer.pos.v2.catalog.application.dto.AdminCatalogModifierGroupDto
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogProductDto;
 import com.developer.pos.v2.catalog.application.dto.AdminCatalogSkuDto;
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.image.application.service.ImageUploadService;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ProductCategoryEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ProductEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuEntity;
@@ -37,6 +38,7 @@ public class AdminCatalogReadService implements UseCase {
     private final JpaSkuRepository skuRepository;
     private final JpaStoreSkuAvailabilityRepository availabilityRepository;
     private final ObjectMapper objectMapper;
+    private final ImageUploadService imageUploadService;
 
     public AdminCatalogReadService(
             JpaStoreLookupRepository storeLookupRepository,
@@ -44,7 +46,8 @@ public class AdminCatalogReadService implements UseCase {
             JpaProductRepository productRepository,
             JpaSkuRepository skuRepository,
             JpaStoreSkuAvailabilityRepository availabilityRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ImageUploadService imageUploadService
     ) {
         this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
@@ -52,6 +55,7 @@ public class AdminCatalogReadService implements UseCase {
         this.skuRepository = skuRepository;
         this.availabilityRepository = availabilityRepository;
         this.objectMapper = objectMapper;
+        this.imageUploadService = imageUploadService;
     }
 
     @Transactional(readOnly = true)
@@ -147,7 +151,7 @@ public class AdminCatalogReadService implements UseCase {
     }
 
     private String imageUrl(String imageId) {
-        return imageId != null ? "/api/v2/images/" + imageId : null;
+        return imageId != null ? imageUploadService.resolvePublicUrl(imageId) : null;
     }
 
     private String normalizeStatus(String rawStatus) {

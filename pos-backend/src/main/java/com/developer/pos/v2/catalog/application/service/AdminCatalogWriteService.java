@@ -261,7 +261,7 @@ public class AdminCatalogWriteService implements UseCase {
     }
 
     private String imageUrl(String imageId) {
-        return imageId != null ? "/api/v2/images/" + imageId : null;
+        return imageId != null ? imageUploadService.resolvePublicUrl(imageId) : null;
     }
 
     private StoreEntity findStore(String storeCode) {

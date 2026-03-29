@@ -28,6 +28,7 @@ import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEn
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
+import com.developer.pos.v2.kitchen.application.service.TicketRoutingService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +47,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
     private final JpaSkuRepository skuRepository;
+    private final TicketRoutingService ticketRoutingService;
 
     public ActiveTableOrderApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -55,7 +57,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
             JpaMemberRepository memberRepository,
             JpaTableSessionRepository tableSessionRepository,
             JpaSubmittedOrderRepository submittedOrderRepository,
-            JpaSkuRepository skuRepository
+            JpaSkuRepository skuRepository,
+            TicketRoutingService ticketRoutingService
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.storeRepository = storeRepository;
@@ -65,6 +68,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
         this.skuRepository = skuRepository;
+        this.ticketRoutingService = ticketRoutingService;
     }
 
     @Transactional(readOnly = true)
@@ -81,6 +85,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeCode));
         StoreTableEntity table = storeTableRepository.findByStoreIdAndTableCode(store.getId(), tableCode)
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableCode));
+
+        rejectNonOrderableTable(table);
 
         ActiveTableOrderDto currentActiveOrder = activeTableOrderRepository.findByStoreIdAndTableId(store.getId(), table.getId())
                 .filter(entity -> entity.getStatus() != ActiveOrderStatus.SETTLED)
@@ -139,6 +145,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                     next.setQuantity(item.quantity());
                     next.setUnitPriceSnapshotCents(sku.getBasePriceCents());
                     next.setItemRemark(item.remark());
+                    next.setOptionSnapshotJson(item.optionSnapshotJson());
                     next.setLineTotalCents(sku.getBasePriceCents() * item.quantity());
                     return next;
                 })
@@ -168,6 +175,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Store not found: " + command.storeCode()));
         StoreTableEntity table = storeTableRepository.findByStoreIdAndTableCode(store.getId(), command.tableCode())
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + command.tableCode()));
+
+        rejectNonOrderableTable(table);
 
         ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableIdForUpdate(store.getId(), table.getId())
                 .filter(existing -> existing.getStatus() != ActiveOrderStatus.SETTLED)
@@ -273,7 +282,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         storeTableRepository.save(table);
         StoreEntity store = storeRepository.findById(saved.getStoreId())
                 .orElseThrow(() -> new IllegalStateException("Store missing for active order: " + saved.getId()));
-        persistSubmittedOrder(
+        SubmittedOrderEntity submittedOrder = persistSubmittedOrder(
                 store,
                 table,
                 saved.getOrderSource(),
@@ -285,9 +294,14 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 saved.getPromotionDiscountCents(),
                 saved.getPayableAmountCents()
         );
+        List<Long> kitchenTicketIds = List.of();
+        if (submittedOrder != null) {
+            kitchenTicketIds = ticketRoutingService.routeOrder(submittedOrder)
+                .stream().map(t -> t.getId()).toList();
+        }
         activeTableOrderRepository.delete(saved);
 
-        return new OrderStageTransitionDto(saved.getActiveOrderId(), saved.getStatus().name());
+        return new OrderStageTransitionDto(saved.getActiveOrderId(), saved.getStatus().name(), kitchenTicketIds);
     }
 
     @Transactional
@@ -344,6 +358,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                     copy.setMemberPriceSnapshotCents(existing.getMemberPriceSnapshotCents());
                     copy.setItemRemark(existing.getItemRemark());
                     copy.setLineTotalCents(existing.getLineTotalCents());
+                    copy.setBuffetIncluded(existing.isBuffetIncluded());
+                    copy.setBuffetSurchargeCents(existing.getBuffetSurchargeCents());
+                    copy.setBuffetInclusionType(existing.getBuffetInclusionType());
+                    copy.setOptionSnapshotJson(existing.getOptionSnapshotJson());
                     return copy;
                 })
                 .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
@@ -351,7 +369,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
         for (SubmitQrOrderingCommand.SubmitQrOrderingItemInput incoming : incomingItems) {
             ActiveTableOrderItemEntity matched = merged.stream()
                     .filter(item -> item.getSkuId().equals(incoming.skuId())
-                            && java.util.Objects.equals(item.getItemRemark(), incoming.remark()))
+                            && java.util.Objects.equals(item.getItemRemark(), incoming.remark())
+                            && java.util.Objects.equals(item.getOptionSnapshotJson(), incoming.optionSnapshotJson()))
                     .findFirst()
                     .orElse(null);
 
@@ -361,7 +380,15 @@ public class ActiveTableOrderApplicationService implements UseCase {
             } else {
                 int nextQuantity = matched.getQuantity() + incoming.quantity();
                 matched.setQuantity(nextQuantity);
-                matched.setLineTotalCents(matched.getUnitPriceSnapshotCents() * nextQuantity);
+                if (matched.isBuffetIncluded()) {
+                    if (matched.getBuffetSurchargeCents() > 0) {
+                        matched.setLineTotalCents(matched.getBuffetSurchargeCents() * nextQuantity);
+                    } else {
+                        matched.setLineTotalCents(0);
+                    }
+                } else {
+                    matched.setLineTotalCents(matched.getUnitPriceSnapshotCents() * nextQuantity);
+                }
             }
         }
 
@@ -379,8 +406,19 @@ public class ActiveTableOrderApplicationService implements UseCase {
         next.setQuantity(item.quantity());
         next.setUnitPriceSnapshotCents(sku.getBasePriceCents());
         next.setItemRemark(item.remark());
+        next.setOptionSnapshotJson(item.optionSnapshotJson());
         next.setLineTotalCents(sku.getBasePriceCents() * item.quantity());
         return next;
+    }
+
+    private static final java.util.Set<String> NON_ORDERABLE_STATUSES = java.util.Set.of(
+            "MERGED", "PENDING_CLEAN", "PENDING_SETTLEMENT", "DISABLED");
+
+    private void rejectNonOrderableTable(StoreTableEntity table) {
+        if (NON_ORDERABLE_STATUSES.contains(table.getTableStatus())) {
+            throw new IllegalStateException(
+                    "Table " + table.getTableCode() + " is not accepting orders, current status: " + table.getTableStatus());
+        }
     }
 
     private long resolveMemberDiscount(Long memberId, long originalAmountCents) {
@@ -406,7 +444,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 });
     }
 
-    private void persistSubmittedOrder(
+    private SubmittedOrderEntity persistSubmittedOrder(
             StoreEntity store,
             StoreTableEntity table,
             OrderSource source,
@@ -419,7 +457,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
             long payableAmountCents
     ) {
         if (items.isEmpty()) {
-            return;
+            return null;
         }
 
         TableSessionEntity session = findOrCreateOpenSession(store, table);
@@ -440,7 +478,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         submittedOrder.setPromotionDiscountCents(promotionDiscountCents);
         submittedOrder.setPayableAmountCents(payableAmountCents);
         submittedOrder.replaceItems(items.stream().map(this::toSubmittedItem).toList());
-        submittedOrderRepository.save(submittedOrder);
+        return submittedOrderRepository.save(submittedOrder);
     }
 
     private SubmittedOrderItemEntity toSubmittedItem(ActiveTableOrderItemEntity item) {
@@ -451,7 +489,19 @@ public class ActiveTableOrderApplicationService implements UseCase {
         next.setQuantity(item.getQuantity());
         next.setUnitPriceSnapshotCents(item.getUnitPriceSnapshotCents());
         next.setItemRemark(item.getItemRemark());
-        next.setLineTotalCents(item.getLineTotalCents());
+        next.setBuffetIncluded(item.isBuffetIncluded());
+        next.setBuffetSurchargeCents(item.getBuffetSurchargeCents());
+        next.setBuffetInclusionType(item.getBuffetInclusionType());
+        next.setOptionSnapshotJson(item.getOptionSnapshotJson());
+        if (item.isBuffetIncluded()) {
+            if (item.getBuffetSurchargeCents() > 0) {
+                next.setLineTotalCents(item.getBuffetSurchargeCents() * item.getQuantity());
+            } else {
+                next.setLineTotalCents(0);
+            }
+        } else {
+            next.setLineTotalCents(item.getLineTotalCents());
+        }
         return next;
     }
 
@@ -468,7 +518,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                         item.getQuantity(),
                         item.getUnitPriceSnapshotCents(),
                         item.getItemRemark(),
-                        item.getLineTotalCents()
+                        item.getLineTotalCents(),
+                        item.isBuffetIncluded(),
+                        item.getBuffetSurchargeCents(),
+                        item.getBuffetInclusionType()
                 ))
                 .toList();
 
@@ -513,7 +566,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                                 item.getQuantity(),
                                 item.getUnitPriceSnapshotCents(),
                                 item.getItemRemark(),
-                                item.getLineTotalCents()
+                                item.getLineTotalCents(),
+                                item.isBuffetIncluded(),
+                                item.getBuffetSurchargeCents(),
+                                item.getBuffetInclusionType()
                         ))
                         .toList()
         );

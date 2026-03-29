@@ -1,113 +1,80 @@
-# POS Documentation Pack
+# FounderPOS Documentation
 
-本目录用于存放餐饮 POS 项目的核心业务与设计文档。
+**Last updated:** 2026-03-28
 
-当前包含：
+---
 
-- `01-overview.md`
-- `02-market-requirements-document.md`
-- `03-design-architecture.md`
-- `04-ui-design-requirements.md`
-- `05-roadmap.md`
-- `06-terminology-and-state-model.md`
-- `07-product-development-methodology.md`
-- `08-technical-stack-and-selection-rationale.md`
-- `09-system-landscape.md`
-- `10-ai-restaurant-system-vision.md`
-- `11-platform-admin-requirements.md`
-- `12-platform-admin-information-architecture.md`
-- `13-platform-admin-ui-design-requirements.md`
-- `14-platform-admin-wireframe-requirements.md`
-- `15-service-oriented-architecture-principle.md`
-- `16-backend-domain-breakdown.md`
-- `17-backend-module-refactor-plan.md`
-- `18-v2-rebuild-plan.md`
-- `19-v2-backend-module-package-structure.md`
-- `20-v2-database-migration-baseline.md`
-- `21-v2-api-contract-baseline.md`
-- `22-ai-ready-product-and-api-design-principle.md`
-- `23-ai-ready-domain-checklist.md`
-- `24-v2-crm-api-contract.md`
-- `25-delivery-integration-architecture.md`
-- `26-v2-acceptance-document.md`
-- `27-feature-completion-checklist.md`
-- `28-v2-day-1-progress-note.md`
-- `29-kitchen-fulfillment-requirements.md`
-- `30-kitchen-status-model.md`
-- `31-kitchen-display-flow.md`
-- `32-table-session-and-multi-order-model.md`
-- `33-user-journeys-and-test-runsheet.md`
-- `34-v2-1-design-improvements-from-lessons-learned.md`
-- `35-system-architecture-improvements-proposal.md`
-- `36-external-team-start-package.md`
-- `37-ai-driven-pos-vs-traditional-pos.md`
-- `38-from-55-to-100-execution-path.md`
-- `39-unified-payment-architecture.md`
-- `40-payment-integration-requirements.md`
-- `41-payment-adapter-design.md`
-- `42-current-milestone-v2-and-payments.md`
-- `43-sku-and-menu-configuration-requirements.md`
-- `44-sku-model-detail-decisions.md`
-- `45-sku-status-and-execution-rules.md`
-- `46-sku-configuration-information-architecture.md`
-- `47-v2-sku-data-model-and-api-contract.md`
-- `48-payment-current-status-and-blockers.md`
-- `49-lovable-tablet-frontend-review-and-adoption-guide.md`
-- `50-parallel-delivery-plan-and-acceptance.md`
-- `51-branch-review-and-merge-plan.md`
-- `52-engineering-handoff-and-takeover-guide.md`
+## 文档权威层级
 
-建议阅读顺序：
+```
+Layer 0: README.md（本文件）              ← 导航索引，不做决策
+Layer 1: final-executable-spec + 80 + 82  ← 实现基线，口径冲突时这层说了算
+Layer 2: 83-system-architecture-v3.md     ← 架构概览，快速理解全貌
+Layer 3: user-journeys + state-machines   ← 设计展开
+Layer 4: 84-implementation-plan           ← 执行计划（16 session）
+```
 
-1. `01-overview.md`
-2. `02-market-requirements-document.md`
-3. `03-design-architecture.md`
-4. `04-ui-design-requirements.md`
-5. `05-roadmap.md`
-6. `06-terminology-and-state-model.md`
-7. `07-product-development-methodology.md`
-8. `08-technical-stack-and-selection-rationale.md`
-9. `09-system-landscape.md`
-10. `10-ai-restaurant-system-vision.md`
-11. `11-platform-admin-requirements.md`
-12. `12-platform-admin-information-architecture.md`
-13. `13-platform-admin-ui-design-requirements.md`
-14. `14-platform-admin-wireframe-requirements.md`
-15. `15-service-oriented-architecture-principle.md`
-16. `16-backend-domain-breakdown.md`
-17. `17-backend-module-refactor-plan.md`
-18. `18-v2-rebuild-plan.md`
-19. `19-v2-backend-module-package-structure.md`
-20. `20-v2-database-migration-baseline.md`
-21. `21-v2-api-contract-baseline.md`
-22. `22-ai-ready-product-and-api-design-principle.md`
-23. `23-ai-ready-domain-checklist.md`
-24. `24-v2-crm-api-contract.md`
-25. `25-delivery-integration-architecture.md`
-26. `26-v2-acceptance-document.md`
-27. `27-feature-completion-checklist.md`
-28. `28-v2-day-1-progress-note.md`
-29. `29-kitchen-fulfillment-requirements.md`
-30. `30-kitchen-status-model.md`
-31. `31-kitchen-display-flow.md`
-32. `32-table-session-and-multi-order-model.md`
-33. `33-user-journeys-and-test-runsheet.md`
-34. `34-v2-1-design-improvements-from-lessons-learned.md`
-35. `35-system-architecture-improvements-proposal.md`
-36. `36-external-team-start-package.md`
-37. `37-ai-driven-pos-vs-traditional-pos.md`
-38. `38-from-55-to-100-execution-path.md`
-39. `39-unified-payment-architecture.md`
-40. `40-payment-integration-requirements.md`
-41. `41-payment-adapter-design.md`
-42. `42-current-milestone-v2-and-payments.md`
-43. `43-sku-and-menu-configuration-requirements.md`
-44. `44-sku-model-detail-decisions.md`
-45. `45-sku-status-and-execution-rules.md`
-46. `46-sku-configuration-information-architecture.md`
-47. `47-v2-sku-data-model-and-api-contract.md`
-48. `48-payment-current-status-and-blockers.md`
-49. `49-lovable-tablet-frontend-review-and-adoption-guide.md`
-50. `50-parallel-delivery-plan-and-acceptance.md`
-51. `51-branch-review-and-merge-plan.md`
-52. `52-engineering-handoff-and-takeover-guide.md`
+**快速入口：**
+- 想了解全貌 → `83-system-architecture-v3.md`
+- 想写代码 → `84-implementation-plan-and-roadmap.md`
+- 有口径冲突 → 以 `specs/final-executable-spec.md` + `80-step-0.3-data-model-gaps.md` 为准
+
+---
+
+## Layer 1: 实现基线
+
+| 文件 | 说明 | 权威范围 |
+|------|------|---------|
+| `specs/final-executable-spec.md` | 设计决策 D1-D10 + Flyway 规划 | 设计冲突以此为准 |
+| `80-step-0.3-data-model-gaps.md` | 9 新表 + 8 ALTER DDL (FINAL) | DDL 冲突以此为准 |
+| `82-step-0.4-ddl-review.md` | DDL review + agent review (FINAL) | 审查修复记录 |
+| `85-api-contract.md` | 47 个 API 端点契约 | API 冲突以此为准 |
+| `86-rbac-seed-data.md` | 52 权限 + 8 预置角色 | RBAC 种子数据 |
+
+## Layer 2: 架构概览
+
+| 文件 | 说明 |
+|------|------|
+| `83-system-architecture-v3.md` | 5 系统 / 125 表 / 12 Journey / 19 Migration 全貌 |
+
+## Layer 3: 设计展开
+
+| 文件 | 说明 |
+|------|------|
+| `specs/user-journeys.md` | 12 条 User Journey (J01-J12) |
+| `specs/state-machines-and-constraints.md` | 12 状态机 + 并发/幂等约束 |
+
+## Layer 4: 执行计划
+
+| 文件 | 说明 |
+|------|------|
+| `84-implementation-plan-and-roadmap.md` | 6 周 / 16 session 执行清单 + Roadmap |
+| `specs/sprint-plan-complete.md` | ~~旧版 Sprint 计划~~ SUPERSEDED，仅参考类名/API |
+
+## 需求
+
+| 文件 | 说明 |
+|------|------|
+| `65-aurora-restaurant-pos-detailed-prd.md` | 客户原始需求（小航） |
+| `74-mrd-v3.md` | V3 MRD |
+| `77-updated-prd-v3.md` | V3 PRD |
+
+## 数据模型
+
+| 文件 | 说明 |
+|------|------|
+| `75-complete-database-schema.md` | 120 表完整 DDL（原始 schema） |
+| `76-database-schema-readme.md` | Schema 导读 |
+| `81-table-reconciliation.md` | 125 表逐表对账 |
+
+## 其他
+
+| 文件 | 说明 |
+|------|------|
+| `79-session-2-handoff.md` | Session 交接（进度追踪） |
+| `55-payment-service-handoff-for-external-team.md` | 支付外包交接 |
+
+## Archive
+
+`docs/archive/` — 75+ 历史文件（V1/V2 时代），不再有效。
+`docs/superpowers/archive/` — 设计迭代过程文件。
