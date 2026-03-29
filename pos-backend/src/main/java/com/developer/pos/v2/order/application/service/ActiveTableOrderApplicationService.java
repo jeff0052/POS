@@ -28,6 +28,7 @@ import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEn
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
+import com.developer.pos.v2.kitchen.application.service.TicketRoutingService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +47,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
     private final JpaSkuRepository skuRepository;
+    private final TicketRoutingService ticketRoutingService;
 
     public ActiveTableOrderApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -55,7 +57,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
             JpaMemberRepository memberRepository,
             JpaTableSessionRepository tableSessionRepository,
             JpaSubmittedOrderRepository submittedOrderRepository,
-            JpaSkuRepository skuRepository
+            JpaSkuRepository skuRepository,
+            TicketRoutingService ticketRoutingService
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.storeRepository = storeRepository;
@@ -65,6 +68,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
         this.skuRepository = skuRepository;
+        this.ticketRoutingService = ticketRoutingService;
     }
 
     @Transactional(readOnly = true)
@@ -277,7 +281,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         storeTableRepository.save(table);
         StoreEntity store = storeRepository.findById(saved.getStoreId())
                 .orElseThrow(() -> new IllegalStateException("Store missing for active order: " + saved.getId()));
-        persistSubmittedOrder(
+        SubmittedOrderEntity submittedOrder = persistSubmittedOrder(
                 store,
                 table,
                 saved.getOrderSource(),
@@ -289,9 +293,14 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 saved.getPromotionDiscountCents(),
                 saved.getPayableAmountCents()
         );
+        List<Long> kitchenTicketIds = List.of();
+        if (submittedOrder != null) {
+            kitchenTicketIds = ticketRoutingService.routeOrder(submittedOrder)
+                .stream().map(t -> t.getId()).toList();
+        }
         activeTableOrderRepository.delete(saved);
 
-        return new OrderStageTransitionDto(saved.getActiveOrderId(), saved.getStatus().name());
+        return new OrderStageTransitionDto(saved.getActiveOrderId(), saved.getStatus().name(), kitchenTicketIds);
     }
 
     @Transactional
@@ -431,7 +440,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 });
     }
 
-    private void persistSubmittedOrder(
+    private SubmittedOrderEntity persistSubmittedOrder(
             StoreEntity store,
             StoreTableEntity table,
             OrderSource source,
@@ -444,7 +453,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
             long payableAmountCents
     ) {
         if (items.isEmpty()) {
-            return;
+            return null;
         }
 
         TableSessionEntity session = findOrCreateOpenSession(store, table);
@@ -465,7 +474,7 @@ public class ActiveTableOrderApplicationService implements UseCase {
         submittedOrder.setPromotionDiscountCents(promotionDiscountCents);
         submittedOrder.setPayableAmountCents(payableAmountCents);
         submittedOrder.replaceItems(items.stream().map(this::toSubmittedItem).toList());
-        submittedOrderRepository.save(submittedOrder);
+        return submittedOrderRepository.save(submittedOrder);
     }
 
     private SubmittedOrderItemEntity toSubmittedItem(ActiveTableOrderItemEntity item) {
