@@ -59,6 +59,27 @@ public class PaymentAttemptEntity {
     @Column(name = "attempt_status", nullable = false)
     private String attemptStatus;
 
+    @Column(name = "settlement_record_id")
+    private Long settlementRecordId;
+
+    @Column(name = "retry_count", nullable = false)
+    private int retryCount;
+
+    @Column(name = "max_retries", nullable = false)
+    private int maxRetries = 3;
+
+    @Column(name = "failure_reason")
+    private String failureReason;
+
+    @Column(name = "failure_code")
+    private String failureCode;
+
+    @Column(name = "replaced_by_attempt_id")
+    private Long replacedByAttemptId;
+
+    @Column(name = "parent_attempt_id")
+    private Long parentAttemptId;
+
     @Column(name = "webhook_event_type")
     private String webhookEventType;
 
@@ -188,6 +209,62 @@ public class PaymentAttemptEntity {
 
     public void setAttemptStatus(String attemptStatus) {
         this.attemptStatus = attemptStatus;
+    }
+
+    public Long getSettlementRecordId() {
+        return settlementRecordId;
+    }
+
+    public void setSettlementRecordId(Long settlementRecordId) {
+        this.settlementRecordId = settlementRecordId;
+    }
+
+    public int getRetryCount() {
+        return retryCount;
+    }
+
+    public void setRetryCount(int retryCount) {
+        this.retryCount = retryCount;
+    }
+
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
+    public void setMaxRetries(int maxRetries) {
+        this.maxRetries = maxRetries;
+    }
+
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    public void setFailureReason(String failureReason) {
+        this.failureReason = failureReason;
+    }
+
+    public String getFailureCode() {
+        return failureCode;
+    }
+
+    public void setFailureCode(String failureCode) {
+        this.failureCode = failureCode;
+    }
+
+    public Long getReplacedByAttemptId() {
+        return replacedByAttemptId;
+    }
+
+    public void setReplacedByAttemptId(Long replacedByAttemptId) {
+        this.replacedByAttemptId = replacedByAttemptId;
+    }
+
+    public Long getParentAttemptId() {
+        return parentAttemptId;
+    }
+
+    public void setParentAttemptId(Long parentAttemptId) {
+        this.parentAttemptId = parentAttemptId;
     }
 
     public String getWebhookEventType() {
