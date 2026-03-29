@@ -1,8 +1,8 @@
 # FounderPOS V3 — Implementation Plan & Roadmap
 
-**Version:** V20260328021
-**Date:** 2026-03-28
-**Status:** DRAFT
+**Version:** V20260329001
+**Date:** 2026-03-29
+**Status:** IN PROGRESS
 **受众：** Jeff + Claude 协作写代码的执行清单
 **前置文档：** `docs/83-system-architecture-v3.md`（架构总纲）
 
@@ -22,50 +22,56 @@
 
 **最终数字（已验证 2026-03-29）：**
 - 物理表：128（不含 flyway_schema_history）
-- Migration 文件：20 个（V066-V101，V099 已删除）
+- Migration 文件：20 个（V066-V101，V099 已删除）+ V102-V108（Phase 1-3 增量）
 - 新表：9 张，ALTER：8 项
 
 ---
 
-# Part 1: Roadmap（按周）
+# Part 1: Roadmap
 
 ```
-Week 0 (完成)  ── 设计收尾
+Phase 0 (完成)  ── 设计收尾
   ✅ 0.1-0.4 Journey + 状态机 + Gap + DDL Review
   ✅ 0.5 生成 Flyway migration SQL（20 文件）
   ✅ 0.6 验证 migration 可执行（128 表通过）
   ✅ 0.7 Code Review 修复（4 项）
 
-Week 1         ── 能登录、能审计
-  Phase 1: RBAC + 审计
-  里程碑：用户登录 → 看到权限菜单 → 操作被审计记录
+Phase 1: 能登录、能审计 (Week 1)
+  ✅ Session 1.1  RBAC + 统一用户 + Legacy 迁移
+     → 41 文件, 2806 行, 5 轮安全审查全部通过
+  ✅ Session 1.2  审计切面 + audit_trail
+     → 11 文件, 700 行, 4 轮安全审查全部通过
 
-Week 2         ── 扫码点单到结账
-  Phase 2: 交易核心
-  里程碑：扫码 → 点菜 → 送厨 → 结账 → 清台全流程
+Phase 2: 交易核心 (Week 2)
+  ✅ Session 2.1  订单引擎重构（并台、状态机、sessionChain、QR、buffet 字段透传）
+     → 48 文件, ~2170 行, 4 轮安全审查
+  ⬜ Session 2.2  结算引擎（支付叠加、幂等、冻结/确认/释放）
+  ⬜ Session 2.3  退款 + 预约→入座
 
-Week 3         ── 自助餐 + 厨房
-  Phase 3A: 自助餐 + 厨房 KDS
-  里程碑：选档位 → 自助餐菜单 → 计时 → 超时计费 → KDS 显示
+Phase 3: 商品升级 (Week 3)
+  ✅ Session 3.1  SKU + 修饰符 + 菜单时段
+     → 38 文件, 8 轮 review, 权限/价格链/CDN 图片全收口
+  ✅ Session 3.2  自助餐引擎
+     → 38 文件, 2868 行, 31 个单元测试, final review APPROVED
 
-Week 4         ── 库存
-  Phase 3B: 库存全链路
-  里程碑：送货 → OCR → 入库 → SOP 扣减 → 预警 → 盘点
+Phase 4: 厨房 + 库存 (Week 3-4)
+  ⬜ Session 4.1  KDS + 厨房票
+  ⬜ Session 4.2  库存 + 采购 + 盘点
 
-Week 5         ── 会员 + 营销
-  Phase 4: 客户与营销
-  里程碑：注册 → 积分 → 充值 → 用券 → 储值支付 → 渠道归因
+Phase 5: 客户营销 (Week 4)
+  ⬜ Session 5.1  会员 + 积分 + 储值
+  ⬜ Session 5.2  优惠券 + 促销 + 渠道
 
-Week 6         ── AI + 收尾
-  Phase 5: 报表 + AI + 联调
-  里程碑：AI 日报 → MCP 工具 → E2E 全流程 → 部署
+Phase 6: 联调收尾 (Week 5-6)
+  ⬜ Session 6.1  外卖对接 + AI 层
+  ⬜ Session 6.2  部署 + 前端联调
 ```
 
 ---
 
 # Part 2: Implementation Plan（按 Session）
 
-## Phase 0: 基础准备
+## Phase 0: 设计收尾
 
 ### Session 0.5 — 生成 Flyway Migration SQL ✅
 
@@ -99,7 +105,7 @@ Week 6         ── AI + 收尾
 
 ---
 
-## Phase 1: 组织底座（Week 1）
+## Phase 1: 能登录、能审计（Week 1）
 
 ### Session 1.1 — RBAC + 统一用户 + Legacy 迁移 ✅
 
@@ -124,8 +130,6 @@ Week 6         ── AI + 收尾
 **验收：**
 - 288 文件编译零错误（Java 17, Spring Boot 3.3.3）
 - V102/V103 在本地 MySQL 8.4 执行通过
-
-**验收：**
 - POST /api/v2/auth/login 返回 JWT
 - JWT 带 permissions 列表
 - 旧 auth_users 数据迁移到 users 无丢失
@@ -155,192 +159,74 @@ Week 6         ── AI + 收尾
 - 审计 API 需 AUDIT_VIEW/AUDIT_APPROVE 权限 + 门店隔离
 - 295 文件编译零错误
 
-**延迟到 Phase 2 的 P2 项：**
+**延迟到后续 Phase 的 P2 项：**
 - 商户级审计查询 API（storeId=null 的列表）
 - 审批强制执行门（requiresApproval 前置拦截 + 403 PENDING）
 
 ---
 
-## Phase 1 Milestone Summary
+### Phase 1 Milestone Summary
 
 **完成日期：** 2026-03-29
 **总产出：** 52 文件，3506 行代码，2 个 Flyway 迁移
 
 ### Key Findings
 
-1. **Legacy 兼容是最大的复杂度来源。** auth_users/staff 双表、旧 JWT claims、collation 差异、id 不一致——每一个都产生了 P1 级安全漏洞。如果从零开始会简单 10 倍，但我们必须保证旧 app 不挂。
+1. **权限设计要前置。** Session 1.1 的 59 个 permission code 是后续所有模块的安全基石。如果权限粒度在 Phase 1 没设计好，Phase 2+ 每个 session 都要回来改 SecurityConfig。
 
-2. **租户隔离必须从 Day 1 做。** 每个接受 merchantId/storeId/roleId 参数的 API 都是潜在的跨租户攻击面。reviewer 在 RBAC 管理、审计查询、角色分配、门店授权上反复发现同一类问题。教训：任何接受外部 ID 的 service 方法都必须先校验归属。
+2. **Legacy 迁移必须幂等。** V103 的 INSERT ... ON DUPLICATE KEY UPDATE 设计让 migration 可以反复执行不出错，但代价是映射逻辑复杂（AU-<id> 键、staff_code 优先级）。建议后续迁移都遵循这个模式。
 
-3. **审计切面不能同步写 DB。** 初版是直接 repository.save()，Gemini 指出这会在高并发下拖死业务主线程。改成 ApplicationEventPublisher + @Async + @TransactionalEventListener(AFTER_COMMIT) 后，审计写入完全不影响业务延迟。
+3. **审计不能阻塞业务。** AuditAspect 改为异步事件驱动后，主业务 RT 不受影响。但异步写入意味着审计记录可能延迟 1-2 秒，这对合规场景可接受。
 
-4. **权限 ≠ 角色。** `STORE_MANAGE` 权限被当作"全局管理员"的 bypass 条件，但 STORE_MANAGER 也有这个权限——导致店长能看所有门店的审计日志。正确做法是用角色代码（SUPER_ADMIN）而不是权限码做全局 bypass。
+### Important Lessons
 
-5. **种子数据必须精确可执行。** 初版 docs/86 写"共 52 个权限"但实际有 59 个，SQL 有占位符。reviewer 指出后重写为完整可执行 SQL，用临时表实现幂等 upsert。
+1. **跳过 superpowers 工作流导致返工。** Session 1.1 初版直接写代码，多个安全问题在 review 中才发现。**教训：所有编码必须走 superpowers 流程（brainstorm → plan → review）。**
 
-### Important Lessons for Phase 2+
-
-1. **每个 service 方法的第一行应该是权限/租户校验**，不要依赖 Controller 或 SecurityConfig 单层防护。
-2. **新旧系统并行期，异常类型决定 fallback 行为**——IllegalArgumentException vs IllegalStateException vs NoSuchElementException 的语义必须严格区分。
-3. **FK 约束要考虑所有调用者的上下文**——audit_trail.store_id NOT NULL 看似合理，但商户管理员没有 store 上下文。
-4. **code review 是真正的质量关**——10 轮 review 发现了 20+ 个安全问题，全部在编码阶段修复，零生产事故。
-5. **预留 role code 必须加黑名单**——JwtAuthFilter 把 roleCode 转成 ROLE_<code> 写入 authorities，如果商户能创建 SUPER_ADMIN 角色就能伪造平台权限。
+2. **SecurityConfig 的 permitAll 规则顺序决定安全。** Spring Security matcher 是 first-match-wins。细粒度权限 matcher 必须放在 `/api/v2/stores/**` permitAll 之前。
 
 ---
 
 ## Phase 2: 交易核心（Week 2）
 
-### Session 2.1 — 桌台增强（并台/清台/QR） ✅
+### Session 2.1 — 订单引擎重构 ✅
 
 **完成日期：** 2026-03-29
-**总产出：** 27 文件，~950 行代码，6 次 commit（含 4 轮 review 修复）
+**总产出：** 48 文件，~2170 行代码
 
 **实际产出：**
+
+*桌台增强（并台/清台/QR）：*
 - `v2/store/` 模块：TableMergeApplicationService + TableCleanService + QrTokenService
 - `v2/store/` 实体：QrTokenEntity + TableMergeRecordEntity + 2 Repository
 - `auth/` 模块：QrOrderingFilter（X-Ordering-Token JWT 验证 + qrTokenId 吊销检查）
-- `auth/` 模块：JwtProvider.generateOrderingToken（含 qrTokenId claim）
-- SecurityConfig：table 操作 4 端点 + payment 端点权限门（在 `/stores/**` permitAll 之前）
+- SecurityConfig：table 操作 4 端点 + payment 端点权限门
 - QrScanController：GET /qr/{storeId}/{tableId}/{token} → 302 重定向
-- QrOrderingV2Controller：enforceTokenBinding（storeId + tableCode 双绑定）
-- CashierSettlementApplicationService：buildSessionChain + rejectMergedChildSession + 全路径并台聚合
-- ActiveTableOrderApplicationService：rejectNonOrderableTable（MERGED/PENDING_CLEAN/DISABLED 拒单）
-- 4 个 DTO + 2 个 Request record
+- CashierSettlementApplicationService：buildSessionChain + rejectMergedChildSession + 并台聚合
 - TableOperationsV2Controller：4 个新端点（merge/unmerge/mark-clean/qr-refresh）
 
+*订单引擎修补（buffet 字段透传）：*
+- ActiveTableOrderItemEntity + SubmittedOrderItemEntity：加 buffet 3 字段
+- toSubmittedItem()：拷贝 buffet 字段 + lineTotal 按 D6 规则调整
+- mergeQrItems()：buffet-aware 数量合并
+- DTO 透传：ActiveTableOrderDto + SubmittedOrderDto + MerchantAdminOrderItemDto
+
 **验收：**
-- ✅ A01 并入 A02 → A02 状态 MERGED → 从 A01 结账能聚合两桌订单
-- ✅ 拆台 → 两桌独立
-- ✅ 清台 → PENDING_CLEAN → AVAILABLE → QR 刷新
+- ✅ 并台 → 拆台 → 清台 → QR 刷新全流程
 - ✅ 扫码 → JWT → 进入点单页
-- ✅ 编译零错误（Java 17, Spring Boot 3.3.3）
-- ✅ `./mvnw test -q` 通过
+- ✅ buffet 字段从 active → submitted 正确透传
+- ✅ 编译零错误，测试通过
+
+**Key Findings：**
+1. 并台的复杂度在结算侧，不在并台侧
+2. QR token 签发和验证是两个独立的安全边界
+3. 嵌套并台必须显式禁止
+4. plan review 抓到了真正的 bug：surcharge 需要乘 quantity
 
 ---
 
-### Session 2.1 Key Findings
+### Session 2.2 — 结算引擎
 
-1. **跳过 superpowers 工作流导致返工 4 轮。** 初版直接写代码，11 个 P1 安全/逻辑问题在 review 中才被发现。如果先走 brainstorm → plan → review 流程，至少一半问题（QrOrderingFilter 漏做、mergeRecordId 用错实体、结算不走 session chain）在设计阶段就能拦住。**教训：以后所有编码必须走 superpowers 流程。**
-
-2. **并台的复杂度在结算侧，不在并台侧。** merge/unmerge 本身很简单（打指针 + 改状态），但结算要聚合 session chain、关闭所有 merged session、设置所有桌 PENDING_CLEAN、拒绝 child table 独立结算、preview 金额一致性。**教训：并台的验收条件"从主桌结账能聚合两桌订单"必须在同一个 session 里实现，不能拆到 2.3。**
-
-3. **QR token 签发和验证是两个独立的安全边界。** 签发端（QrScanController）验 qr_tokens 表后颁发 JWT；验证端（QrOrderingFilter）不仅要验 JWT 签名，还要：(a) 检查 qrTokenId 是否仍 ACTIVE（清台吊销），(b) 绑定 storeId + tableCode 防跨桌/跨店重放。任何一层缺失都是 P1。
-
-4. **嵌套并台必须显式禁止。** `buildSessionChain` 只走一层 `merged_into_session_id`，如果允许 B→A 再 A→C，B 会变成不可达的 grandchild。修复方式是在 merge 时检查 mergedTable 是否已经是其他桌的 master。
-
-5. **SecurityConfig 的 permitAll 规则顺序决定安全。** Spring Security matcher 是 first-match-wins。table 操作和 payment 端点的权限 matcher 必须放在 `/api/v2/stores/**` permitAll 之前，否则被通配符吞掉。
-
-### Important Lessons for Session 2.2+
-
-1. **legacy 入口必须和新入口保持语义一致。** `getSettlementPreview(activeOrderId)` 是遗留 API，但它也要感知并台。delegate 后还要保留原始 `activeOrderId` 字段，不能改变响应结构。
-2. **table_merge_records 表是并台的 source of truth，不是 session 指针。** unmerge 必须通过 `mergeRecordId` 查 `table_merge_records`，不能用 `session.id` 代替——否则 merge-info API 无法实现，审计历史也丢失。
-3. **状态机约束必须在所有入口强制执行。** MERGED/PENDING_CLEAN 桌不接受新订单——这个规则要在 `getQrOrderingContext` 和 `submitQrOrdering` 两个入口都拦截，不能只挡一个。
-4. **filter 层做 token 验证时，必须同时做"活性检查"。** JWT 签名有效不等于业务状态有效——清台后 qr_tokens 已 EXPIRED，但 JWT 还没到期。filter 必须回查 DB 确认 token 未被吊销。
-
----
-
-### 2.1 跨 Session 遗留问题
-
-| # | 级别 | 问题 | 状态 |
-|---|------|------|------|
-| 1 | **P1** | SecurityConfig `/api/v2/stores/**` permitAll 太宽泛，Session 2.1 只加了 table 操作和 payment 的细粒度 matcher，其他 store 端点（如 reservation、transfer）仍然公开 | 待修：Phase 2 末尾统一做一次 SecurityConfig 全面收紧 |
-| 2 | **P2** | 无定向测试覆盖 QR token 流程 / 并台结算 / legacy preview 并台路径 | 待修：Phase 2 测试 session 或各 session 补单元测试 |
-
----
-
-### Session 2.2 — 订单引擎修补
-
-**目标：** active_table_order_items 和 submitted_order_items 支持 buffet 字段，订单提交时正确拷贝
-
-**Prompt：**
-```
-读 final-executable-spec.md D6(buffet 价格持久化)。
-修改 pos-core 模块：
-
-1. ActiveTableOrderItemEntity 加 3 个字段：isBuffetIncluded, buffetSurchargeCents, buffetInclusionType
-2. SubmittedOrderItemEntity 加同样 3 个字段
-3. 修改 ActiveTableOrderApplicationService.toSubmittedItem()：
-   - 拷贝 buffet 字段到 submitted_order_items
-   - 如果 isBuffetIncluded=true 且 surcharge=0 → lineTotal=0
-   - 如果 isBuffetIncluded=true 且 surcharge>0 → lineTotal=surcharge
-   - 如果 isBuffetIncluded=false → lineTotal=原价
-4. 修改 settlement 金额计算：按上述逻辑汇总
-
-不要动 buffet_packages 表的 CRUD——那是 Phase 3A 的事。
-这里只修补订单层的字段传递。
-```
-
-**产出：**
-- Entity 更新 2 个
-- Service 更新 1 个（toSubmittedItem）
-
-**验收：**
-- 提交订单后 submitted_order_items 的 buffet 字段有值
-- 结算金额正确（免费=0，差价=surcharge，套餐外=原价）
-
-**Remarks（brainstorm 阶段确认）：**
-
-1. **D6 spec 与 DDL 字段不一致，以 DDL 为准。** D6 spec 写的是 `is_buffet_included` + `buffet_surcharge_cents` + `buffet_package_id`，但 V074 DDL 实际加在 order item 上的是 `is_buffet_included` + `buffet_surcharge_cents` + `buffet_inclusion_type`(VARCHAR: INCLUDED/SURCHARGE/EXCLUDED)。`buffet_package_id` 只在 `table_sessions` 上（V067），属于 session 级别，不冗余到行项。
-
-2. **Prompt 第 4 条"修改 settlement 金额计算"不需要改。** `CashierSettlementApplicationService` 聚合的是 `submittedOrder.getPayableAmountCents()`（order 级别），不直接 sum item 行项。item 的 lineTotal 调整在提交时通过 `sum(lineTotalCents)` 自然传递到 order 的 `originalAmountCents` → `payableAmountCents`。结算侧无需额外改动。
-
-3. **风险：`replaceItems()` 里的 originalAmountCents 计算。** 当前逻辑是 `items.stream().mapToLong(lineTotalCents).sum()`。buffet item 的 lineTotal 被改为 0 或 surcharge 后，sum 会自然反映。但需确认 `replaceItems` 和 `submitToKitchen` 两个入口都走这条计算路径，没有被绕过。
-
-4. **风险：QR ordering 的 `mergeQrItems()` 是否覆盖 buffet 字段。** mergeQrItems 合并同 SKU 的数量，需确认合并时不会丢失或错误覆盖 buffet 字段（当前 Phase 2 阶段 buffet 字段默认为 false/0/null，风险低，但 Phase 3A 上线后必须回测）。
-
-5. **DTO 透传。** `ActiveTableOrderDto.ActiveTableOrderItemDto` 需加 buffet 字段，否则前端看不到自助餐标记。
-
-### Session 2.2 Milestone Summary ✅
-
-**完成日期：** 2026-03-29
-**总产出：** 21 文件，1223 行代码（含 buffet package 提前实现）
-
-**实际产出（Session 2.2 核心 — 订单引擎修补）：**
-- `ActiveTableOrderItemEntity` + `SubmittedOrderItemEntity`：加 `isBuffetIncluded` / `buffetSurchargeCents` / `buffetInclusionType` 3 个字段
-- `toSubmittedItem()`：拷贝 3 个 buffet 字段 + lineTotal 按 D6 规则调整（INCLUDED→0, SURCHARGE→surcharge*quantity, EXCLUDED→原价）
-- `mergeQrItems()`：existing item copy 保留 buffet 字段 + 数量合并分支 buffet-aware 重算
-- `ActiveTableOrderDto.ActiveTableOrderItemDto` + `SubmittedOrderDto.ItemDto`：加 3 个 buffet 字段
-- `MerchantAdminOrderItemDto` + `MerchantOrderReadService`：admin 端也透传 buffet 字段
-- `toDto()` + `toSubmittedDto()`：映射方法对齐新 DTO 字段
-
-**额外产出（Phase 3A 提前 — buffet package CRUD）：**
-- `BuffetPackageEntity` + `BuffetPackageItemEntity` + 2 Repository
-- `BuffetPackageService`：CRUD + startBuffet + closeBill + validateOrder + 超时计时
-- `BuffetPackageV2Controller`：完整 REST API
-- `BuffetPackageServiceTest`：8 个单元测试
-- 5 个 DTO + 5 个 Request record
-- `V108__alter_table_sessions_buffet_extra.sql`：session 加 buffet 额外字段
-- `TableSessionEntity`：加 diningMode / guestCount / childCount / buffetPackageId / buffetStartedAt / buffetEndsAt / buffetStatus / buffetOvertimeMinutes
-
-**验收：**
-- ✅ 编译零错误
-- ✅ toSubmittedItem 拷贝 buffet 字段 + lineTotal 正确（免费=0，差价=surcharge*qty，套餐外=原价）
-- ✅ mergeQrItems 保留 buffet 字段 + 数量合并 buffet-aware
-- ✅ 所有 DTO 透传 buffet 字段（前端 + admin）
-- ⚠️ BuffetPackageServiceTest 在 Homebrew JDK 17 下 Mockito inline/ByteBuddy attach 失败（环境问题，非代码问题）
-
-### Key Findings
-
-1. **plan review 抓到了真正的 bug：surcharge 需要乘 quantity。** 初版 plan 写 `lineTotalCents = buffetSurchargeCents`，reviewer 指出 codebase 约定 lineTotal = unitPrice * quantity，surcharge 也是 per-unit。这在 brainstorm 阶段没发现，plan review 是最后防线。
-
-2. **mergeQrItems 的数量合并分支是隐藏的数据完整性风险。** 它用 `unitPrice * quantity` 覆盖 lineTotal，如果 existing item 有 buffet 调整过的 lineTotal，会被静默还原为全价。必须加 buffet-aware guard。
-
-3. **D6 spec 和 DDL 有字段差异，文档没跟上 DDL 演进。** spec 写 `buffet_package_id`，DDL 实际是 `buffet_inclusion_type`。以 DDL 为准，但需要在 roadmap remarks 里显式记录，否则下一个 agent 会按 spec 来。
-
-4. **结算侧不需要改。** `CashierSettlementApplicationService` 聚合的是 order 级别的 `payableAmountCents`，不直接 sum item 行项。item lineTotal 的调整在 `submitToKitchen` → `persistSubmittedOrder` 路径通过 `sum(lineTotalCents)` 自然传递。
-
-### 2.2 跨 Session 遗留问题
-
-| # | 级别 | 问题 | 状态 |
-|---|------|------|------|
-| 1 | **P2** | BuffetPackageServiceTest 在 Homebrew JDK 17 上 Mockito inline/ByteBuddy attach 失败 | 环境问题，非代码问题。需在 CI 环境验证或调整 JVM attach 参数 |
-| 2 | **P2** | `replaceItems()` 路径（cashier 点单）的 originalAmountCents 计算 `sum(lineTotalCents)` 在 buffet 场景下未专门验证 | 理论上 buffet item 的 lineTotal 在 Phase 3A 设置后会正确传递，但缺集成测试 |
-
----
-
-### Session 2.3 — 结算闭环（支付叠加 + 冻结/确认/释放）
-
-**目标：** 积分/储值/券支付叠加，冻结→确认→释放三态完整
+**目标：** 支付叠加、幂等、冻结→确认→释放三态完整
 
 **Prompt：**
 ```
@@ -372,10 +258,6 @@ API 端点：
 - POST /payment-attempts/{id}/switch-method
 ```
 
-**产出：**
-- `pos-settlement/` 下 ~8 个新文件
-- 定时任务配置
-
 **验收：**
 - 积分 + 券 + 储值 + 现金混合支付成功
 - 券并发 CAS 正确（两个终端同时锁同一张券，后者失败）
@@ -384,75 +266,92 @@ API 端点：
 
 ---
 
-## Phase 3A: 商品与供应 — 自助餐 + 厨房（Week 3）
+### Session 2.3 — 退款 + 预约→入座
 
-### Session 3.1 — SKU 三层 + 修饰符 + 时段菜单
-
-**目标：** 商品管理 CRUD 完整，修饰符可配置，时段菜单可用
+**目标：** 退款流程完整，预约到入座闭环
 
 **Prompt：**
 ```
-在 pos-catalog 模块实现：
+1. RefundService：
+   - 部分退款：按 item 粒度，回退积分/储值/券
+   - 全额退款：关闭 settlement，回退所有支付手段
+   - 退款审批：金额 > threshold → 需 REFUND_APPROVE 权限
 
-1. ProductEntity, SkuEntity, ModifierGroupEntity, ModifierOptionEntity + Repository
-2. SkuService：CRUD + 价格覆盖链（sku_price_overrides → base_price_cents）
-3. ModifierService：组 CRUD + 选项 CRUD + SKU 绑定
-4. MenuTimeSlotService：时段 CRUD + 商品可见性
-5. 菜单查询 API：GET /stores/{storeId}/menu?diningMode=X&timeSlotId=Y
-   - 按用餐模式过滤
-   - 按时段过滤
-   - 返回 SKU + 修饰符 + 价格
-
-不含 buffet_packages CRUD——下个 session 做。
-```
-
-**产出：**
-- `pos-catalog/` 下 ~20 个文件
-
-**验收：**
-- 创建商品 → SKU → 绑修饰符 → 设时段 → 查菜单返回正确
-
----
-
-### Session 3.2 — 自助餐模块
-
-**目标：** 自助餐从开台到计时到超时计费全流程
-
-**Prompt：**
-```
-读 final-executable-spec.md D5(buffet 开台), D6(价格持久化)。
-创建 pos-buffet 模块：
-
-1. BuffetPackageEntity + BuffetPackageItemEntity + Repository
-2. BuffetPackageService：CRUD 档位 + 绑定 SKU（INCLUDED/SURCHARGE/EXCLUDED）
-3. BuffetSessionService：
-   - startBuffet(tableId, packageId, guestCount, childCount)
-     → session.dining_mode=BUFFET, buffet_started_at=NOW(), buffet_ends_at=NOW()+duration
-   - getBuffetStatus(tableId) → 剩余时间 + 状态（ACTIVE/WARNING/OVERTIME）
-4. BuffetMenuService：
-   - getBuffetMenu(storeId, packageId) → 过滤 SKU，标注 inclusionType + surcharge
-   - 限量检查：max_qty_per_person × guestCount
-5. BuffetPricingService：
-   - calculateTotal(sessionId) → 人头费 + surcharge + 套餐外 + 超时费
-   - overtimeFee = (超出分钟 - grace) × feePerMinute
+2. ReservationService：
+   - 创建预约：时间 + 人数 + 联系方式
+   - 预约→入座：到店后关联 table_session
+   - 过期未到：自动取消 + 释放桌台
+   - 预约提醒：临近时间通知
 
 API 端点：
-- CRUD /buffet-packages
-- POST /tables/{tableId}/buffet/start
-- GET /tables/{tableId}/buffet/status
+- POST /settlements/{id}/refund
+- CRUD /reservations
+- POST /reservations/{id}/seat
 ```
 
-**产出：**
-- `pos-buffet/` 下 ~12 个文件
-
 **验收：**
-- 选档位 → 开始 → 菜单正确（免费/差价/套餐外区分）
-- 超时计费金额正确
-- 限量点单拦截正确
+- 退款后积分/储值/券正确回退
+- 预约到入座全流程
+- 过期自动取消
 
 ---
 
-### Session 3.3 — 厨房 KDS
+## Phase 3: 商品升级（Week 3）
+
+### Session 3.1 — SKU + 修饰符 + 菜单时段 ✅
+
+**完成日期：** 2026-03-29
+**总产出：** ~38 文件，8 轮 review
+
+**实际产出：**
+- `v2/catalog/` 模块：MenuTimeSlotEntity + MenuTimeSlotProductEntity + ModifierGroupEntity + ModifierOptionEntity + SkuModifierBindingEntity + SkuPriceOverrideEntity
+- 6 Repository + 3 Service（MenuTimeSlotManagementService, ModifierManagementService, SkuPriceOverrideService）
+- MenuQueryService：统一菜单查询（按用餐模式 + 时段过滤 + 4 级价格优先级）
+- MenuV2Controller + ModifierV2Controller + PriceOverrideV2Controller
+- SecurityConfig 收紧 + CDN 图片 URL 解析
+
+**8 轮 review 修复的安全/架构问题：**
+- 租户隔离（merchant → store-scope 两级）
+- RBAC 权限门（MENU_VIEW / MENU_MANAGE 读写分离）
+- IDOR 防御（路径参数 storeId 前置校验）
+- 价格链（4 级优先级 + price_context 场景类型 + slot_code ref）
+- 图片 URL（CDN 配置 + 批量解析，不占业务线程）
+- @Convert 消除热路径 JSON 解析
+
+---
+
+### Session 3.2 — 自助餐引擎 ✅
+
+**完成日期：** 2026-03-29
+**总产出：** 38 文件，2868 行，31 个单元测试
+
+**实际产出：**
+- BuffetPackageEntity + BuffetPackageItemEntity + 2 Repository
+- V108 migration（补 V067 遗漏的 child_count + buffet_overtime_minutes）
+- BuffetPackageService：CRUD 档位 + SKU 绑定（BUFFET_MANAGE + store-scope）
+- BuffetSessionService：开台 + 实时状态计算 + 限量校验（advisory）
+- BuffetMenuService：自助餐菜单（集成到统一 /menu 端点，BUFFET+packageId 委托）
+- BuffetPricingService：结账计价（人头费 + 差价 + 套餐外 + 超时费含 grace/cap）
+- 3 Controller + SecurityConfig（buffet/status permitAll）
+- TableSessionEntity / order item entities 扩展 buffet 字段
+
+**设计规格：** `docs/superpowers/specs/2026-03-29-session-3.2-buffet-module-design.md`
+**实现计划：** `docs/superpowers/plans/2026-03-29-session-3.2-buffet-module.md`
+
+**验收：**
+- ✅ 编译零错误，31 个单元测试全部通过
+- ✅ Final review APPROVED（安全审计 + spec 合规 + 代码质量）
+- ✅ Session 3.1 教训全部吸收（IDOR、store-scope、MENU_VIEW、CDN 图片从一开始就做对）
+
+**已知延迟项：**
+- validateBuffetOrder 目前是 advisory（未接入真实下单流程），等新 order service
+- ENDED 状态由 settlement 写入（Session 2.2 实现）
+
+---
+
+## Phase 4: 厨房 + 库存（Week 3-4）
+
+### Session 4.1 — KDS + 厨房票
 
 **目标：** 订单按工作站路由拆票，KDS 状态流转，离线自动回退打印
 
@@ -479,9 +378,6 @@ API 端点：
 - GET /stores/{storeId}/kitchen-tickets?stationId=X&status=Y
 ```
 
-**产出：**
-- `pos-kitchen/` 下 ~10 个文件
-
 **验收：**
 - 订单拆票正确（不同 station 的 SKU 分到不同票）
 - 状态流转正确
@@ -489,9 +385,7 @@ API 端点：
 
 ---
 
-## Phase 3B: 库存全链路（Week 4）
-
-### Session 3.4 — 库存管理
+### Session 4.2 — 库存 + 采购 + 盘点
 
 **目标：** 送货→OCR→入库→SOP 扣减→预警→盘点
 
@@ -517,10 +411,6 @@ API 端点：
 API 端点参考 user-journeys.md J08。
 ```
 
-**产出：**
-- `pos-inventory/` 下 ~20 个文件
-- 定时任务（库存预警、临期扫描）
-
 **验收：**
 - 送货→入库→stock 增加
 - 结账→SOP 扣减→stock 减少（FIFO 正确）
@@ -529,9 +419,9 @@ API 端点参考 user-journeys.md J08。
 
 ---
 
-## Phase 4: 客户与营销（Week 5）
+## Phase 5: 客户营销（Week 4）
 
-### Session 4.1 — 会员 + 积分 + 储值
+### Session 5.1 — 会员 + 积分 + 储值
 
 **目标：** 会员注册→积分获取→充值→等级升级
 
@@ -559,9 +449,6 @@ API 端点：
 - GET /members/{id}/account
 ```
 
-**产出：**
-- `pos-member/` 下 ~15 个文件
-
 **验收：**
 - 注册 → 积分 = 0 → 消费 → 获得积分 → 积分可查
 - 充值 → 储值增加 → 可在结算时使用
@@ -569,235 +456,93 @@ API 端点：
 
 ---
 
-### Session 4.2 — 券 + 裂变 + 促销引擎
+### Session 5.2 — 优惠券 + 促销 + 渠道
 
-**目标：** 优惠券发放/使用，推荐裂变，促销规则引擎
+**目标：** 优惠券发放/使用，促销规则引擎，渠道分润
 
 **Prompt：**
 ```
-在 pos-member（券/裂变）和 pos-promotion（促销）模块实现：
+在 pos-member（券）和 pos-promotion（促销）和 pos-integration（渠道）模块实现：
 
 1. CouponTemplateService：模板 CRUD
-2. MemberCouponService：发券、用券（CAS 已在 Session 2.3 实现）、过期定时任务
-3. ReferralService：
-   - 生成推荐码
-   - 好友注册关联 → 双方获奖励
-4. PromotionRuleService：
+2. MemberCouponService：发券、用券（CAS 已在 Session 2.2 实现）、过期定时任务
+3. PromotionRuleService：
    - CRUD 促销规则（满减/折扣/赠品）
    - 自动命中最优规则
    - promotion_hits 记录
-5. InventoryDrivenPromotionService：
-   - 临期/滞销 → 自动生成草案
-   - 店长审批 → 创建 promotion_rule
+4. ChannelService：渠道 CRUD + 佣金规则
+5. ChannelAttributionService：订单归因 + 佣金计算
+6. ChannelSettlementService：月结批次生成
 ```
-
-**产出：**
-- `pos-member/` 增加券/裂变 ~8 个文件
-- `pos-promotion/` 下 ~8 个文件
 
 **验收：**
 - 发券 → 会员持有 → 结账时可用 → USED
-- 推荐码 → 好友注册 → 双方获积分
 - 促销规则命中 → 折扣正确
+- 渠道归因 + 佣金计算正确
 
 ---
 
-### Session 4.3 — 渠道分润 + 外卖对接
+## Phase 6: 联调收尾（Week 5-6）
 
-**目标：** 渠道归因、佣金计算、外卖订单接入
+### Session 6.1 — 外卖对接 + AI 层
+
+**目标：** 外卖平台订单接入，AI 报表 + MCP 工具连真数据
 
 **Prompt：**
 ```
-在 pos-integration 模块实现：
-
-1. ChannelService：渠道 CRUD + 佣金规则
-2. ChannelAttributionService：
-   - 订单创建时记录 order_channel_attribution
-   - 按渠道计算佣金 → channel_commission_records
-3. ChannelSettlementService：月结批次生成
-4. DeliveryWebhookController：
+1. DeliveryWebhookController：
    - POST /webhooks/delivery/{platform}
    - 接收外卖平台订单 → 创建 submitted_order(DELIVERY)
    - 每次调用记 external_integration_logs
-5. DeliveryStatusService：
-   - READY_FOR_PICKUP → PICKED_UP → DELIVERED
+2. DeliveryStatusService：READY_FOR_PICKUP → PICKED_UP → DELIVERED
 
-API 端点参考 user-journeys.md J03, J10。
+3. ReportSnapshotService：
+   - generateDaily(storeId)（定时任务）
+   - 计算 metrics_json + 调用 AI 生成摘要/建议
+4. 更新 MCP 工具：读工具连接真实 Repository
+5. AI 建议审批：ai_recommendations 状态机（PROPOSED → APPROVED/REJECTED）
 ```
-
-**产出：**
-- `pos-integration/` 下 ~12 个文件
 
 **验收：**
 - 外卖 webhook → 订单创建 → 厨房出票
-- 渠道归因正确
-- 月结佣金计算正确
+- AI 日报内容有意义
+- MCP 工具返回真实数据
 
 ---
 
-## Phase 5: 报表与 AI（Week 6 前半）
+### Session 6.2 — 部署 + 前端联调
 
-### Session 5.1 — 报表快照 + AI 摘要
-
-**目标：** 每日自动生成报表快照，含 AI 摘要/亮点/警告/建议
+**目标：** 部署到 AWS，12 条 Journey 全部走通
 
 **Prompt：**
 ```
-在 pos-report 模块实现：
-
-1. ReportSnapshotService：
-   - generateDaily(storeId)（定时任务，每晚 23:00 UTC）
-   - 计算 metrics_json：营收、订单数、客单价、翻台率、自助餐占比...
-   - 调用 AI 模型生成 ai_summary, ai_highlights, ai_warnings, ai_suggestions
-2. ReportSnapshotController：
-   - GET /stores/{storeId}/reports/snapshot?type=DAILY_SUMMARY&date=2026-03-28
-   - POST /merchants/{merchantId}/reports/multi-store-compare
-
-报表模块只读业务表，不写任何业务表。
+1. E2E 集成测试：
+   - 逐条走 J01-J12 的 main flow
+   - @SpringBootTest + TestContainers MySQL
+2. 部署：
+   - 更新 docker-compose.yml
+   - Flyway migration 在 AWS MySQL 上跑通
+   - Legacy 数据迁移脚本
+   - Nginx 配置更新
+3. 前端联调：
+   - API 响应格式对齐
+   - 跨域配置
+   - 健康检查端点确认
 ```
-
-**产出：**
-- `pos-report/` 下 ~6 个文件
-
-**验收：**
-- 定时任务跑完 → report_snapshots 有记录
-- AI 摘要内容有意义
-- 多店对比 API 返回正确
-
----
-
-### Session 5.2 — MCP 工具对接真数据
-
-**目标：** AI 层 MCP 工具连接真实业务数据
-
-**Prompt：**
-```
-在 pos-ai 模块实现：
-
-1. 更新现有 MCP 工具：读工具连接真实 Repository（不再 mock）
-2. AI 建议审批流程：
-   - ai_recommendations 状态机：PROPOSED → APPROVED/REJECTED
-   - 老板在后台审批
-3. Agent 身份模块保持现有结构（已有 restaurant_agents, agent_wallets）
-
-重点是让已有的 MCP 工具读到真数据，而不是重写工具。
-```
-
-**产出：**
-- `pos-ai/` 更新 ~8 个文件
-
-**验收：**
-- MCP 工具调用返回真实数据
-- AI 建议可查看、可审批
-
----
-
-## Phase 6: 联调与收尾（Week 6 后半）
-
-### Session 6.1 — E2E 全流程测试
-
-**目标：** 12 条 Journey 全部走通
-
-**Prompt：**
-```
-读 docs/superpowers/specs/2026-03-28-user-journeys.md。
-逐条走 J01-J12 的 main flow：
-
-1. 对每条 Journey 写集成测试（@SpringBootTest + TestContainers MySQL）
-2. 测试覆盖 main flow + 至少 1 个 alternative flow
-3. 测试验证状态机流转正确、金额计算正确、并发控制正确
-
-测试文件放 pos-app/src/test/java/...
-```
-
-**产出：**
-- 12+ 个集成测试类
 
 **验收：**
 - `mvn test` 全部通过
 - 12 条 Journey 的 main flow 有测试覆盖
+- AWS 部署运行正常
 
 ---
 
-### Session 6.2 — 部署 + 数据迁移
+## 跨 Session 遗留问题
 
-**目标：** 部署到 AWS，旧数据迁移
-
-**Prompt：**
-```
-1. 更新 docker-compose.yml：加入新模块配置
-2. 确保 Flyway migration 在 AWS MySQL 上跑通
-3. Legacy 数据迁移脚本：
-   - auth_users → users
-   - staff → employees
-   - roles → custom_roles
-4. Nginx 配置更新（新 API 路由）
-5. 健康检查端点确认
-
-部署到 54.237.230.5。
-```
-
-**产出：**
-- 更新后的 docker-compose.yml
-- 迁移脚本
-- 部署验证截图
-
-**验收：**
-- AWS 上能登录
-- 扫码→点单→结账全流程通
-
----
-
-# Part 3: Session 依赖图
-
-```
-Phase 0: 0.5 → 0.6
-                ↓
-Phase 1: 1.1 → 1.2
-                ↓
-Phase 2: 2.1 → 2.2 → 2.3
-                ↓
-Phase 3: 3.1 → 3.2 ──→ 3.3
-                         ↓
-                        3.4
-                         ↓
-Phase 4: 4.1 → 4.2 → 4.3
-                         ↓
-Phase 5: 5.1 → 5.2
-                ↓
-Phase 6: 6.1 → 6.2
-```
-
-**可并行的 session：**
-- 3.3（厨房）和 3.4（库存）可并行
-- 5.1（报表）和 5.2（MCP）可并行
-
----
-
-# Part 4: 关键风险
-
-| 风险 | 影响 | 缓解 |
-|------|------|------|
-| Migration 冲突（Sprint 计划 vs Step 0.3） | DDL 执行失败 | 以 docs/80 为准，Session 0.5 统一生成 |
-| 支付叠加复杂度高 | Session 2.3 可能超时 | 拆成 preview + collect + confirm 三个 PR |
-| OCR 依赖外部 API | 库存入库流程阻塞 | OCR 做成 async，失败可手动录入 |
-| 前端联调量大 | Week 6 不够 | 后端先 API 完整，前端可后续迭代 |
-| AI 模型调用 | 报表 AI 摘要依赖 LLM API | 先用模板摘要，LLM 做增强 |
-
----
-
-# Part 5: 不在本轮范围（P1）
-
-以下功能出现在 Sprint 计划但不在 Step 0.3 的 125 表框架内，推迟到 P1：
-
-| 功能 | 表 | 理由 |
-|------|---|------|
-| 巡店检查 | inspection_records, inspection_items | 非核心流程 |
-| CCTV 事件 | cctv_events | 依赖硬件对接 |
-| 支付叠加规则表 | payment_stacking_rules | 先硬编码顺序，后续加配置 |
-| 会员标签自动化 | member_tags auto_rule | 先手动标签，后续加自动 |
-| 营销触达 | marketing_campaigns 实际发送 | 先记录，后续对接 WhatsApp/SMS |
-
----
-
-*共 16 个 Session，预计 6 周。每个 session 对应一次 Claude Code 对话。*
+| # | 来源 | 级别 | 问题 | 状态 |
+|---|------|------|------|------|
+| 1 | 1.2 | P2 | 审批强制执行门（requiresApproval 前置拦截 + 403 PENDING） | 延迟到后续 |
+| 2 | 2.1 | P1 | SecurityConfig `/api/v2/stores/**` permitAll 太宽泛 | 待 Phase 6 统一收紧 |
+| 3 | 2.1 | P2 | 无定向测试覆盖 QR token / 并台结算 / legacy preview | 待补 |
+| 4 | 3.2 | P2 | BuffetPackageServiceTest 在 Homebrew JDK 17 上 Mockito attach 失败 | 环境问题 |
+| 5 | 3.2 | P2 | validateBuffetOrder 未查已下单数量（advisory） | 等新 order service |
