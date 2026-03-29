@@ -31,7 +31,9 @@ public class RefundV2Controller implements V2Api {
                 request.refundAmountCents(),
                 request.refundType(),
                 request.refundReason(),
-                request.operatedBy()
+                request.operatedBy(),
+                0L,
+                null
         );
         return ApiResponse.success(refundApplicationService.createRefund(command));
     }
