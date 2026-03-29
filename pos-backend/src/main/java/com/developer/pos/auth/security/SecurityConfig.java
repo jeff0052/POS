@@ -69,6 +69,11 @@ public class SecurityConfig {
                 // Settlement/payment endpoints require SETTLEMENT_COLLECT (BEFORE the broad /stores/** matcher)
                 .requestMatchers("/api/v2/stores/*/tables/*/payment/**").hasAuthority("SETTLEMENT_COLLECT")
 
+                // Kitchen endpoints (BEFORE the broad /stores/** permitAll)
+                .requestMatchers("/api/v2/stores/*/kitchen-tickets").hasAuthority("KDS_OPERATE")
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/kitchen-stations").hasAnyAuthority("KDS_OPERATE", "KDS_MANAGE")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/kitchen-stations").hasAuthority("KDS_MANAGE")
+
                 // POS tablet endpoints (WebView, no auth token)
                 .requestMatchers("/api/v2/stores/**").permitAll()
                 .requestMatchers("/api/v1/stores/**").permitAll()

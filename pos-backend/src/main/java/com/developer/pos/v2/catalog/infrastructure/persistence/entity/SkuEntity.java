@@ -37,6 +37,12 @@ public class SkuEntity extends BaseAuditableEntity {
     @Column(name = "sku_status", nullable = false)
     private String skuStatus;
 
+    @Column(name = "station_id")
+    private Long stationId;
+
+    @Column(name = "print_route", length = 64)
+    private String printRoute;
+
     protected SkuEntity() {
     }
 
@@ -85,6 +91,9 @@ public class SkuEntity extends BaseAuditableEntity {
     public String getSkuStatus() {
         return skuStatus;
     }
+
+    public Long getStationId() { return stationId; }
+    public String getPrintRoute() { return printRoute; }
 
     public void update(String skuCode, String skuName, long basePriceCents, String skuStatus) {
         this.skuCode = skuCode;
