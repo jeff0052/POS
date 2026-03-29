@@ -9,6 +9,7 @@ import com.developer.pos.v2.settlement.application.dto.VibeCashPaymentAttemptDto
 import com.developer.pos.v2.settlement.application.dto.VibeCashWebhookResultDto;
 import com.developer.pos.v2.settlement.infrastructure.persistence.entity.PaymentAttemptEntity;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaPaymentAttemptRepository;
+import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementRecordRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.HmacUtils;
@@ -43,6 +44,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
 
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaPaymentAttemptRepository paymentAttemptRepository;
+    private final JpaSettlementRecordRepository settlementRecordRepository;
     private final CashierSettlementApplicationService cashierSettlementApplicationService;
     private final PaymentStackingService paymentStackingService;
     private final ObjectMapper objectMapper;
@@ -55,6 +57,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
     public VibeCashPaymentApplicationService(
             JpaTableSessionRepository tableSessionRepository,
             JpaPaymentAttemptRepository paymentAttemptRepository,
+            JpaSettlementRecordRepository settlementRecordRepository,
             CashierSettlementApplicationService cashierSettlementApplicationService,
             @Lazy PaymentStackingService paymentStackingService,
             ObjectMapper objectMapper,
@@ -65,6 +68,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
     ) {
         this.tableSessionRepository = tableSessionRepository;
         this.paymentAttemptRepository = paymentAttemptRepository;
+        this.settlementRecordRepository = settlementRecordRepository;
         this.cashierSettlementApplicationService = cashierSettlementApplicationService;
         this.paymentStackingService = paymentStackingService;
         this.objectMapper = objectMapper;
@@ -150,6 +154,99 @@ public class VibeCashPaymentApplicationService implements UseCase {
             paymentAttempt.setUpdatedAt(OffsetDateTime.now());
             paymentAttemptRepository.saveAndFlush(paymentAttempt);
             throw new IllegalStateException("Failed to create VibeCash payment link.", exception);
+        }
+    }
+
+    /**
+     * Creates a VibeCash payment attempt for the stacking flow.
+     * Unlike startPayment(), this method:
+     *  - does NOT call moveTableToPaymentPending (stacking manages its own lifecycle)
+     *  - sets settlementRecordId on the attempt (signals stacking path to webhook handler)
+     *  - uses settlement.externalPaymentCents as the charged amount
+     */
+    @Transactional
+    public VibeCashPaymentAttemptDto startStackingPayment(
+            Long storeId, Long tableId, Long settlementId, String paymentScheme) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("VibeCash secret is not configured.");
+        }
+
+        var settlement = settlementRecordRepository.findByIdForUpdate(settlementId)
+                .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
+        if (!"PENDING".equals(settlement.getFinalStatus())) {
+            throw new IllegalStateException("Settlement is not PENDING: " + settlement.getFinalStatus());
+        }
+
+        TableSessionEntity session = tableSessionRepository.findById(settlement.getStackingSessionId())
+                .orElseThrow(() -> new IllegalArgumentException("Stacking session not found: " + settlement.getStackingSessionId()));
+
+        long amountCents = settlement.getExternalPaymentCents();
+
+        PaymentAttemptEntity attempt = new PaymentAttemptEntity();
+        attempt.setPaymentAttemptId("PAT" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+        attempt.setProvider(PROVIDER);
+        attempt.setPaymentMethod(PAYMENT_METHOD);
+        attempt.setPaymentScheme(paymentScheme);
+        attempt.setStoreId(storeId);
+        attempt.setTableId(tableId);
+        attempt.setTableSessionId(session.getId());
+        attempt.setSessionRef(session.getSessionId());
+        attempt.setSettlementAmountCents(amountCents);
+        attempt.setCurrencyCode(currencyCode);
+        attempt.setAttemptStatus("PENDING_CUSTOMER");
+        attempt.setProviderStatus("CREATING_LINK");
+        attempt.setSettlementRecordId(settlementId);  // stacking path marker
+        attempt.setCreatedAt(OffsetDateTime.now());
+        attempt.setUpdatedAt(OffsetDateTime.now());
+        paymentAttemptRepository.saveAndFlush(attempt);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("amount", amountCents);
+        payload.put("currency", currencyCode);
+        payload.put("name", "Table " + tableId + " payment");
+        payload.put("description", "Stacking payment for settlement " + settlement.getSettlementNo());
+        payload.put("paymentMethodTypes", List.of(toGatewayScheme(paymentScheme)));
+        payload.put("metadata", Map.of(
+                "paymentAttemptId", attempt.getPaymentAttemptId(),
+                "tableSessionId", session.getSessionId(),
+                "storeId", String.valueOf(storeId),
+                "tableId", String.valueOf(tableId),
+                "settlementId", String.valueOf(settlementId)
+        ));
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiUrl.replaceAll("/$", "") + "/v1/payment_links"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + secret)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                attempt.setAttemptStatus("FAILED");
+                attempt.setProviderStatus("HTTP_" + response.statusCode());
+                attempt.setLastWebhookPayloadJson(response.body());
+                attempt.setUpdatedAt(OffsetDateTime.now());
+                paymentAttemptRepository.saveAndFlush(attempt);
+                throw new IllegalStateException("VibeCash stacking payment link creation failed: " + response.body());
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode data = root.path("data");
+            attempt.setProviderPaymentId(textOrNull(data, "id", "paymentLinkId"));
+            attempt.setProviderCheckoutUrl(textOrNull(data, "url", "checkoutUrl"));
+            attempt.setProviderStatus(textOrDefault(data, "status", "open"));
+            attempt.setUpdatedAt(OffsetDateTime.now());
+            paymentAttemptRepository.saveAndFlush(attempt);
+            return toDto(attempt);
+        } catch (IOException | InterruptedException exception) {
+            attempt.setAttemptStatus("FAILED");
+            attempt.setProviderStatus("REQUEST_FAILED");
+            attempt.setLastWebhookPayloadJson(exception.getMessage());
+            attempt.setUpdatedAt(OffsetDateTime.now());
+            paymentAttemptRepository.saveAndFlush(attempt);
+            throw new IllegalStateException("Failed to create VibeCash stacking payment link.", exception);
         }
     }
 
