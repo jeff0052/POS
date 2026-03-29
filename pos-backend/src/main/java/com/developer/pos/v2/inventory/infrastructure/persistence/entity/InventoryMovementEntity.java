@@ -82,4 +82,6 @@ public class InventoryMovementEntity {
     public BigDecimal getBalanceAfter() { return balanceAfter; }
     public String getSourceType() { return sourceType; }
     public String getSourceRef() { return sourceRef; }
+    public Long getUnitCostCents() { return unitCostCents; }
+    public String getNotes() { return notes; }
 }

@@ -120,7 +120,6 @@ public class StockDeductionService {
             if (batch.getRemainingQty().compareTo(BigDecimal.ZERO) == 0) {
                 batch.exhaust();
             }
-            batchRepository.save(batch);
 
             item.deductStock(deductFromBatch);
             movementRepository.save(new InventoryMovementEntity(

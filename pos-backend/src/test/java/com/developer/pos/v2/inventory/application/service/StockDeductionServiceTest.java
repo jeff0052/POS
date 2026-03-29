@@ -151,6 +151,8 @@ class StockDeductionServiceTest {
         stockDeductionService.deductForOrders(10L, List.of(order1, order2));
 
         assertThat(inventoryItem.getCurrentStock()).isEqualByComparingTo("4.0000");
+        assertThat(batch.getRemainingQty()).isEqualByComparingTo("4.0000");  // add this
+        verify(movementRepository, times(1)).save(any(InventoryMovementEntity.class));  // add this
     }
 
     @Test
@@ -233,6 +235,21 @@ class StockDeductionServiceTest {
         stockDeductionService.deductForOrders(10L, List.of(order));
 
         assertThat(inventoryItem.getCurrentStock()).isEqualByComparingTo("4.2500");
+    }
+
+    @Test
+    void deductForOrders_skuHasNoRecipe_skipped() {
+        // SKU 100 requires deduct but has no recipe — should load SKU, load recipes (empty), then do nothing
+        SkuEntity sku = makeSkuWithDeductFlag(100L, true);
+        when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
+        when(recipeRepository.findBySkuIdIn(anyCollection())).thenReturn(List.of()); // no recipes
+
+        SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
+        when(order.getItems()).thenReturn(List.of(makeOrderItem(100L, 2)));
+
+        stockDeductionService.deductForOrders(10L, List.of(order));
+
+        verifyNoInteractions(inventoryItemRepository, batchRepository, movementRepository);
     }
 
     // ── test helpers ─────────────────────────────────────────────────────────
