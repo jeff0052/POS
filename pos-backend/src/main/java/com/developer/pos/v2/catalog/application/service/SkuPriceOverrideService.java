@@ -79,20 +79,31 @@ public class SkuPriceOverrideService implements UseCase {
 
     private void enforceSkuOwnership(Long skuId) {
         Long merchantId = enforceCallerMerchant();
+        AuthenticatedActor actor = AuthContext.current();
         SkuEntity sku = skuRepository.findById(skuId)
                 .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + skuId));
         ProductEntity product = productRepository.findById(sku.getProductId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found for SKU: " + skuId));
-        storeLookupRepository.findById(product.getStoreId())
+        Long storeId = product.getStoreId();
+        storeLookupRepository.findById(storeId)
                 .filter(store -> store.getMerchantId().equals(merchantId))
                 .orElseThrow(() -> new SecurityException("SKU does not belong to your merchant"));
+        if (actor.accessibleStoreIds() != null && !actor.accessibleStoreIds().isEmpty()
+                && !actor.hasStoreAccess(storeId)) {
+            throw new SecurityException("You do not have access to this SKU's store: " + storeId);
+        }
     }
 
     private void enforceStoreOwnership(Long storeId) {
         Long merchantId = enforceCallerMerchant();
+        AuthenticatedActor actor = AuthContext.current();
         storeLookupRepository.findById(storeId)
                 .filter(store -> Objects.equals(store.getMerchantId(), merchantId))
                 .orElseThrow(() -> new SecurityException("Store does not belong to your merchant"));
+        if (actor.accessibleStoreIds() != null && !actor.accessibleStoreIds().isEmpty()
+                && !actor.hasStoreAccess(storeId)) {
+            throw new SecurityException("You do not have access to store: " + storeId);
+        }
     }
 
     private Long enforceCallerMerchant() {

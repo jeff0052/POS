@@ -139,11 +139,17 @@ public class MenuTimeSlotManagementService implements UseCase {
 
     private void enforceStoreAccess(Long storeId) {
         AuthenticatedActor actor = AuthContext.current();
+        // SUPER_ADMIN (merchantId=0) bypasses all checks
         if (actor.merchantId() != null && actor.merchantId() != 0L) {
             StoreEntity store = storeLookupRepository.findById(storeId)
                     .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeId));
             if (!Objects.equals(store.getMerchantId(), actor.merchantId())) {
                 throw new SecurityException("Store does not belong to your merchant");
+            }
+            // Store-scoped roles must have explicit store access
+            if (actor.accessibleStoreIds() != null && !actor.accessibleStoreIds().isEmpty()
+                    && !actor.hasStoreAccess(storeId)) {
+                throw new SecurityException("You do not have access to store: " + storeId);
             }
         }
     }

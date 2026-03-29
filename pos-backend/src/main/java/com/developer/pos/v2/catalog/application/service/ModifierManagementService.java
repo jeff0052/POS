@@ -201,13 +201,20 @@ public class ModifierManagementService implements UseCase {
         }
     }
 
-    /** SKU → Product → Store → merchant_id must match caller's merchantId. */
+    /** SKU → Product → Store → merchant_id + store access must match caller. */
     private void enforceSkuMerchantOwnership(SkuEntity sku, Long merchantId) {
         ProductEntity product = productRepository.findById(sku.getProductId())
                 .orElseThrow(() -> new IllegalArgumentException("Product not found for SKU: " + sku.getId()));
-        storeLookupRepository.findById(product.getStoreId())
+        Long storeId = product.getStoreId();
+        storeLookupRepository.findById(storeId)
                 .filter(store -> store.getMerchantId().equals(merchantId))
                 .orElseThrow(() -> new SecurityException("SKU does not belong to your merchant"));
+        // Store-scoped roles must have explicit store access
+        AuthenticatedActor actor = AuthContext.current();
+        if (actor.accessibleStoreIds() != null && !actor.accessibleStoreIds().isEmpty()
+                && !actor.hasStoreAccess(storeId)) {
+            throw new SecurityException("You do not have access to this SKU's store: " + storeId);
+        }
     }
 
     private Long enforceCallerMerchant() {

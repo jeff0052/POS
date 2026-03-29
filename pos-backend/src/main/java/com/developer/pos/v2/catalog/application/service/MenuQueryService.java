@@ -110,7 +110,15 @@ public class MenuQueryService implements UseCase {
         List<Long> skuIds = allSkus.stream().map(SkuEntity::getId).toList();
 
         Map<Long, Boolean> availabilityMap = buildAvailabilityMap(storeId, skuIds);
-        Map<Long, Long> effectivePriceMap = buildEffectivePriceMap(skuIds, storeId, diningMode, timeSlotId, allSkus);
+        // Resolve slot_code for TIME_SLOT price overrides
+        String timeSlotCode = null;
+        if (timeSlotId != null) {
+            MenuTimeSlotEntity resolvedSlot = timeSlotRepository.findById(timeSlotId).orElse(null);
+            if (resolvedSlot != null) {
+                timeSlotCode = resolvedSlot.getSlotCode();
+            }
+        }
+        Map<Long, Long> effectivePriceMap = buildEffectivePriceMap(skuIds, storeId, diningMode, timeSlotCode, allSkus);
 
         // 4. Load modifier bindings + groups + options
         Map<Long, List<MenuModifierGroupDto>> skuModifierMap = buildSkuModifierMap(skuIds);
@@ -251,7 +259,7 @@ public class MenuQueryService implements UseCase {
      *   0. skus.base_price_cents → fallback
      */
     private Map<Long, Long> buildEffectivePriceMap(List<Long> skuIds, Long storeId,
-                                                    String diningMode, Long timeSlotId,
+                                                    String diningMode, String timeSlotCode,
                                                     List<SkuEntity> skus) {
         if (skuIds.isEmpty()) return Map.of();
 
@@ -268,7 +276,7 @@ public class MenuQueryService implements UseCase {
         List<SkuPriceOverrideEntity> overrides = priceOverrideRepository.findBySkuIdInAndIsActive(skuIds, true);
 
         for (SkuPriceOverrideEntity override : overrides) {
-            int priority = scorePriceOverride(override, storeId, diningMode, timeSlotId);
+            int priority = scorePriceOverride(override, storeId, diningMode, timeSlotCode);
             if (priority <= 0) continue; // not applicable
 
             int existing = priorityMap.getOrDefault(override.getSkuId(), 0);
@@ -285,7 +293,7 @@ public class MenuQueryService implements UseCase {
      * Higher score = higher priority.
      */
     private int scorePriceOverride(SkuPriceOverrideEntity override, Long storeId,
-                                   String diningMode, Long timeSlotId) {
+                                   String diningMode, String timeSlotCode) {
         String context = override.getPriceContext();
         String contextRef = override.getPriceContextRef();
         boolean isBaseContext = context == null || context.isBlank()
@@ -304,7 +312,7 @@ public class MenuQueryService implements UseCase {
         }
 
         // Scene-specific context: must match the current query parameters
-        if (!matchesSceneContext(context, contextRef, diningMode, timeSlotId)) {
+        if (!matchesSceneContext(context, contextRef, diningMode, timeSlotCode)) {
             return 0;
         }
 
@@ -312,10 +320,11 @@ public class MenuQueryService implements UseCase {
     }
 
     private boolean matchesSceneContext(String context, String contextRef,
-                                       String diningMode, Long timeSlotId) {
+                                       String diningMode, String timeSlotCode) {
         if ("TIME_SLOT".equalsIgnoreCase(context)) {
-            return timeSlotId != null && contextRef != null
-                    && contextRef.equals(String.valueOf(timeSlotId));
+            // price_context_ref stores slot_code (e.g. "LUNCH", "DINNER"), not numeric id
+            return timeSlotCode != null && contextRef != null
+                    && contextRef.equalsIgnoreCase(timeSlotCode);
         }
         if ("DELIVERY".equalsIgnoreCase(context) || "A_LA_CARTE".equalsIgnoreCase(context)
                 || "BUFFET".equalsIgnoreCase(context)) {
