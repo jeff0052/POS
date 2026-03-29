@@ -13,10 +13,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.developer.pos.v2.rbac.application.dto.ResolvedPermissions;
 import com.developer.pos.v2.rbac.application.service.PermissionCacheService;
+import com.developer.pos.v2.rbac.infrastructure.persistence.entity.UserEntity;
+import com.developer.pos.v2.rbac.infrastructure.persistence.repository.JpaUserRepository;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Component
@@ -24,10 +27,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
     private final PermissionCacheService permissionCacheService;
+    private final JpaUserRepository userRepository;
 
-    public JwtAuthFilter(JwtProvider jwtProvider, PermissionCacheService permissionCacheService) {
+    public JwtAuthFilter(JwtProvider jwtProvider, PermissionCacheService permissionCacheService, JpaUserRepository userRepository) {
         this.jwtProvider = jwtProvider;
         this.permissionCacheService = permissionCacheService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -47,19 +52,39 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 Long merchantId = claims.get("merchantId", Long.class);
                 Long storeId = claims.get("storeId", Long.class);
 
+                // Legacy token detection: userCode is absent in old JWTs.
+                // Legacy tokens carry auth_users.id as subject, which may differ from users.id.
+                // Resolve the correct users.id via username lookup before hitting RBAC cache.
+                Long rbacUserId = userId;
+                if (userCode == null && username != null) {
+                    Optional<UserEntity> rbacUser = userRepository.findByUsername(username);
+                    if (rbacUser.isPresent()) {
+                        rbacUserId = rbacUser.get().getId();
+                    } else {
+                        // User not in RBAC users table — pure legacy, skip RBAC resolution
+                        rbacUserId = null;
+                    }
+                }
+
                 // Resolve permissions from RBAC tables (cached)
                 Set<String> permissions;
                 Set<Long> accessibleStoreIds;
                 String resolvedRole = role;
-                try {
-                    ResolvedPermissions resolved = permissionCacheService.resolve(userId);
-                    permissions = resolved.permissions();
-                    accessibleStoreIds = resolved.accessibleStoreIds();
-                    if (resolved.primaryRoleCode() != null) {
-                        resolvedRole = resolved.primaryRoleCode();
+                if (rbacUserId != null) {
+                    try {
+                        ResolvedPermissions resolved = permissionCacheService.resolve(rbacUserId);
+                        permissions = resolved.permissions();
+                        accessibleStoreIds = resolved.accessibleStoreIds();
+                        if (resolved.primaryRoleCode() != null) {
+                            resolvedRole = resolved.primaryRoleCode();
+                        }
+                    } catch (Exception e) {
+                        // RBAC resolution failed — safe legacy fallback
+                        permissions = Set.of();
+                        accessibleStoreIds = storeId != null ? Set.of(storeId) : Set.of();
                     }
-                } catch (Exception e) {
-                    // Fallback for users not yet in RBAC tables (legacy tokens)
+                } else {
+                    // Pure legacy token, no RBAC data
                     permissions = Set.of();
                     accessibleStoreIds = storeId != null ? Set.of(storeId) : Set.of();
                 }
