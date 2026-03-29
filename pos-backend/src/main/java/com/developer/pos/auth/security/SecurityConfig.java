@@ -79,6 +79,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/*/confirm-stacking").hasAuthority("SETTLEMENT_STACKING")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/*/release-stacking").hasAuthority("SETTLEMENT_STACKING")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/switch-method").hasAuthority("PAYMENT_SWITCH")
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/payment/*/active-attempt").hasAuthority("SETTLEMENT_STACKING")
 
                 // Inventory endpoints (BEFORE the broad /stores/** permitAll)
                 .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/inventory-items").hasAnyAuthority("INVENTORY_VIEW", "INVENTORY_MANAGE")

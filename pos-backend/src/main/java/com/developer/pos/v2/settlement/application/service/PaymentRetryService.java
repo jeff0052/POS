@@ -7,10 +7,13 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.repository.Jpa
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class PaymentRetryService {
+
+    private static final Set<String> VALID_EXTERNAL_SCHEMES = Set.of("WECHAT_QR", "ALIPAY_QR", "PAYNOW_QR");
 
     private final JpaPaymentAttemptRepository attemptRepo;
     private final JpaSettlementRecordRepository settlementRepo;
@@ -47,6 +50,11 @@ public class PaymentRetryService {
         }
         if (old.getRetryCount() >= old.getMaxRetries()) {
             throw new IllegalStateException("Exceeded max retries (" + old.getMaxRetries() + ") for attempt: " + paymentAttemptId);
+        }
+        // Validate scheme BEFORE marking old attempt REPLACED — avoids stranding it with no usable replacement
+        if (!VALID_EXTERNAL_SCHEMES.contains(newPaymentScheme)) {
+            throw new IllegalArgumentException("Unsupported payment scheme: " + newPaymentScheme
+                    + ". Valid values: " + VALID_EXTERNAL_SCHEMES);
         }
 
         // CAS mark old attempt as REPLACED
