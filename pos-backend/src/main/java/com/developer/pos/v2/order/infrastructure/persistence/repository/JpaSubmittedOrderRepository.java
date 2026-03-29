@@ -14,4 +14,6 @@ public interface JpaSubmittedOrderRepository extends JpaRepository<SubmittedOrde
     List<SubmittedOrderEntity> findAllByTableSessionIdOrderByIdAsc(Long tableSessionId);
 
     List<SubmittedOrderEntity> findAllByStoreIdOrderByIdDesc(Long storeId);
+
+    List<SubmittedOrderEntity> findAllByTableSessionIdIn(Collection<Long> tableSessionIds);
 }

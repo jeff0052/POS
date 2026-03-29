@@ -24,7 +24,10 @@ public class StoreTableEntity {
     @Column(name = "table_status", nullable = false)
     private String tableStatus;
 
-    protected StoreTableEntity() {
+    @Column(name = "merged_into_table_id")
+    private Long mergedIntoTableId;
+
+    public StoreTableEntity() {
     }
 
     public Long getId() {
@@ -49,5 +52,13 @@ public class StoreTableEntity {
 
     public void setTableStatus(String tableStatus) {
         this.tableStatus = tableStatus;
+    }
+
+    public Long getMergedIntoTableId() {
+        return mergedIntoTableId;
+    }
+
+    public void setMergedIntoTableId(Long mergedIntoTableId) {
+        this.mergedIntoTableId = mergedIntoTableId;
     }
 }

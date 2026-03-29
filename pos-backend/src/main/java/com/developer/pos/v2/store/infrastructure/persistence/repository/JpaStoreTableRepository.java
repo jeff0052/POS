@@ -9,6 +9,10 @@ import java.util.Optional;
 public interface JpaStoreTableRepository extends JpaRepository<StoreTableEntity, Long> {
     Optional<StoreTableEntity> findByIdAndStoreId(Long id, Long storeId);
 
+    default Optional<StoreTableEntity> findByStoreIdAndId(Long storeId, Long id) {
+        return findByIdAndStoreId(id, storeId);
+    }
+
     Optional<StoreTableEntity> findByStoreIdAndTableCode(Long storeId, String tableCode);
 
     List<StoreTableEntity> findAllByStoreIdOrderByIdAsc(Long storeId);
