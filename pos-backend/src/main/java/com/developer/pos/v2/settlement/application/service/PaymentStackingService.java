@@ -423,6 +423,10 @@ public class PaymentStackingService {
         if (templateId == null || baseAmountCents <= 0) return 0L;
         var template = couponTemplateRepo.findById(templateId).orElse(null);
         if (template == null) return 0L;
+        // Enforce minimum spend threshold before applying any discount
+        if (template.getMinSpendCents() != null && baseAmountCents < template.getMinSpendCents()) {
+            return 0L;
+        }
         return switch (template.getCouponType()) {
             case "FIXED" -> {
                 long d = template.getDiscountAmountCents() != null ? template.getDiscountAmountCents() : 0L;

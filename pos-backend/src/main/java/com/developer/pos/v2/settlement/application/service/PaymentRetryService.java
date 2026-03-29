@@ -29,6 +29,10 @@ public class PaymentRetryService {
         PaymentAttemptEntity old = attemptRepo.findByPaymentAttemptId(paymentAttemptId)
                 .orElseThrow(() -> new IllegalArgumentException("Attempt not found: " + paymentAttemptId));
 
+        if (old.getSettlementRecordId() == null) {
+            throw new IllegalArgumentException("Attempt " + paymentAttemptId + " is not part of a stacking settlement");
+        }
+
         var settlement = settlementRepo.findByIdForUpdate(old.getSettlementRecordId())
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found"));
 
