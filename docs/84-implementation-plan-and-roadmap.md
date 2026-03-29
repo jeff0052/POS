@@ -101,39 +101,29 @@ Week 6         ── AI + 收尾
 
 ## Phase 1: 组织底座（Week 1）
 
-### Session 1.1 — RBAC + 统一用户 + Legacy 迁移
+### Session 1.1 — RBAC + 统一用户 + Legacy 迁移 ✅
 
-**目标：** users 表替代 auth_users + staff，RBAC 权限体系可用
+**完成日期：** 2026-03-29
 
-**前置：** Phase 0 完成（migration 已跑）
+**实际产出（41 文件，2806 行）：**
+- `v2/rbac/` 模块：6 Entity + 6 Repository + 4 Service + 1 Controller + 8 DTO + 7 Request
+- `auth/` 模块改造：AuthenticatedActor 升级、JwtAuthFilter 加 RBAC 权限解析、SecurityConfig 权限化
+- V102: 59 权限 + 8 预置角色 + 213 条角色权限映射（幂等 SQL，使用临时表）
+- V103: auth_users/staff → users 迁移（user_code='AU-<id>' 映射键）
+- JwtProvider: 新增 6 参数 generateToken（含 userCode）
+- PermissionCacheService: Caffeine 缓存，5 分钟 TTL
+- PIN 登录: /api/v2/auth/pin-login（含门店权限校验）
+- RBAC 管理 API: 13 个端点（/api/v2/rbac/**）
 
-**必读文档（按顺序）：**
-1. `docs/86-rbac-seed-data.md` — 权限码、预置角色、种子 SQL
-2. `docs/85-api-contract.md` — API 响应格式 `ApiResponse(code, message, data)`
-3. `docs/superpowers/specs/final-executable-spec.md` — D1-D10 设计决策
-4. `docs/83-system-architecture-v3.md` 第 4.2 节 — RBAC 6 表归属
-5. `docs/75-complete-database-schema.md` — users/permissions/custom_roles DDL
+**安全审查（6 轮，全部通过）：**
+- Round 2: PIN 门店校验、锁定绕过、租户隔离、V103 碰撞、缓存驱逐
+- Round 3: 平台路由收紧、DISABLED/LOCKED 异常类型、V103 OWNER/KITCHEN 映射、深层租户检查
+- Round 4: createUser 校验补全、预留 roleCode 拦截、密码错误不回退 legacy
+- Round 5-6: Legacy JWT id 映射修复（AU-<id> 确定性映射键）
 
-**Prompt：**
-```
-先读以上 5 个文档，然后在 pos-auth 模块实现：
-
-1. UserEntity + UserRepository（对应 users 表）
-2. PermissionEntity、CustomRoleEntity、UserRoleEntity、UserStoreAccessEntity
-3. UserService：CRUD + 密码 hash + PIN hash + 登录 + 锁定
-4. RbacService：角色分配、权限查询、门店授权
-5. SecurityConfig：JWT 认证 + 权限过滤器
-6. 数据迁移脚本：auth_users + staff → users 表
-7. 预置权限种子数据（按 docs/86-rbac-seed-data.md 的 INSERT 语句）
-
-API 响应统一用 ApiResponse(code, message, data)，不要发明新格式。
-参考现有代码的命名风格和包结构。
-```
-
-**产出：**
-- `pos-auth/` 下 ~15 个 Java 文件
-- 权限种子数据 SQL
-- Legacy 迁移脚本
+**验收：**
+- 288 文件编译零错误（Java 17, Spring Boot 3.3.3）
+- V102/V103 在本地 MySQL 8.4 执行通过
 
 **验收：**
 - POST /api/v2/auth/login 返回 JWT
