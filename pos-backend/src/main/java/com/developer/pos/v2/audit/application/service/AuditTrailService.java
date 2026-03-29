@@ -25,9 +25,11 @@ public class AuditTrailService implements UseCase {
 
     /** Verify caller has access to the requested store */
     private void assertStoreAccess(Long storeId) {
+        if (storeId == null) return; // merchant-level query, permission check is enough
         AuthenticatedActor actor = AuthContext.current();
-        // SUPER_ADMIN / MERCHANT_OWNER can see all stores
-        if (actor.hasPermission("STORE_MANAGE")) return;
+        // SUPER_ADMIN (role=SUPER_ADMIN) bypasses store check — platform-wide access
+        if ("SUPER_ADMIN".equals(actor.role())) return;
+        // Everyone else must have explicit store access via user_store_access
         if (!actor.hasStoreAccess(storeId)) {
             throw new SecurityException("Access denied: no access to store " + storeId);
         }
@@ -35,11 +37,12 @@ public class AuditTrailService implements UseCase {
 
     /** Verify caller has access to a specific audit record's store */
     private void assertAuditRecordAccess(AuditTrailEntity trail) {
-        AuthenticatedActor actor = AuthContext.current();
-        if (actor.hasPermission("STORE_MANAGE")) return;
-        if (!actor.hasStoreAccess(trail.getStoreId())) {
-            throw new SecurityException("Access denied: audit record belongs to another store");
+        if (trail.getStoreId() == null) {
+            // Merchant-level record — only SUPER_ADMIN or same-merchant users can access
+            // Permission gate (AUDIT_APPROVE) in SecurityConfig handles the rest
+            return;
         }
+        assertStoreAccess(trail.getStoreId());
     }
 
     @Transactional(readOnly = true)
