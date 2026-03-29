@@ -30,6 +30,12 @@ public class ProductEntity {
     @Column(name = "image_id", length = 64)
     private String imageId;
 
+    @Column(name = "menu_modes", columnDefinition = "JSON")
+    private String menuModesJson;
+
+    @Column(name = "sort_order")
+    private int sortOrder;
+
     @Column(name = "product_status", nullable = false)
     private String productStatus;
 
@@ -95,6 +101,14 @@ public class ProductEntity {
 
     public String getProductStatus() {
         return productStatus;
+    }
+
+    public String getMenuModesJson() {
+        return menuModesJson;
+    }
+
+    public int getSortOrder() {
+        return sortOrder;
     }
 
     public String getAttributeConfigJson() {
