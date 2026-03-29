@@ -83,7 +83,7 @@ public class StockDeductionService {
             }
         }
 
-        // 5. FIFO deduct each inventoryItem
+        // 4. FIFO deduct each inventoryItem
         for (Map.Entry<Long, BigDecimal> entry : deductionByItemId.entrySet()) {
             deductItem(storeId, entry.getKey(), entry.getValue());
         }

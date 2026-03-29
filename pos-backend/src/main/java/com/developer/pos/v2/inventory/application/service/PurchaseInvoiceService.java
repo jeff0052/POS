@@ -169,7 +169,7 @@ public class PurchaseInvoiceService implements UseCase {
 
     private String serializeJson(Object obj) {
         try { return MAPPER.writeValueAsString(obj); }
-        catch (Exception e) { return null; }
+        catch (Exception e) { throw new IllegalStateException("Failed to serialize OCR result", e); }
     }
 
     private OcrRawResult deserializeOcrResult(String json) {
