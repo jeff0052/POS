@@ -348,6 +348,9 @@ public class ActiveTableOrderApplicationService implements UseCase {
                     copy.setMemberPriceSnapshotCents(existing.getMemberPriceSnapshotCents());
                     copy.setItemRemark(existing.getItemRemark());
                     copy.setLineTotalCents(existing.getLineTotalCents());
+                    copy.setBuffetIncluded(existing.isBuffetIncluded());
+                    copy.setBuffetSurchargeCents(existing.getBuffetSurchargeCents());
+                    copy.setBuffetInclusionType(existing.getBuffetInclusionType());
                     return copy;
                 })
                 .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
@@ -365,7 +368,15 @@ public class ActiveTableOrderApplicationService implements UseCase {
             } else {
                 int nextQuantity = matched.getQuantity() + incoming.quantity();
                 matched.setQuantity(nextQuantity);
-                matched.setLineTotalCents(matched.getUnitPriceSnapshotCents() * nextQuantity);
+                if (matched.isBuffetIncluded()) {
+                    if (matched.getBuffetSurchargeCents() > 0) {
+                        matched.setLineTotalCents(matched.getBuffetSurchargeCents() * nextQuantity);
+                    } else {
+                        matched.setLineTotalCents(0);
+                    }
+                } else {
+                    matched.setLineTotalCents(matched.getUnitPriceSnapshotCents() * nextQuantity);
+                }
             }
         }
 
@@ -465,7 +476,18 @@ public class ActiveTableOrderApplicationService implements UseCase {
         next.setQuantity(item.getQuantity());
         next.setUnitPriceSnapshotCents(item.getUnitPriceSnapshotCents());
         next.setItemRemark(item.getItemRemark());
-        next.setLineTotalCents(item.getLineTotalCents());
+        next.setBuffetIncluded(item.isBuffetIncluded());
+        next.setBuffetSurchargeCents(item.getBuffetSurchargeCents());
+        next.setBuffetInclusionType(item.getBuffetInclusionType());
+        if (item.isBuffetIncluded()) {
+            if (item.getBuffetSurchargeCents() > 0) {
+                next.setLineTotalCents(item.getBuffetSurchargeCents() * item.getQuantity());
+            } else {
+                next.setLineTotalCents(0);
+            }
+        } else {
+            next.setLineTotalCents(item.getLineTotalCents());
+        }
         return next;
     }
 
@@ -482,7 +504,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                         item.getQuantity(),
                         item.getUnitPriceSnapshotCents(),
                         item.getItemRemark(),
-                        item.getLineTotalCents()
+                        item.getLineTotalCents(),
+                        item.isBuffetIncluded(),
+                        item.getBuffetSurchargeCents(),
+                        item.getBuffetInclusionType()
                 ))
                 .toList();
 
@@ -527,7 +552,10 @@ public class ActiveTableOrderApplicationService implements UseCase {
                                 item.getQuantity(),
                                 item.getUnitPriceSnapshotCents(),
                                 item.getItemRemark(),
-                                item.getLineTotalCents()
+                                item.getLineTotalCents(),
+                                item.isBuffetIncluded(),
+                                item.getBuffetSurchargeCents(),
+                                item.getBuffetInclusionType()
                         ))
                         .toList()
         );

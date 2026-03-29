@@ -7,6 +7,9 @@ public record MerchantAdminOrderItemDto(
         long originalAmountCents,
         long memberBenefitCents,
         long promotionBenefitCents,
-        boolean gift
+        boolean gift,
+        boolean isBuffetIncluded,
+        long buffetSurchargeCents,
+        String buffetInclusionType
 ) {
 }
