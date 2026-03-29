@@ -60,7 +60,8 @@ class PaymentRetryServiceTest {
         when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
 
         assertThatThrownBy(() -> service.switchMethod(5L, 10L, "pa_001", "WECHAT_QR"))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PENDING");
     }
 
     private PaymentAttemptEntity buildAttempt(String id, String status, int retryCount, int maxRetries, Long settlementId) {

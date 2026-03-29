@@ -48,7 +48,7 @@ public class PaymentRetryService {
 
         // Create new attempt
         PaymentAttemptEntity newAttempt = new PaymentAttemptEntity();
-        newAttempt.setPaymentAttemptId("pa_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16));
+        newAttempt.setPaymentAttemptId("PAT" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
         newAttempt.setProvider(old.getProvider());
         newAttempt.setPaymentMethod(old.getPaymentMethod());
         newAttempt.setPaymentScheme(newPaymentScheme);

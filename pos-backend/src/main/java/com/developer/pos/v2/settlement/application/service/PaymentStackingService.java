@@ -397,7 +397,7 @@ public class PaymentStackingService {
         return buildSessionChain(master);
     }
 
-    @Transactional
+    // NO @Transactional here - each confirmStacking/releaseStacking runs its own transaction
     public void reclaimPendingSettlements() {
         OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(30);
         List<SettlementRecordEntity> pending = settlementRepo.findPendingOlderThan(cutoff);
@@ -419,7 +419,7 @@ public class PaymentStackingService {
                     }
                     default -> releaseStacking(settlement.getId(), "SETTLEMENT_TIMEOUT");
                 }
-            } catch (IllegalStateException e) {
+            } catch (Exception e) {  // broadened from IllegalStateException to catch JPA/persistence exceptions too
                 log.error("CRITICAL: reclaimPendingSettlements failed for settlement {}: {}",
                         settlement.getId(), e.getMessage());
             }
