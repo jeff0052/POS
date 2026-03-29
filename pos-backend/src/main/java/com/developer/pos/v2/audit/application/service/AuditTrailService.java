@@ -23,8 +23,28 @@ public class AuditTrailService implements UseCase {
         this.auditTrailRepository = auditTrailRepository;
     }
 
+    /** Verify caller has access to the requested store */
+    private void assertStoreAccess(Long storeId) {
+        AuthenticatedActor actor = AuthContext.current();
+        // SUPER_ADMIN / MERCHANT_OWNER can see all stores
+        if (actor.hasPermission("STORE_MANAGE")) return;
+        if (!actor.hasStoreAccess(storeId)) {
+            throw new SecurityException("Access denied: no access to store " + storeId);
+        }
+    }
+
+    /** Verify caller has access to a specific audit record's store */
+    private void assertAuditRecordAccess(AuditTrailEntity trail) {
+        AuthenticatedActor actor = AuthContext.current();
+        if (actor.hasPermission("STORE_MANAGE")) return;
+        if (!actor.hasStoreAccess(trail.getStoreId())) {
+            throw new SecurityException("Access denied: audit record belongs to another store");
+        }
+    }
+
     @Transactional(readOnly = true)
     public Page<AuditTrailDto> listAuditLogs(Long storeId, String targetType, int page, int size) {
+        assertStoreAccess(storeId);
         Pageable pageable = PageRequest.of(page, size);
         Page<AuditTrailEntity> entities;
 
@@ -39,6 +59,7 @@ public class AuditTrailService implements UseCase {
 
     @Transactional(readOnly = true)
     public Page<AuditTrailDto> listPendingApprovals(Long storeId, int page, int size) {
+        assertStoreAccess(storeId);
         Pageable pageable = PageRequest.of(page, size);
         return auditTrailRepository
                 .findByStoreIdAndRequiresApprovalTrueAndApprovalStatusOrderByCreatedAtDesc(storeId, "PENDING", pageable)
@@ -49,6 +70,8 @@ public class AuditTrailService implements UseCase {
     public AuditTrailDto approve(Long auditId, String note) {
         AuditTrailEntity trail = auditTrailRepository.findById(auditId)
                 .orElseThrow(() -> new IllegalArgumentException("Audit trail not found: " + auditId));
+
+        assertAuditRecordAccess(trail);
 
         if (!"PENDING".equals(trail.getApprovalStatus())) {
             throw new IllegalStateException("Audit trail is not pending approval: " + trail.getApprovalStatus());
@@ -68,6 +91,8 @@ public class AuditTrailService implements UseCase {
     public AuditTrailDto reject(Long auditId, String note) {
         AuditTrailEntity trail = auditTrailRepository.findById(auditId)
                 .orElseThrow(() -> new IllegalArgumentException("Audit trail not found: " + auditId));
+
+        assertAuditRecordAccess(trail);
 
         if (!"PENDING".equals(trail.getApprovalStatus())) {
             throw new IllegalStateException("Audit trail is not pending approval: " + trail.getApprovalStatus());

@@ -71,6 +71,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/v2/auth/pin-login").permitAll()
                 // RBAC management requires USER_MANAGE or ROLE_MANAGE
                 .requestMatchers("/api/v2/rbac/**").hasAnyAuthority("USER_MANAGE", "ROLE_MANAGE")
+                // Audit logs require AUDIT_VIEW; approval requires AUDIT_APPROVE
+                .requestMatchers(HttpMethod.GET, "/api/v2/audit/**").hasAuthority("AUDIT_VIEW")
+                .requestMatchers(HttpMethod.POST, "/api/v2/audit/**").hasAuthority("AUDIT_APPROVE")
                 // All admin operations require ADMIN/PLATFORM_ADMIN role OR appropriate permission
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("USER_MANAGE", "STORE_MANAGE", "ROLE_ADMIN", "ROLE_PLATFORM_ADMIN")
                 // MCP requires ADMIN/PLATFORM_ADMIN role OR appropriate permission

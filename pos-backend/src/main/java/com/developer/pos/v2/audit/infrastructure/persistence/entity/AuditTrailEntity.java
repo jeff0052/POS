@@ -14,7 +14,7 @@ public class AuditTrailEntity {
     @Column(name = "trail_no", nullable = false, unique = true)
     private String trailNo;
 
-    @Column(name = "store_id", nullable = false)
+    @Column(name = "store_id")
     private Long storeId;
 
     @Column(name = "actor_type", nullable = false)

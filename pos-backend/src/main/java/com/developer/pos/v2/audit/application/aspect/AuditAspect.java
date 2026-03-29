@@ -86,14 +86,14 @@ public class AuditAspect {
         String actorType = "SYSTEM";
         Long actorId = null;
         String actorName = null;
-        Long storeId = 0L;
+        Long storeId = null;
 
         try {
             AuthenticatedActor actor = AuthContext.current();
             actorType = "HUMAN";
             actorId = actor.userId();
             actorName = actor.username();
-            storeId = actor.storeId() != null ? actor.storeId() : 0L;
+            storeId = actor.storeId(); // null for merchant-level ops, OK since V104 made store_id nullable
         } catch (Exception e) {
             // No auth context (e.g., bootstrap)
         }
