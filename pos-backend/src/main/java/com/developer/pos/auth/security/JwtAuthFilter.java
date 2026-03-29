@@ -73,6 +73,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 Set<String> permissions;
                 Set<Long> accessibleStoreIds;
                 String resolvedRole = role;
+                long maxRefundCents = 0L;
                 if (rbacUserId != null) {
                     try {
                         ResolvedPermissions resolved = permissionCacheService.resolve(rbacUserId);
@@ -81,6 +82,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         if (resolved.primaryRoleCode() != null) {
                             resolvedRole = resolved.primaryRoleCode();
                         }
+                        maxRefundCents = resolved.maxRefundCents() != null ? resolved.maxRefundCents() : 0L;
                     } catch (Exception e) {
                         // RBAC resolution failed — safe legacy fallback
                         permissions = Set.of();
@@ -94,7 +96,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 AuthenticatedActor actor = new AuthenticatedActor(
                         userId, username, userCode, resolvedRole, merchantId, storeId,
-                        accessibleStoreIds, permissions
+                        accessibleStoreIds, permissions, maxRefundCents
                 );
 
                 // Build authorities: permission codes + ROLE_ prefix for backward compat

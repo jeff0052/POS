@@ -63,10 +63,4 @@ public class InventoryV2Controller implements V2Api {
             @PathVariable Long itemId) {
         return ApiResponse.success(inventoryItemService.deactivateItem(storeId, itemId));
     }
-
-    /** List inventory items that are below their safety stock threshold. */
-    @GetMapping("/stores/{storeId}/inventory-items/low-stock")
-    public ApiResponse<List<InventoryItemDto>> listLowStockItems(@PathVariable Long storeId) {
-        return ApiResponse.success(inventoryItemService.listLowStockItems(storeId));
-    }
 }

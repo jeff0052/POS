@@ -55,6 +55,8 @@ public class SubmittedOrderItemEntity {
     @Column(name = "option_snapshot_json", columnDefinition = "JSON")
     private String optionSnapshotJson;
 
+    public Long getId() { return id; }
+
     public void setSubmittedOrder(SubmittedOrderEntity submittedOrder) {
         this.submittedOrder = submittedOrder;
     }

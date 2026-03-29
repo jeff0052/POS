@@ -67,10 +67,12 @@ public class TableOperationsV2Controller implements V2Api {
                 reservationApplicationService.create(
                         storeId,
                         request.guestName(),
+                        request.contactPhone(),
                         request.reservationTime(),
                         request.partySize(),
                         request.reservationStatus(),
-                        request.area()
+                        request.area(),
+                        request.tableId()
                 )
         );
     }
@@ -86,6 +88,7 @@ public class TableOperationsV2Controller implements V2Api {
                         storeId,
                         reservationId,
                         request.guestName(),
+                        request.contactPhone(),
                         request.reservationTime(),
                         request.partySize(),
                         request.reservationStatus(),

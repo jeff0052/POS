@@ -73,6 +73,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/collect").hasAuthority("SETTLEMENT_COLLECT")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/vibecash").hasAuthority("SETTLEMENT_COLLECT")
                 .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/payment/attempts/*").hasAuthority("SETTLEMENT_COLLECT")
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/payment/*/active-attempt").hasAuthority("SETTLEMENT_COLLECT")
                 // New stacking endpoints
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/preview-stacking").hasAuthority("SETTLEMENT_STACKING")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/collect-stacking").hasAuthority("SETTLEMENT_STACKING")
@@ -96,6 +97,17 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/kitchen-stations").hasAnyAuthority("KDS_OPERATE", "KDS_MANAGE")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/kitchen-stations").hasAuthority("KDS_MANAGE")
 
+                // Refund endpoints — require REFUND_SMALL or REFUND_LARGE
+                .requestMatchers(HttpMethod.POST, "/api/v2/refunds").hasAnyAuthority("REFUND_SMALL", "REFUND_LARGE")
+                .requestMatchers(HttpMethod.POST, "/api/v2/refunds/*/approve").hasAuthority("REFUND_LARGE")
+                .requestMatchers(HttpMethod.GET, "/api/v2/refunds/**").hasAnyAuthority("REFUND_SMALL", "REFUND_LARGE")
+
+                // Reservation endpoints — require RESERVATION_VIEW or RESERVATION_MANAGE
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/reservations").hasAnyAuthority("RESERVATION_VIEW", "RESERVATION_MANAGE")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/reservations").hasAuthority("RESERVATION_MANAGE")
+                .requestMatchers(HttpMethod.PUT, "/api/v2/stores/*/reservations/*").hasAuthority("RESERVATION_MANAGE")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/reservations/*/seat").hasAuthority("RESERVATION_MANAGE")
+
                 // POS tablet endpoints (WebView, no auth token)
                 .requestMatchers("/api/v2/stores/**").permitAll()
                 .requestMatchers("/api/v1/stores/**").permitAll()
@@ -106,7 +118,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/v2/promotions/**").permitAll()
                 .requestMatchers("/api/v2/members/**").permitAll()
                 .requestMatchers("/api/v2/reports/**").permitAll()
-                .requestMatchers("/api/v2/reservations/**").permitAll()
                 .requestMatchers("/api/v2/shifts/**").permitAll()
                 .requestMatchers("/api/v2/ai/**").permitAll()
                 // Public image serving (QR/POS need unauthenticated access)

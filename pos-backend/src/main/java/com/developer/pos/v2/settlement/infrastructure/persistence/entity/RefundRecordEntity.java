@@ -47,6 +47,21 @@ public class RefundRecordEntity {
     @Column(name = "approved_by")
     private Long approvedBy;
 
+    @Column(name = "approval_status", nullable = false)
+    private String approvalStatus = "AUTO_APPROVED";
+
+    @Column(name = "points_reversed_cents", nullable = false)
+    private long pointsReversedCents;
+
+    @Column(name = "cash_reversed_cents", nullable = false)
+    private long cashReversedCents;
+
+    @Column(name = "coupon_reversed", nullable = false)
+    private boolean couponReversed;
+
+    @Column(name = "external_refund_status")
+    private String externalRefundStatus;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -75,5 +90,15 @@ public class RefundRecordEntity {
     public void setOperatedBy(Long operatedBy) { this.operatedBy = operatedBy; }
     public Long getApprovedBy() { return approvedBy; }
     public void setApprovedBy(Long approvedBy) { this.approvedBy = approvedBy; }
+    public String getApprovalStatus() { return approvalStatus; }
+    public void setApprovalStatus(String approvalStatus) { this.approvalStatus = approvalStatus; }
+    public long getPointsReversedCents() { return pointsReversedCents; }
+    public void setPointsReversedCents(long pointsReversedCents) { this.pointsReversedCents = pointsReversedCents; }
+    public long getCashReversedCents() { return cashReversedCents; }
+    public void setCashReversedCents(long cashReversedCents) { this.cashReversedCents = cashReversedCents; }
+    public boolean isCouponReversed() { return couponReversed; }
+    public void setCouponReversed(boolean couponReversed) { this.couponReversed = couponReversed; }
+    public String getExternalRefundStatus() { return externalRefundStatus; }
+    public void setExternalRefundStatus(String externalRefundStatus) { this.externalRefundStatus = externalRefundStatus; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
 }
