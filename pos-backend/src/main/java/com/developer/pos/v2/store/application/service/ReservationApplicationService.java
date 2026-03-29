@@ -15,10 +15,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class ReservationApplicationService implements UseCase {
+
+    /** Allowed statuses for create() */
+    private static final Set<String> CREATE_ALLOWED = Set.of("PENDING", "CONFIRMED");
+
+    /** Allowed transitions for update(): from → set of valid targets */
+    private static final Map<String, Set<String>> UPDATE_TRANSITIONS = Map.of(
+            "PENDING", Set.of("CONFIRMED", "CANCELLED"),
+            "CONFIRMED", Set.of("PENDING", "CANCELLED")
+            // CHECKED_IN → only via seat(); NO_SHOW → only via scheduler
+    );
 
     private final JpaReservationRepository reservationRepository;
     private final JpaStoreRepository storeRepository;
@@ -62,16 +74,21 @@ public class ReservationApplicationService implements UseCase {
         entity.setContactPhone(contactPhone);
         entity.setReservationTime(reservationTime);
         entity.setPartySize(partySize);
-        entity.setReservationStatus(reservationStatus.toUpperCase());
+        String status = reservationStatus.toUpperCase();
+        if (!CREATE_ALLOWED.contains(status)) {
+            throw new IllegalArgumentException("Cannot create reservation with status: " + status
+                    + ". Allowed: " + CREATE_ALLOWED);
+        }
+        entity.setReservationStatus(status);
         entity.setArea(area);
 
         // Table assignment only allowed for CONFIRMED reservations
-        if (tableId != null && !"CONFIRMED".equals(entity.getReservationStatus())) {
+        if (tableId != null && !"CONFIRMED".equals(status)) {
             throw new IllegalStateException("Cannot reserve a table for non-CONFIRMED reservation. Status: " + entity.getReservationStatus());
         }
 
         Long resolvedTableId = tableId;
-        if (resolvedTableId == null && "CONFIRMED".equals(entity.getReservationStatus())) {
+        if (resolvedTableId == null && "CONFIRMED".equals(status)) {
             resolvedTableId = storeTableRepository.findAllByStoreIdOrderByIdAsc(storeId).stream()
                     .filter(t -> "AVAILABLE".equalsIgnoreCase(t.getTableStatus()))
                     .map(StoreTableEntity::getId)
@@ -103,6 +120,13 @@ public class ReservationApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found: " + reservationId));
         String nextStatus = reservationStatus.toUpperCase();
         String currentStatus = entity.getReservationStatus();
+
+        // Enforce state machine — only allow valid transitions
+        Set<String> allowed = UPDATE_TRANSITIONS.getOrDefault(currentStatus, Set.of());
+        if (!nextStatus.equals(currentStatus) && !allowed.contains(nextStatus)) {
+            throw new IllegalStateException("Cannot transition reservation from " + currentStatus
+                    + " to " + nextStatus + ". Allowed: " + allowed);
+        }
 
         // Release pre-assigned table when leaving CONFIRMED/CHECKED_IN
         if (entity.getTableId() != null && !nextStatus.equals(currentStatus)) {

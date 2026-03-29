@@ -154,9 +154,13 @@ public class RefundApplicationService implements UseCase {
             refund.setApprovalStatus("PENDING_APPROVAL");
         } else {
             refund.setApprovalStatus("AUTO_APPROVED");
-            applyRefundToSettlement(settlement, refundAmount);
+            // Only count the internal (non-external) portion as immediately refunded
+            long internalRefundAmount = refundAmount - (hasExternalPayment
+                    ? Math.round(settlement.getExternalPaymentCents()
+                        * ("FULL".equals(refundType) ? 1.0 : (double) refundAmount / settlement.getCollectedAmountCents()))
+                    : 0);
+            applyRefundToSettlement(settlement, internalRefundAmount);
             reverseAssets(settlement, pointsReversed, cashReversed, couponReversed);
-            // Final status depends on whether external refund is still pending
             refund.setRefundStatus(hasExternalPayment ? "AWAITING_EXTERNAL_REFUND" : "COMPLETED");
         }
 
@@ -205,11 +209,16 @@ public class RefundApplicationService implements UseCase {
 
             SettlementRecordEntity settlement = settlementRecordRepository.findByIdForUpdate(refund.getSettlementId())
                     .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + refund.getSettlementId()));
-            applyRefundToSettlement(settlement, refund.getRefundAmountCents());
-            reverseAssets(settlement, refund.getPointsReversedCents(),
-                    refund.getCashReversedCents(), refund.isCouponReversed());
 
             boolean hasExternalPayment = settlement.getExternalPaymentCents() > 0;
+            // Only count internal portion as immediately refunded
+            long internalRefundAmount = refund.getRefundAmountCents() - (hasExternalPayment
+                    ? Math.round(settlement.getExternalPaymentCents()
+                        * ((double) refund.getRefundAmountCents() / settlement.getCollectedAmountCents()))
+                    : 0);
+            applyRefundToSettlement(settlement, internalRefundAmount);
+            reverseAssets(settlement, refund.getPointsReversedCents(),
+                    refund.getCashReversedCents(), refund.isCouponReversed());
             refund.setRefundStatus(hasExternalPayment ? "AWAITING_EXTERNAL_REFUND" : "COMPLETED");
         } else {
             refund.setApprovalStatus("REJECTED");
