@@ -367,7 +367,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
             if ("payment.succeeded".equals(eventType)) {
                 paymentAttempt.setAttemptStatus("SUCCEEDED");
                 paymentAttemptRepository.save(paymentAttempt);
-                paymentStackingService.confirmStacking(paymentAttempt.getStoreId(), paymentAttempt.getSettlementRecordId());
+                paymentStackingService.confirmStacking(paymentAttempt.getStoreId(), paymentAttempt.getTableId(), paymentAttempt.getSettlementRecordId());
             } else if ("payment.failed".equals(eventType)) {
                 paymentAttempt.setAttemptStatus("FAILED");
                 paymentAttemptRepository.save(paymentAttempt);
@@ -376,7 +376,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
             } else if ("checkout.session.expired".equals(eventType)) {
                 paymentAttempt.setAttemptStatus("EXPIRED");
                 paymentAttemptRepository.save(paymentAttempt);
-                paymentStackingService.releaseStacking(paymentAttempt.getStoreId(), paymentAttempt.getSettlementRecordId(), "CHECKOUT_EXPIRED");
+                paymentStackingService.releaseStacking(paymentAttempt.getStoreId(), paymentAttempt.getTableId(), paymentAttempt.getSettlementRecordId(), "CHECKOUT_EXPIRED");
             }
             return new VibeCashWebhookResultDto(eventType, paymentAttempt.getPaymentAttemptId(),
                     paymentAttempt.getAttemptStatus(), false);

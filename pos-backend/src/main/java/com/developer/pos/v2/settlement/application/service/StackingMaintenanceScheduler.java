@@ -59,7 +59,7 @@ public class StackingMaintenanceScheduler {
                     if (settlementOpt.isPresent()) {
                         var settlement = settlementOpt.get();
                         // releaseStacking handles: hold release, balance unfreeze, coupon release, status → CANCELLED
-                        stackingService.releaseStacking(settlement.getStoreId(), settlement.getId(), "COUPON_LOCK_TIMEOUT");
+                        stackingService.releaseStacking(settlement.getStoreId(), settlement.getTableId(), settlement.getId(), "COUPON_LOCK_TIMEOUT");
                         log.info("Released stacking settlement {} due to expired coupon lock on session {}",
                                 settlement.getId(), sessionId);
                         return; // coupon released inside releaseStacking; skip direct coupon release below

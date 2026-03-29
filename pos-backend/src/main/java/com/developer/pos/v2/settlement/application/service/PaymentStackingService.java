@@ -201,11 +201,20 @@ public class PaymentStackingService {
         }
 
         if (choices.couponId() != null && choices.couponLockVersion() != null && memberId != null) {
+            // Validate before locking: ownership, then discount value
+            var coupon = couponRepo.findById(choices.couponId())
+                    .orElseThrow(() -> new IllegalArgumentException("Coupon not found: " + choices.couponId()));
+            if (!coupon.getMemberId().equals(memberId)) {
+                throw new IllegalArgumentException(
+                        "Coupon " + choices.couponId() + " does not belong to member " + memberId);
+            }
+            long couponDiscount = calculateCouponDiscount(coupon.getTemplateId(), remaining);
+            if (couponDiscount == 0L) {
+                throw new IllegalArgumentException(
+                        "Coupon " + choices.couponId() + " does not apply: zero effective discount (minimum spend not met or invalid template)");
+            }
+            // Lock only after validation passes
             couponLockingService.lockCoupon(choices.couponId(), choices.couponLockVersion(), masterSession.getId());
-            var couponOpt = couponRepo.findById(choices.couponId());
-            long couponDiscount = couponOpt.isPresent()
-                    ? calculateCouponDiscount(couponOpt.get().getTemplateId(), remaining)
-                    : 0L;
             var hold = buildHold(settlement.getId(), masterSession.getId(), storeId, memberId,
                     "COUPON", couponDiscount, ++stepOrder);
             hold.setCouponId(choices.couponId());
@@ -250,7 +259,7 @@ public class PaymentStackingService {
                     storeId, tableId, settlement.getId(), choices.externalPaymentMethod());
             checkoutUrl = attemptDto.checkoutUrl();
         } else {
-            confirmStacking(storeId, settlement.getId());
+            confirmStacking(storeId, tableId, settlement.getId());
         }
 
         return new StackingCollectResultDto(settlement.getId(), settlement.getSettlementNo(), holdIds, checkoutUrl);
@@ -290,11 +299,12 @@ public class PaymentStackingService {
     }
 
     @Transactional
-    public void confirmStacking(Long storeId, Long settlementId) {
+    public void confirmStacking(Long storeId, Long tableId, Long settlementId) {
         SettlementRecordEntity settlement = settlementRepo.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
-        if (!storeId.equals(settlement.getStoreId())) {
-            throw new IllegalArgumentException("Settlement " + settlementId + " does not belong to store " + storeId);
+        if (!storeId.equals(settlement.getStoreId()) || !tableId.equals(settlement.getTableId())) {
+            throw new IllegalArgumentException("Settlement " + settlementId
+                    + " does not belong to store " + storeId + " / table " + tableId);
         }
 
         if ("SETTLED".equals(settlement.getFinalStatus())) return; // 幂等
@@ -354,11 +364,12 @@ public class PaymentStackingService {
     }
 
     @Transactional
-    public void releaseStacking(Long storeId, Long settlementId, String reason) {
+    public void releaseStacking(Long storeId, Long tableId, Long settlementId, String reason) {
         SettlementRecordEntity settlement = settlementRepo.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
-        if (!storeId.equals(settlement.getStoreId())) {
-            throw new IllegalArgumentException("Settlement " + settlementId + " does not belong to store " + storeId);
+        if (!storeId.equals(settlement.getStoreId()) || !tableId.equals(settlement.getTableId())) {
+            throw new IllegalArgumentException("Settlement " + settlementId
+                    + " does not belong to store " + storeId + " / table " + tableId);
         }
 
         if ("CANCELLED".equals(settlement.getFinalStatus())) return; // 幂等
@@ -452,19 +463,19 @@ public class PaymentStackingService {
             try {
                 var attempts = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(settlement.getId());
                 if (attempts.isEmpty()) {
-                    releaseStacking(settlement.getStoreId(), settlement.getId(), "SETTLEMENT_TIMEOUT");
+                    releaseStacking(settlement.getStoreId(), settlement.getTableId(), settlement.getId(), "SETTLEMENT_TIMEOUT");
                     continue;
                 }
                 var latest = attempts.get(0);
                 switch (latest.getAttemptStatus()) {
-                    case "SUCCEEDED" -> confirmStacking(settlement.getStoreId(), settlement.getId()); // compensate lost webhook
+                    case "SUCCEEDED" -> confirmStacking(settlement.getStoreId(), settlement.getTableId(), settlement.getId()); // compensate lost webhook
                     case "PENDING_CUSTOMER" -> {
                         if (latest.getCreatedAt().isBefore(cutoff)) {
-                            releaseStacking(settlement.getStoreId(), settlement.getId(), "ATTEMPT_EXPIRED_NO_WEBHOOK");
+                            releaseStacking(settlement.getStoreId(), settlement.getTableId(), settlement.getId(), "ATTEMPT_EXPIRED_NO_WEBHOOK");
                         }
                         // else: young attempt, skip
                     }
-                    default -> releaseStacking(settlement.getStoreId(), settlement.getId(), "SETTLEMENT_TIMEOUT");
+                    default -> releaseStacking(settlement.getStoreId(), settlement.getTableId(), settlement.getId(), "SETTLEMENT_TIMEOUT");
                 }
             } catch (Exception e) {  // broadened from IllegalStateException to catch JPA/persistence exceptions too
                 log.error("CRITICAL: reclaimPendingSettlements failed for settlement {}: {}",
