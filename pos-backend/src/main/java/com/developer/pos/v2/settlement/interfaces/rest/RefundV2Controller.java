@@ -2,6 +2,7 @@ package com.developer.pos.v2.settlement.interfaces.rest;
 
 import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
+import com.developer.pos.v2.settlement.application.command.ApproveRefundCommand;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
 import com.developer.pos.v2.settlement.application.dto.RefundRecordDto;
 import com.developer.pos.v2.settlement.application.service.RefundApplicationService;
@@ -26,16 +27,34 @@ public class RefundV2Controller implements V2Api {
 
     @PostMapping
     public ApiResponse<RefundRecordDto> createRefund(@Valid @RequestBody CreateRefundRequest request) {
+        List<CreateRefundCommand.RefundItemCommand> items = request.refundItems() == null ? null :
+                request.refundItems().stream()
+                        .map(i -> new CreateRefundCommand.RefundItemCommand(i.itemId(), i.quantity()))
+                        .toList();
+
+        // maxRefundCents comes from the authenticated user's role (set by JwtAuthFilter)
+        // For now, read from SecurityContext — the controller extracts it from JWT claims
+        long maxRefundCents = 5000; // TODO: extract from SecurityContextHolder user details
+
         CreateRefundCommand command = new CreateRefundCommand(
                 request.settlementId(),
                 request.refundAmountCents(),
                 request.refundType(),
-                request.refundReason(),
+                request.reason(),
                 request.operatedBy(),
-                0L,
-                null
+                maxRefundCents,
+                items
         );
         return ApiResponse.success(refundApplicationService.createRefund(command));
+    }
+
+    @PostMapping("/{refundNo}/approve")
+    public ApiResponse<RefundRecordDto> approveRefund(
+            @PathVariable String refundNo,
+            @Valid @RequestBody ApproveRefundRequest request
+    ) {
+        ApproveRefundCommand command = new ApproveRefundCommand(refundNo, request.approvedBy(), request.approved());
+        return ApiResponse.success(refundApplicationService.approveRefund(command));
     }
 
     @GetMapping("/{refundNo}")
@@ -61,7 +80,18 @@ public class RefundV2Controller implements V2Api {
         @NotNull(message = "settlementId is required") Long settlementId,
         @PositiveOrZero(message = "refundAmountCents must be >= 0") long refundAmountCents,
         String refundType,
-        String refundReason,
-        Long operatedBy
+        String reason,
+        Long operatedBy,
+        List<RefundItemRequest> refundItems
+    ) {}
+
+    public record RefundItemRequest(
+        @NotNull Long itemId,
+        @Positive int quantity
+    ) {}
+
+    public record ApproveRefundRequest(
+        @NotNull Long approvedBy,
+        boolean approved
     ) {}
 }
