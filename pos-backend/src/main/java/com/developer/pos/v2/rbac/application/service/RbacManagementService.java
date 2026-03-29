@@ -2,6 +2,7 @@ package com.developer.pos.v2.rbac.application.service;
 
 import com.developer.pos.auth.security.AuthContext;
 import com.developer.pos.auth.security.AuthenticatedActor;
+import com.developer.pos.v2.audit.application.annotation.Audited;
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.rbac.application.dto.CustomRoleDto;
 import com.developer.pos.v2.rbac.application.dto.PermissionDto;
@@ -97,6 +98,7 @@ public class RbacManagementService implements UseCase {
 
     // ==================== User CRUD ====================
 
+    @Audited(action = "CREATE_USER", targetType = "USER", riskLevel = "MEDIUM")
     @Transactional
     public RbacUserDto createUser(CreateUserRequest request) {
         assertSameMerchant(request.getMerchantId());
@@ -165,6 +167,7 @@ public class RbacManagementService implements UseCase {
         return toUserDto(user);
     }
 
+    @Audited(action = "UPDATE_USER", targetType = "USER", targetIdExpression = "#userId")
     @Transactional
     public RbacUserDto updateUser(Long userId, UpdateUserRequest request) {
         UserEntity user = userRepository.findById(userId)
@@ -190,6 +193,7 @@ public class RbacManagementService implements UseCase {
         return toUserDto(user);
     }
 
+    @Audited(action = "DEACTIVATE_USER", targetType = "USER", targetIdExpression = "#userId", riskLevel = "HIGH")
     @Transactional
     public void deactivateUser(Long userId) {
         UserEntity user = userRepository.findById(userId)
@@ -257,6 +261,7 @@ public class RbacManagementService implements UseCase {
             "STORE_MANAGER", "CASHIER", "KITCHEN_STAFF", "WAITER", "INVENTORY_CLERK", "FINANCE"
     );
 
+    @Audited(action = "CREATE_ROLE", targetType = "ROLE", riskLevel = "HIGH")
     @Transactional
     public CustomRoleDto createCustomRole(CreateCustomRoleRequest request) {
         assertSameMerchant(request.getMerchantId());
@@ -337,6 +342,7 @@ public class RbacManagementService implements UseCase {
         return toRoleDto(role);
     }
 
+    @Audited(action = "DELETE_ROLE", targetType = "ROLE", targetIdExpression = "#roleId", riskLevel = "HIGH")
     @Transactional
     public void deleteCustomRole(Long roleId) {
         CustomRoleEntity role = customRoleRepository.findById(roleId)
@@ -363,6 +369,7 @@ public class RbacManagementService implements UseCase {
 
     // ==================== User-Role Assignment ====================
 
+    @Audited(action = "ASSIGN_ROLES", targetType = "USER_ROLE", targetIdExpression = "#userId", riskLevel = "HIGH")
     @Transactional
     public void assignRoles(Long userId, List<Long> roleIds) {
         UserEntity user = userRepository.findById(userId)
