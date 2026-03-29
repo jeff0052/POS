@@ -79,10 +79,7 @@ public class InventoryBatchEntity {
         this.remainingQty = receivedQty;
         this.unit = unit;
         this.unitCostCents = unitCostCents;
-        this.totalCostCents = unitCostCents != null
-            ? java.math.BigDecimal.valueOf(unitCostCents).multiply(receivedQty)
-                .setScale(0, java.math.RoundingMode.HALF_UP).longValue()
-            : null;
+        this.totalCostCents = computeTotalCostCents(unitCostCents, receivedQty);
         this.expiryDate = expiryDate;
         this.receivedDate = LocalDate.now();
         this.batchStatus = "ACTIVE";
@@ -104,16 +101,21 @@ public class InventoryBatchEntity {
         this.remainingQty = receivedQty;
         this.unit = unit;
         this.unitCostCents = unitCostCents;
-        this.totalCostCents = unitCostCents != null
-            ? java.math.BigDecimal.valueOf(unitCostCents).multiply(receivedQty)
-                .setScale(0, java.math.RoundingMode.HALF_UP).longValue()
-            : null;
+        this.totalCostCents = computeTotalCostCents(unitCostCents, receivedQty);
         this.productionDate = productionDate;
         this.expiryDate = expiryDate;
         this.receivedDate = LocalDate.now();
         this.batchStatus = "ACTIVE";
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+    }
+
+    private static Long computeTotalCostCents(Long unitCostCents, BigDecimal receivedQty) {
+        if (unitCostCents == null) return null;
+        return java.math.BigDecimal.valueOf(unitCostCents)
+                .multiply(receivedQty)
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .longValue();
     }
 
     public Long getId() { return id; }

@@ -98,6 +98,12 @@ public class InventoryItemEntity {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * Deducts the given quantity from current stock.
+     * Does NOT enforce a floor of zero — negative stock is intentional
+     * when batches are exhausted; the caller (StockDeductionService) is
+     * responsible for recording an audit movement in that case.
+     */
     public void deductStock(BigDecimal qty) {
         this.currentStock = this.currentStock.subtract(qty);
         this.updatedAt = LocalDateTime.now();
