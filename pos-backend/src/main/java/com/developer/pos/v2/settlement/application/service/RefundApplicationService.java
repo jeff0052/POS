@@ -1,5 +1,8 @@
 package com.developer.pos.v2.settlement.application.service;
 
+import com.developer.pos.auth.security.AuthContext;
+import com.developer.pos.auth.security.AuthenticatedActor;
+import com.developer.pos.v2.common.application.StoreAccessEnforcer;
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.settlement.application.command.ApproveRefundCommand;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
@@ -25,21 +28,29 @@ public class RefundApplicationService implements UseCase {
     private final JpaRefundRecordRepository refundRecordRepository;
     private final JpaSettlementRecordRepository settlementRecordRepository;
     private final JpaRefundLineItemRepository refundLineItemRepository;
+    private final StoreAccessEnforcer storeAccessEnforcer;
 
     public RefundApplicationService(
             JpaRefundRecordRepository refundRecordRepository,
             JpaSettlementRecordRepository settlementRecordRepository,
-            JpaRefundLineItemRepository refundLineItemRepository
+            JpaRefundLineItemRepository refundLineItemRepository,
+            StoreAccessEnforcer storeAccessEnforcer
     ) {
         this.refundRecordRepository = refundRecordRepository;
         this.settlementRecordRepository = settlementRecordRepository;
         this.refundLineItemRepository = refundLineItemRepository;
+        this.storeAccessEnforcer = storeAccessEnforcer;
     }
 
     @Transactional
     public RefundRecordDto createRefund(CreateRefundCommand command) {
+        AuthenticatedActor actor = AuthContext.current();
+
         SettlementRecordEntity settlement = settlementRecordRepository.findByIdForUpdate(command.settlementId())
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + command.settlementId()));
+
+        // Enforce store access — caller must belong to the settlement's store
+        storeAccessEnforcer.enforce(settlement.getStoreId());
 
         if (!"SETTLED".equals(settlement.getFinalStatus())) {
             throw new IllegalStateException("Can only refund SETTLED orders. Current: " + settlement.getFinalStatus());
@@ -87,7 +98,7 @@ public class RefundApplicationService implements UseCase {
         refund.setRefundType(refundType);
         refund.setRefundReason(command.reason());
         refund.setPaymentMethod(settlement.getPaymentMethod());
-        refund.setOperatedBy(command.operatedBy());
+        refund.setOperatedBy(actor.userId());
         refund.setPointsReversedCents(pointsReversed);
         refund.setCashReversedCents(cashReversed);
         refund.setCouponReversed(couponReversed);
@@ -123,14 +134,20 @@ public class RefundApplicationService implements UseCase {
 
     @Transactional
     public RefundRecordDto approveRefund(ApproveRefundCommand command) {
-        RefundRecordEntity refund = refundRecordRepository.findByRefundNo(command.refundNo())
+        AuthenticatedActor actor = AuthContext.current();
+
+        // Pessimistic lock prevents concurrent double-approval
+        RefundRecordEntity refund = refundRecordRepository.findByRefundNoForUpdate(command.refundNo())
                 .orElseThrow(() -> new IllegalArgumentException("Refund not found: " + command.refundNo()));
+
+        // Enforce store access — approver must belong to the refund's store
+        storeAccessEnforcer.enforce(refund.getStoreId());
 
         if (!"PENDING_APPROVAL".equals(refund.getApprovalStatus())) {
             throw new IllegalStateException("Refund is not pending approval. Current: " + refund.getApprovalStatus());
         }
 
-        refund.setApprovedBy(command.approvedBy());
+        refund.setApprovedBy(actor.userId());
 
         if (command.approved()) {
             refund.setApprovalStatus("APPROVED");
@@ -153,19 +170,25 @@ public class RefundApplicationService implements UseCase {
     public RefundRecordDto getRefund(String refundNo) {
         RefundRecordEntity refund = refundRecordRepository.findByRefundNo(refundNo)
                 .orElseThrow(() -> new IllegalArgumentException("Refund not found: " + refundNo));
+        storeAccessEnforcer.enforce(refund.getStoreId());
         List<RefundLineItemEntity> lineItems = refundLineItemRepository.findByRefundId(refund.getId());
         return toDto(refund, lineItems);
     }
 
     @Transactional(readOnly = true)
     public List<RefundRecordDto> getRefundsBySettlement(Long settlementId) {
-        return refundRecordRepository.findBySettlementId(settlementId).stream()
+        List<RefundRecordEntity> refunds = refundRecordRepository.findBySettlementId(settlementId);
+        if (!refunds.isEmpty()) {
+            storeAccessEnforcer.enforce(refunds.get(0).getStoreId());
+        }
+        return refunds.stream()
                 .map(r -> toDto(r, refundLineItemRepository.findByRefundId(r.getId())))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public Page<RefundRecordDto> listRefunds(Long storeId, int page, int size) {
+        storeAccessEnforcer.enforce(storeId);
         return refundRecordRepository.findByStoreIdOrderByCreatedAtDesc(storeId, PageRequest.of(page, size))
                 .map(r -> toDto(r, refundLineItemRepository.findByRefundId(r.getId())));
     }

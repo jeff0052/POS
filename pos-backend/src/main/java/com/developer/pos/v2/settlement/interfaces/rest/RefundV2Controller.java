@@ -32,17 +32,12 @@ public class RefundV2Controller implements V2Api {
                         .map(i -> new CreateRefundCommand.RefundItemCommand(i.itemId(), i.quantity()))
                         .toList();
 
-        // maxRefundCents comes from the authenticated user's role (set by JwtAuthFilter)
-        // For now, read from SecurityContext — the controller extracts it from JWT claims
-        long maxRefundCents = 5000; // TODO: extract from SecurityContextHolder user details
-
         CreateRefundCommand command = new CreateRefundCommand(
                 request.settlementId(),
                 request.refundAmountCents(),
                 request.refundType(),
                 request.reason(),
-                request.operatedBy(),
-                maxRefundCents,
+                request.maxRefundCents(),
                 items
         );
         return ApiResponse.success(refundApplicationService.createRefund(command));
@@ -53,7 +48,7 @@ public class RefundV2Controller implements V2Api {
             @PathVariable String refundNo,
             @Valid @RequestBody ApproveRefundRequest request
     ) {
-        ApproveRefundCommand command = new ApproveRefundCommand(refundNo, request.approvedBy(), request.approved());
+        ApproveRefundCommand command = new ApproveRefundCommand(refundNo, request.approved());
         return ApiResponse.success(refundApplicationService.approveRefund(command));
     }
 
@@ -81,7 +76,7 @@ public class RefundV2Controller implements V2Api {
         @PositiveOrZero(message = "refundAmountCents must be >= 0") long refundAmountCents,
         String refundType,
         String reason,
-        Long operatedBy,
+        @PositiveOrZero long maxRefundCents,
         List<RefundItemRequest> refundItems
     ) {}
 
@@ -91,7 +86,6 @@ public class RefundV2Controller implements V2Api {
     ) {}
 
     public record ApproveRefundRequest(
-        @NotNull Long approvedBy,
         boolean approved
     ) {}
 }

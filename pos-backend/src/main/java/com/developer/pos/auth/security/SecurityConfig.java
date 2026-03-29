@@ -73,6 +73,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/collect").hasAuthority("SETTLEMENT_COLLECT")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/vibecash").hasAuthority("SETTLEMENT_COLLECT")
                 .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/payment/attempts/*").hasAuthority("SETTLEMENT_COLLECT")
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/payment/*/active-attempt").hasAuthority("SETTLEMENT_COLLECT")
                 // New stacking endpoints
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/preview-stacking").hasAuthority("SETTLEMENT_STACKING")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/collect-stacking").hasAuthority("SETTLEMENT_STACKING")

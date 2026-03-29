@@ -71,7 +71,8 @@ public class TableOperationsV2Controller implements V2Api {
                         request.reservationTime(),
                         request.partySize(),
                         request.reservationStatus(),
-                        request.area()
+                        request.area(),
+                        request.tableId()
                 )
         );
     }

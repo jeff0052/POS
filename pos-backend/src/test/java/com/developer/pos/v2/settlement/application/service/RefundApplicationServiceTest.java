@@ -1,5 +1,7 @@
 package com.developer.pos.v2.settlement.application.service;
 
+import com.developer.pos.auth.security.AuthenticatedActor;
+import com.developer.pos.v2.common.application.StoreAccessEnforcer;
 import com.developer.pos.v2.settlement.application.command.ApproveRefundCommand;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
 import com.developer.pos.v2.settlement.application.dto.RefundRecordDto;
@@ -9,15 +11,19 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.entity.Settlem
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaRefundLineItemRepository;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaRefundRecordRepository;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementRecordRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,22 +33,23 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class RefundApplicationServiceTest {
 
-    @Mock
-    private JpaRefundRecordRepository refundRecordRepository;
+    @Mock private JpaRefundRecordRepository refundRecordRepository;
+    @Mock private JpaSettlementRecordRepository settlementRecordRepository;
+    @Mock private JpaRefundLineItemRepository refundLineItemRepository;
+    @Mock private StoreAccessEnforcer storeAccessEnforcer;
 
-    @Mock
-    private JpaSettlementRecordRepository settlementRecordRepository;
-
-    @Mock
-    private JpaRefundLineItemRepository refundLineItemRepository;
-
-    @InjectMocks
-    private RefundApplicationService service;
+    @InjectMocks private RefundApplicationService service;
 
     private SettlementRecordEntity settlement;
 
     @BeforeEach
     void setUp() {
+        // Set up SecurityContext with a test actor
+        AuthenticatedActor actor = new AuthenticatedActor(
+                42L, "cashier1", "AU-42", "CASHIER", 1L, 1L, Set.of(1L), Set.of("REFUND_SMALL"));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(actor, null, List.of()));
+
         settlement = new SettlementRecordEntity();
         settlement.setFinalStatus("SETTLED");
         settlement.setCollectedAmountCents(10000);
@@ -57,12 +64,17 @@ class RefundApplicationServiceTest {
         settlement.setStoreId(1L);
     }
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void fullRefund_setsReversalAmounts() {
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        CreateRefundCommand command = new CreateRefundCommand(1L, 0, "FULL", "customer request", 10L, 0L, null);
+        CreateRefundCommand command = new CreateRefundCommand(1L, 0, "FULL", "customer request", 0L, null);
         RefundRecordDto result = service.createRefund(command);
 
         assertThat(result.refundAmountCents()).isEqualTo(10000);
@@ -70,8 +82,8 @@ class RefundApplicationServiceTest {
         assertThat(result.cashReversedCents()).isEqualTo(3000);
         assertThat(result.couponReversed()).isTrue();
         assertThat(result.externalRefundStatus()).isEqualTo("PENDING");
-        assertThat(result.approvalStatus()).isEqualTo("AUTO_APPROVED");
-        assertThat(result.refundStatus()).isEqualTo("COMPLETED");
+        assertThat(result.operatedBy()).isEqualTo(42L); // from AuthContext, not request
+        verify(storeAccessEnforcer).enforce(1L);
     }
 
     @Test
@@ -95,7 +107,7 @@ class RefundApplicationServiceTest {
                 new CreateRefundCommand.RefundItemCommand(101L, 1),
                 new CreateRefundCommand.RefundItemCommand(102L, 2)
         );
-        CreateRefundCommand command = new CreateRefundCommand(1L, 3000, "PARTIAL", "partial return", 10L, 0L, items);
+        CreateRefundCommand command = new CreateRefundCommand(1L, 3000, "PARTIAL", "partial return", 0L, items);
         RefundRecordDto result = service.createRefund(command);
 
         verify(refundLineItemRepository).saveAll(argThat(list -> ((List<?>) list).size() == 2));
@@ -107,13 +119,11 @@ class RefundApplicationServiceTest {
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        // refundAmount=6000, maxRefundCents=5000 => needs approval
-        CreateRefundCommand command = new CreateRefundCommand(1L, 6000, "PARTIAL", "reason", 10L, 5000L, null);
+        CreateRefundCommand command = new CreateRefundCommand(1L, 6000, "PARTIAL", "reason", 5000L, null);
         RefundRecordDto result = service.createRefund(command);
 
         assertThat(result.approvalStatus()).isEqualTo("PENDING_APPROVAL");
         assertThat(result.refundStatus()).isEqualTo("PENDING");
-        // Settlement should NOT be updated when pending approval
         verify(settlementRecordRepository, never()).save(any());
     }
 
@@ -122,8 +132,7 @@ class RefundApplicationServiceTest {
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        // refundAmount=3000, maxRefundCents=5000 => auto approved
-        CreateRefundCommand command = new CreateRefundCommand(1L, 3000, "PARTIAL", "reason", 10L, 5000L, null);
+        CreateRefundCommand command = new CreateRefundCommand(1L, 3000, "PARTIAL", "reason", 5000L, null);
         RefundRecordDto result = service.createRefund(command);
 
         assertThat(result.approvalStatus()).isEqualTo("AUTO_APPROVED");
@@ -132,25 +141,28 @@ class RefundApplicationServiceTest {
     }
 
     @Test
-    void approveRefund_completesRefund() {
+    void approveRefund_completesRefund_usingPessimisticLock() {
         RefundRecordEntity refund = new RefundRecordEntity();
         refund.setRefundNo("REF001");
         refund.setApprovalStatus("PENDING_APPROVAL");
         refund.setRefundAmountCents(6000);
         refund.setSettlementId(1L);
+        refund.setStoreId(1L);
 
-        when(refundRecordRepository.findByRefundNo("REF001")).thenReturn(Optional.of(refund));
+        // Must use findByRefundNoForUpdate (pessimistic lock), not findByRefundNo
+        when(refundRecordRepository.findByRefundNoForUpdate("REF001")).thenReturn(Optional.of(refund));
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(refundLineItemRepository.findByRefundId(any())).thenReturn(List.of());
 
-        ApproveRefundCommand command = new ApproveRefundCommand("REF001", 99L, true);
+        ApproveRefundCommand command = new ApproveRefundCommand("REF001", true);
         RefundRecordDto result = service.approveRefund(command);
 
         assertThat(result.approvalStatus()).isEqualTo("APPROVED");
         assertThat(result.refundStatus()).isEqualTo("COMPLETED");
-        assertThat(result.approvedBy()).isEqualTo(99L);
+        assertThat(result.approvedBy()).isEqualTo(42L); // from AuthContext, not request
         verify(settlementRecordRepository).save(any());
+        verify(storeAccessEnforcer).enforce(1L);
     }
 
     @Test
@@ -160,12 +172,13 @@ class RefundApplicationServiceTest {
         refund.setApprovalStatus("PENDING_APPROVAL");
         refund.setRefundAmountCents(6000);
         refund.setSettlementId(1L);
+        refund.setStoreId(1L);
 
-        when(refundRecordRepository.findByRefundNo("REF002")).thenReturn(Optional.of(refund));
+        when(refundRecordRepository.findByRefundNoForUpdate("REF002")).thenReturn(Optional.of(refund));
         when(refundRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(refundLineItemRepository.findByRefundId(any())).thenReturn(List.of());
 
-        ApproveRefundCommand command = new ApproveRefundCommand("REF002", 99L, false);
+        ApproveRefundCommand command = new ApproveRefundCommand("REF002", false);
         RefundRecordDto result = service.approveRefund(command);
 
         assertThat(result.approvalStatus()).isEqualTo("REJECTED");
@@ -178,7 +191,7 @@ class RefundApplicationServiceTest {
         settlement.setFinalStatus("PENDING");
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
 
-        CreateRefundCommand command = new CreateRefundCommand(1L, 5000, "PARTIAL", "reason", 10L, 0L, null);
+        CreateRefundCommand command = new CreateRefundCommand(1L, 5000, "PARTIAL", "reason", 0L, null);
 
         assertThatThrownBy(() -> service.createRefund(command))
                 .isInstanceOf(IllegalStateException.class)
@@ -187,11 +200,10 @@ class RefundApplicationServiceTest {
 
     @Test
     void refund_exceedsRefundable_throws() {
-        // 9000 already refunded, only 1000 left refundable, try 5000
         settlement.setRefundedAmountCents(9000);
         when(settlementRecordRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(settlement));
 
-        CreateRefundCommand command = new CreateRefundCommand(1L, 5000, "PARTIAL", "reason", 10L, 0L, null);
+        CreateRefundCommand command = new CreateRefundCommand(1L, 5000, "PARTIAL", "reason", 0L, null);
 
         assertThatThrownBy(() -> service.createRefund(command))
                 .isInstanceOf(IllegalStateException.class)
