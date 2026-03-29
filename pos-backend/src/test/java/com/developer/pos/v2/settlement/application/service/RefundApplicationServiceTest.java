@@ -7,6 +7,7 @@ import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberCoupo
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCouponRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderItemRepository;
+import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
 import com.developer.pos.v2.settlement.application.command.ApproveRefundCommand;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
 import com.developer.pos.v2.settlement.application.dto.RefundRecordDto;
@@ -46,6 +47,7 @@ class RefundApplicationServiceTest {
     @Mock private JpaMemberAccountRepository memberAccountRepository;
     @Mock private JpaMemberCouponRepository memberCouponRepository;
     @Mock private JpaSubmittedOrderItemRepository orderItemRepository;
+    @Mock private JpaTableSessionRepository tableSessionRepository;
     @Mock private StoreAccessEnforcer storeAccessEnforcer;
 
     @InjectMocks private RefundApplicationService service;

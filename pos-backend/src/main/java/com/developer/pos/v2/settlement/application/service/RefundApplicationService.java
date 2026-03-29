@@ -6,6 +6,7 @@ import com.developer.pos.v2.common.application.StoreAccessEnforcer;
 import com.developer.pos.v2.common.application.UseCase;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderItemEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderItemRepository;
+import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
 import com.developer.pos.v2.settlement.application.command.ApproveRefundCommand;
 import com.developer.pos.v2.settlement.application.command.CreateRefundCommand;
 import com.developer.pos.v2.settlement.application.dto.RefundRecordDto;
@@ -45,6 +46,7 @@ public class RefundApplicationService implements UseCase {
     private final JpaMemberAccountRepository memberAccountRepository;
     private final JpaMemberCouponRepository memberCouponRepository;
     private final JpaSubmittedOrderItemRepository orderItemRepository;
+    private final JpaTableSessionRepository tableSessionRepository;
     private final StoreAccessEnforcer storeAccessEnforcer;
 
     public RefundApplicationService(
@@ -55,6 +57,7 @@ public class RefundApplicationService implements UseCase {
             JpaMemberAccountRepository memberAccountRepository,
             JpaMemberCouponRepository memberCouponRepository,
             JpaSubmittedOrderItemRepository orderItemRepository,
+            JpaTableSessionRepository tableSessionRepository,
             StoreAccessEnforcer storeAccessEnforcer
     ) {
         this.refundRecordRepository = refundRecordRepository;
@@ -64,6 +67,7 @@ public class RefundApplicationService implements UseCase {
         this.memberAccountRepository = memberAccountRepository;
         this.memberCouponRepository = memberCouponRepository;
         this.orderItemRepository = orderItemRepository;
+        this.tableSessionRepository = tableSessionRepository;
         this.storeAccessEnforcer = storeAccessEnforcer;
     }
 
@@ -168,7 +172,7 @@ public class RefundApplicationService implements UseCase {
             refund.setApprovalStatus("PENDING_APPROVAL");
         } else {
             refund.setApprovalStatus("AUTO_APPROVED");
-            long internalRefundAmount = calculateInternalAmount(refundAmount, settlement, refundType);
+            long internalRefundAmount = calculateInternalAmount(refundAmount, settlement, priorRefunds);
             applyRefundToSettlement(settlement, internalRefundAmount);
             reverseAssets(settlement, pointsReversed, cashReversed, couponReversed);
             refund.setRefundStatus(hasExternalPayment ? "AWAITING_EXTERNAL_REFUND" : "COMPLETED");
@@ -215,8 +219,11 @@ public class RefundApplicationService implements UseCase {
                     .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + refund.getSettlementId()));
 
             boolean hasExternalPayment = settlement.getExternalPaymentCents() > 0;
+            // Exclude the current PENDING refund from prior list (it hasn't been booked yet)
+            List<RefundRecordEntity> priorForApproval = refundRecordRepository.findBySettlementId(settlement.getId())
+                    .stream().filter(r -> !r.getRefundNo().equals(refund.getRefundNo())).toList();
             long internalRefundAmount = calculateInternalAmount(
-                    refund.getRefundAmountCents(), settlement, refund.getRefundType());
+                    refund.getRefundAmountCents(), settlement, priorForApproval);
             applyRefundToSettlement(settlement, internalRefundAmount);
             reverseAssets(settlement, refund.getPointsReversedCents(),
                     refund.getCashReversedCents(), refund.isCouponReversed());
@@ -249,9 +256,11 @@ public class RefundApplicationService implements UseCase {
         SettlementRecordEntity settlement = settlementRecordRepository.findByIdForUpdate(refund.getSettlementId())
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + refund.getSettlementId()));
 
-        // Book the deferred external portion
-        long externalPortion = refund.getRefundAmountCents()
-                - calculateInternalAmount(refund.getRefundAmountCents(), settlement, refund.getRefundType());
+        // Book the deferred external portion using cumulative method
+        List<RefundRecordEntity> priorForExternal = refundRecordRepository.findBySettlementId(settlement.getId())
+                .stream().filter(r -> !r.getRefundNo().equals(refund.getRefundNo())).toList();
+        long internalAmount = calculateInternalAmount(refund.getRefundAmountCents(), settlement, priorForExternal);
+        long externalPortion = refund.getRefundAmountCents() - internalAmount;
         if (externalPortion > 0) {
             applyRefundToSettlement(settlement, externalPortion);
         }
@@ -298,16 +307,28 @@ public class RefundApplicationService implements UseCase {
 
     /**
      * Calculate the internal (non-external) portion of a refund amount.
-     * The external portion is proportional to the settlement's externalPaymentCents.
+     * Uses cumulative difference to prevent rounding drift across multiple partial refunds:
+     *   externalForThis = round(ext × cumRefundedWithThis / collected) - round(ext × cumRefundedBefore / collected)
+     * One rounding per cumulative total → no drift.
      */
-    private long calculateInternalAmount(long refundAmount, SettlementRecordEntity settlement, String refundType) {
+    private long calculateInternalAmount(long refundAmount, SettlementRecordEntity settlement,
+                                          List<RefundRecordEntity> priorRefunds) {
         if (settlement.getExternalPaymentCents() <= 0) {
             return refundAmount;
         }
-        double ratio = "FULL".equals(refundType) ? 1.0
-                : (double) refundAmount / settlement.getCollectedAmountCents();
-        long externalPortion = Math.round(settlement.getExternalPaymentCents() * ratio);
-        return refundAmount - externalPortion;
+
+        long priorRefundedTotal = priorRefunds.stream()
+                .filter(r -> !"PENDING".equals(r.getRefundStatus()) && !"REJECTED".equals(r.getRefundStatus()))
+                .mapToLong(RefundRecordEntity::getRefundAmountCents).sum();
+
+        long ext = settlement.getExternalPaymentCents();
+        long collected = settlement.getCollectedAmountCents();
+
+        long extDeferredBefore = Math.round(ext * ((double) priorRefundedTotal / collected));
+        long extDeferredWithThis = Math.round(ext * ((double) (priorRefundedTotal + refundAmount) / collected));
+        long externalForThis = extDeferredWithThis - extDeferredBefore;
+
+        return refundAmount - externalForThis;
     }
 
     /**
@@ -323,12 +344,31 @@ public class RefundApplicationService implements UseCase {
                     "Refund item amounts sum (" + itemTotal + ") does not match refundAmountCents (" + refundAmount + ")");
         }
 
-        // Validate item IDs belong to this settlement's table/store orders
+        // Resolve the table session for this settlement
+        Long sessionId = settlement.getStackingSessionId();
+        if (sessionId == null) {
+            // Fallback: find the most recent session for this table in this store
+            sessionId = tableSessionRepository
+                    .findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(
+                            settlement.getStoreId(), settlement.getTableId(), "OPEN")
+                    .or(() -> tableSessionRepository
+                            .findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(
+                                    settlement.getStoreId(), settlement.getTableId(), "CLOSED"))
+                    .map(s -> s.getId())
+                    .orElse(null);
+        }
+
+        // Validate item IDs belong to this settlement's session
         Set<Long> requestedIds = items.stream()
                 .map(CreateRefundCommand.RefundItemCommand::itemId)
                 .collect(Collectors.toSet());
-        List<SubmittedOrderItemEntity> foundItems = orderItemRepository.findByIdsAndTableContext(
-                requestedIds, settlement.getTableId(), settlement.getStoreId());
+
+        if (sessionId == null) {
+            throw new IllegalStateException("Cannot validate refund items: no table session found for settlement");
+        }
+
+        List<SubmittedOrderItemEntity> foundItems = orderItemRepository.findByIdsAndSessionId(
+                requestedIds, sessionId);
         Set<Long> foundIds = foundItems.stream().map(SubmittedOrderItemEntity::getId).collect(Collectors.toSet());
 
         Set<Long> missing = requestedIds.stream().filter(id -> !foundIds.contains(id)).collect(Collectors.toSet());

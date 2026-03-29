@@ -107,17 +107,22 @@ public class PaymentCallbackController {
             @RequestHeader(value = "X-Payment-Signature", required = false) String signature,
             @RequestBody JsonNode payload
     ) {
-        if (callbackSecret != null && !callbackSecret.isBlank()) {
-            String payloadText = payload.toString();
-            String expectedSignature = new HmacUtils("HmacSHA256", callbackSecret).hmacHex(payloadText);
-            if (signature == null || !MessageDigest.isEqual(
-                    expectedSignature.getBytes(StandardCharsets.UTF_8),
-                    signature.getBytes(StandardCharsets.UTF_8)
-            )) {
-                log.error("Invalid refund callback signature");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "Invalid signature", "refundCompleted", false));
-            }
+        // Secure-by-default: reject if no callback secret is configured
+        if (callbackSecret == null || callbackSecret.isBlank()) {
+            log.error("Refund callback rejected: pos.callback-secret is not configured");
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("error", "Callback secret not configured", "refundCompleted", false));
+        }
+
+        String payloadText = payload.toString();
+        String expectedSignature = new HmacUtils("HmacSHA256", callbackSecret).hmacHex(payloadText);
+        if (signature == null || !MessageDigest.isEqual(
+                expectedSignature.getBytes(StandardCharsets.UTF_8),
+                signature.getBytes(StandardCharsets.UTF_8)
+        )) {
+            log.error("Invalid refund callback signature");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Invalid signature", "refundCompleted", false));
         }
 
         String refundNo = payload.path("refundNo").asText("");
