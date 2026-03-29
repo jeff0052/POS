@@ -58,9 +58,8 @@ class TicketRoutingServiceTest {
 
     private SkuEntity buildSku(Long skuId, Long stationId) {
         SkuEntity sku = mock(SkuEntity.class);
-        when(sku.getId()).thenReturn(skuId);
+        lenient().when(sku.getId()).thenReturn(skuId); // not called when stationId==null (SKU filtered out before toMap)
         when(sku.getStationId()).thenReturn(stationId);
-        when(sku.getSkuName()).thenReturn("SKU-" + skuId);
         return sku;
     }
 
@@ -72,8 +71,7 @@ class TicketRoutingServiceTest {
 
     private StoreTableEntity buildTable(Long id, String tableCode) {
         StoreTableEntity table = mock(StoreTableEntity.class);
-        when(table.getId()).thenReturn(id);
-        when(table.getTableCode()).thenReturn(tableCode);
+        lenient().when(table.getTableCode()).thenReturn(tableCode); // not called in tests that throw before ticket creation
         return table;
     }
 
@@ -145,6 +143,7 @@ class TicketRoutingServiceTest {
         when(skuRepository.findAllById(any())).thenReturn(List.of(sku));
         when(stationRepository.findFirstByStoreIdAndStationStatusOrderBySortOrderAscIdAsc(10L, "ACTIVE"))
             .thenReturn(Optional.of(defaultStation));
+        when(stationRepository.findById(99L)).thenReturn(Optional.of(defaultStation));
         when(ticketRepository.countDistinctSubmittedOrdersWithTicketsByTableId(5L)).thenReturn(0L);
         when(ticketRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 

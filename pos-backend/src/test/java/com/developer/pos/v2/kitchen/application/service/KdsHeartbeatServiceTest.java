@@ -105,7 +105,7 @@ class KdsHeartbeatServiceTest {
 
     @Test
     void heartbeat_stationNotFound_throwsIllegalArgument() {
-        setupActor(100L, 10L);
+        // No auth setup needed — service throws before reaching enforcer
         when(stationRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> buildService().heartbeat(99L))

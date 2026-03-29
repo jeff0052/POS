@@ -76,8 +76,9 @@ class TicketStatusServiceTest {
     void updateStatus_submittedToPreparing_succeeds() {
         setupActor(Set.of("KDS_OPERATE"));
         KitchenTicketEntity ticket = buildTicket(1L, 10L, "SUBMITTED");
+        StoreEntity store1 = buildStore(100L);
         when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket));
-        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(100L)));
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store1));
         when(ticketRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         KitchenTicketDto result = buildService().updateStatus(1L, "PREPARING");
@@ -90,8 +91,9 @@ class TicketStatusServiceTest {
     void updateStatus_preparingToReady_setsReadyAt() {
         setupActor(Set.of("KDS_OPERATE"));
         KitchenTicketEntity ticket = buildTicket(1L, 10L, "PREPARING");
+        StoreEntity store2 = buildStore(100L);
         when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket));
-        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(100L)));
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store2));
         when(ticketRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         KitchenTicketDto result = buildService().updateStatus(1L, "READY");
@@ -104,8 +106,9 @@ class TicketStatusServiceTest {
     void updateStatus_readyToServed_setsServedAt() {
         setupActor(Set.of("KDS_OPERATE"));
         KitchenTicketEntity ticket = buildTicket(1L, 10L, "READY");
+        StoreEntity store3 = buildStore(100L);
         when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket));
-        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(100L)));
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store3));
         when(ticketRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         KitchenTicketDto result = buildService().updateStatus(1L, "SERVED");
@@ -118,8 +121,9 @@ class TicketStatusServiceTest {
     void updateStatus_cancelRequiresTicketCancelPermission() {
         setupActor(Set.of("KDS_OPERATE")); // no TICKET_CANCEL
         KitchenTicketEntity ticket = buildTicket(1L, 10L, "SUBMITTED");
+        StoreEntity store4 = buildStore(100L);
         when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket));
-        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(100L)));
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store4));
 
         assertThatThrownBy(() -> buildService().updateStatus(1L, "CANCELLED"))
             .isInstanceOf(SecurityException.class)
@@ -130,8 +134,9 @@ class TicketStatusServiceTest {
     void updateStatus_invalidTransition_throws422() {
         setupActor(Set.of("KDS_OPERATE"));
         KitchenTicketEntity ticket = buildTicket(1L, 10L, "READY");
+        StoreEntity store5 = buildStore(100L);
         when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket));
-        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(100L)));
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store5));
 
         // READY → PREPARING is invalid
         assertThatThrownBy(() -> buildService().updateStatus(1L, "PREPARING"))
@@ -140,7 +145,7 @@ class TicketStatusServiceTest {
 
     @Test
     void updateStatus_ticketNotFound_throwsIllegalArgument() {
-        setupActor(Set.of("KDS_OPERATE"));
+        // No auth setup needed — service throws before reaching enforcer
         when(ticketRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> buildService().updateStatus(99L, "PREPARING"))
@@ -152,8 +157,9 @@ class TicketStatusServiceTest {
     void updateStatus_terminalState_throwsIllegalState() {
         setupActor(Set.of("KDS_OPERATE", "TICKET_CANCEL"));
         KitchenTicketEntity ticket = buildTicket(1L, 10L, "SERVED");
+        StoreEntity store6 = buildStore(100L);
         when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket));
-        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(100L)));
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store6));
 
         assertThatThrownBy(() -> buildService().updateStatus(1L, "PREPARING"))
             .isInstanceOf(IllegalStateException.class)
