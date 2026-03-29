@@ -49,6 +49,24 @@ public class JwtProvider {
                 .compact();
     }
 
+    public String generateOrderingToken(Long storeId, Long tableId, Long sessionId, String tableCode) {
+        Date now = new Date();
+        long orderingExpirationMs = 4 * 60 * 60 * 1000L; // 4 hours
+        var builder = Jwts.builder()
+                .subject("qr-ordering")
+                .claim("storeId", storeId)
+                .claim("tableId", tableId)
+                .claim("tableCode", tableCode);
+        if (sessionId != null) {
+            builder.claim("sessionId", sessionId);
+        }
+        return builder
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + orderingExpirationMs))
+                .signWith(key)
+                .compact();
+    }
+
     public Claims parseToken(String token) {
         return Jwts.parser()
                 .verifyWith(key)

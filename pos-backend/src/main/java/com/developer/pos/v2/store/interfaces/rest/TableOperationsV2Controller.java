@@ -2,12 +2,21 @@ package com.developer.pos.v2.store.interfaces.rest;
 
 import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
+import com.developer.pos.v2.store.application.dto.QrTokenResultDto;
 import com.developer.pos.v2.store.application.dto.ReservationDto;
+import com.developer.pos.v2.store.application.dto.TableCleanResultDto;
+import com.developer.pos.v2.store.application.dto.TableMergeResultDto;
 import com.developer.pos.v2.store.application.dto.TableTransferResultDto;
+import com.developer.pos.v2.store.application.dto.TableUnmergeResultDto;
+import com.developer.pos.v2.store.application.service.QrTokenService;
 import com.developer.pos.v2.store.application.service.ReservationApplicationService;
+import com.developer.pos.v2.store.application.service.TableCleanService;
+import com.developer.pos.v2.store.application.service.TableMergeApplicationService;
 import com.developer.pos.v2.store.application.service.TableTransferApplicationService;
 import com.developer.pos.v2.store.interfaces.rest.request.SeatReservationRequest;
+import com.developer.pos.v2.store.interfaces.rest.request.TableMergeRequest;
 import com.developer.pos.v2.store.interfaces.rest.request.TableTransferRequest;
+import com.developer.pos.v2.store.interfaces.rest.request.TableUnmergeRequest;
 import com.developer.pos.v2.store.interfaces.rest.request.UpsertReservationRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,13 +35,22 @@ public class TableOperationsV2Controller implements V2Api {
 
     private final ReservationApplicationService reservationApplicationService;
     private final TableTransferApplicationService tableTransferApplicationService;
+    private final TableMergeApplicationService tableMergeApplicationService;
+    private final TableCleanService tableCleanService;
+    private final QrTokenService qrTokenService;
 
     public TableOperationsV2Controller(
             ReservationApplicationService reservationApplicationService,
-            TableTransferApplicationService tableTransferApplicationService
+            TableTransferApplicationService tableTransferApplicationService,
+            TableMergeApplicationService tableMergeApplicationService,
+            TableCleanService tableCleanService,
+            QrTokenService qrTokenService
     ) {
         this.reservationApplicationService = reservationApplicationService;
         this.tableTransferApplicationService = tableTransferApplicationService;
+        this.tableMergeApplicationService = tableMergeApplicationService;
+        this.tableCleanService = tableCleanService;
+        this.qrTokenService = qrTokenService;
     }
 
     @GetMapping("/reservations")
@@ -92,5 +110,37 @@ public class TableOperationsV2Controller implements V2Api {
             @Valid @RequestBody TableTransferRequest request
     ) {
         return ApiResponse.success(tableTransferApplicationService.transfer(storeId, tableId, request.destinationTableId()));
+    }
+
+    @PostMapping("/tables/merge")
+    public ApiResponse<TableMergeResultDto> mergeTables(
+            @PathVariable Long storeId,
+            @Valid @RequestBody TableMergeRequest request
+    ) {
+        return ApiResponse.success(tableMergeApplicationService.merge(storeId, request.masterTableId(), request.mergedTableId()));
+    }
+
+    @PostMapping("/tables/unmerge")
+    public ApiResponse<TableUnmergeResultDto> unmergeTables(
+            @PathVariable Long storeId,
+            @Valid @RequestBody TableUnmergeRequest request
+    ) {
+        return ApiResponse.success(tableMergeApplicationService.unmerge(storeId, request.mergeRecordId()));
+    }
+
+    @PostMapping("/tables/{tableId}/mark-clean")
+    public ApiResponse<TableCleanResultDto> markTableClean(
+            @PathVariable Long storeId,
+            @PathVariable Long tableId
+    ) {
+        return ApiResponse.success(tableCleanService.markClean(storeId, tableId));
+    }
+
+    @PostMapping("/tables/{tableId}/qr/refresh")
+    public ApiResponse<QrTokenResultDto> refreshQr(
+            @PathVariable Long storeId,
+            @PathVariable Long tableId
+    ) {
+        return ApiResponse.success(qrTokenService.refreshQr(storeId, tableId));
     }
 }

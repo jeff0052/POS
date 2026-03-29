@@ -46,6 +46,8 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").permitAll()
                 // QR ordering is public (customer-facing)
                 .requestMatchers("/api/v2/qr-ordering/**").permitAll()
+                // QR scan entry point is public (302 redirect to ordering page)
+                .requestMatchers("/qr/**").permitAll()
                 // VibeCash webhook is public (verified by signature)
                 .requestMatchers("/api/v2/payments/vibecash/webhook").permitAll()
                 // Internal payment callback (verified by HMAC signature)

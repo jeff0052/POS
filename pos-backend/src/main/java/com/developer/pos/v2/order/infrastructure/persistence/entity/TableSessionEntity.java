@@ -32,6 +32,9 @@ public class TableSessionEntity {
     @Column(name = "session_status", nullable = false)
     private String sessionStatus;
 
+    @Column(name = "merged_into_session_id")
+    private Long mergedIntoSessionId;
+
     @Column(name = "opened_at", insertable = false, updatable = false)
     private OffsetDateTime openedAt;
 
@@ -88,5 +91,13 @@ public class TableSessionEntity {
 
     public void setClosedAt(OffsetDateTime closedAt) {
         this.closedAt = closedAt;
+    }
+
+    public Long getMergedIntoSessionId() {
+        return mergedIntoSessionId;
+    }
+
+    public void setMergedIntoSessionId(Long mergedIntoSessionId) {
+        this.mergedIntoSessionId = mergedIntoSessionId;
     }
 }

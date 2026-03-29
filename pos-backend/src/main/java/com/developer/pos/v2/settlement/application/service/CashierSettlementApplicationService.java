@@ -244,7 +244,7 @@ public class CashierSettlementApplicationService implements UseCase {
 
         StoreTableEntity table = storeTableRepository.findByIdAndStoreId(tableId, storeId)
                 .orElseThrow(() -> new IllegalStateException("Store table not found for settlement."));
-        table.setTableStatus("AVAILABLE");
+        table.setTableStatus("PENDING_CLEAN");
         storeTableRepository.saveAndFlush(table);
 
         return toSettlementResult(session.getSessionId(), settlementRecord);
@@ -302,7 +302,7 @@ public class CashierSettlementApplicationService implements UseCase {
 
         StoreTableEntity table = storeTableRepository.findByIdAndStoreId(activeOrder.getTableId(), activeOrder.getStoreId())
                 .orElseThrow(() -> new IllegalStateException("Store table not found for settlement."));
-        table.setTableStatus("AVAILABLE");
+        table.setTableStatus("PENDING_CLEAN");
         storeTableRepository.saveAndFlush(table);
 
         return toSettlementResult(activeOrder.getActiveOrderId(), settlementRecord);
