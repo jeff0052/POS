@@ -64,6 +64,15 @@ public class InventoryMovementEntity {
         this.createdAt = LocalDateTime.now();
     }
 
+    public InventoryMovementEntity(Long storeId, Long inventoryItemId, Long batchId,
+                                    String movementType, BigDecimal quantityChange,
+                                    Long unitCostCents, BigDecimal balanceAfter,
+                                    String sourceType, String sourceRef, String notes) {
+        this(storeId, inventoryItemId, batchId, movementType, quantityChange,
+                unitCostCents, balanceAfter, sourceType, sourceRef);
+        this.notes = notes;
+    }
+
     public Long getId() { return id; }
     public Long getStoreId() { return storeId; }
     public Long getInventoryItemId() { return inventoryItemId; }
