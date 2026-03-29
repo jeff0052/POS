@@ -213,6 +213,15 @@ public class PaymentStackingService {
                 throw new IllegalArgumentException(
                         "Coupon " + choices.couponId() + " does not belong to member " + memberId);
             }
+            OffsetDateTime now = OffsetDateTime.now();
+            if (now.isBefore(coupon.getValidFrom())) {
+                throw new IllegalArgumentException(
+                        "Coupon " + choices.couponId() + " is not yet valid");
+            }
+            if (!now.isBefore(coupon.getValidUntil())) {
+                throw new IllegalArgumentException(
+                        "Coupon " + choices.couponId() + " has expired");
+            }
             long couponDiscount = calculateCouponDiscount(coupon.getTemplateId(), remaining);
             if (couponDiscount == 0L) {
                 throw new IllegalArgumentException(

@@ -20,7 +20,9 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
 import java.net.URI;
@@ -53,6 +55,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
     private final String secret;
     private final String webhookSecret;
     private final String currencyCode;
+    private final TransactionTemplate txTemplate;
 
     public VibeCashPaymentApplicationService(
             JpaTableSessionRepository tableSessionRepository,
@@ -61,6 +64,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
             CashierSettlementApplicationService cashierSettlementApplicationService,
             @Lazy PaymentStackingService paymentStackingService,
             ObjectMapper objectMapper,
+            PlatformTransactionManager transactionManager,
             @Value("${vibecash.api-url}") String apiUrl,
             @Value("${vibecash.secret}") String secret,
             @Value("${vibecash.webhook-secret:}") String webhookSecret,
@@ -72,6 +76,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
         this.cashierSettlementApplicationService = cashierSettlementApplicationService;
         this.paymentStackingService = paymentStackingService;
         this.objectMapper = objectMapper;
+        this.txTemplate = new TransactionTemplate(transactionManager);
         this.apiUrl = apiUrl;
         this.secret = secret;
         this.webhookSecret = webhookSecret;
@@ -163,90 +168,106 @@ public class VibeCashPaymentApplicationService implements UseCase {
      *  - does NOT call moveTableToPaymentPending (stacking manages its own lifecycle)
      *  - sets settlementRecordId on the attempt (signals stacking path to webhook handler)
      *  - uses settlement.externalPaymentCents as the charged amount
+     *
+     * Transaction discipline: Phase 1 (validate + persist attempt) commits BEFORE the HTTP
+     * call so the attempt record is durable regardless of HTTP outcome.  Phase 2 (persist
+     * provider URL or mark FAILED) runs in its own committed transaction afterwards.
+     * No open transaction spans the network call.
      */
-    @Transactional
     public VibeCashPaymentAttemptDto startStackingPayment(
             Long storeId, Long tableId, Long settlementId, String paymentScheme) {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("VibeCash secret is not configured.");
         }
 
-        var settlement = settlementRecordRepository.findByIdForUpdate(settlementId)
-                .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
-        if (!"PENDING".equals(settlement.getFinalStatus())) {
-            throw new IllegalStateException("Settlement is not PENDING: " + settlement.getFinalStatus());
-        }
+        // Phase 1: validate settlement + persist attempt — commits before HTTP call
+        record Phase1(String attemptId, Map<String, Object> payload) {}
+        Phase1 p1 = txTemplate.execute(status -> {
+            var settlement = settlementRecordRepository.findByIdForUpdate(settlementId)
+                    .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
+            if (!"PENDING".equals(settlement.getFinalStatus())) {
+                throw new IllegalStateException("Settlement is not PENDING: " + settlement.getFinalStatus());
+            }
+            TableSessionEntity session = tableSessionRepository.findById(settlement.getStackingSessionId())
+                    .orElseThrow(() -> new IllegalArgumentException("Stacking session not found: " + settlement.getStackingSessionId()));
+            long amountCents = settlement.getExternalPaymentCents();
 
-        TableSessionEntity session = tableSessionRepository.findById(settlement.getStackingSessionId())
-                .orElseThrow(() -> new IllegalArgumentException("Stacking session not found: " + settlement.getStackingSessionId()));
+            String attemptId = "PAT" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+            PaymentAttemptEntity attempt = new PaymentAttemptEntity();
+            attempt.setPaymentAttemptId(attemptId);
+            attempt.setProvider(PROVIDER);
+            attempt.setPaymentMethod(PAYMENT_METHOD);
+            attempt.setPaymentScheme(paymentScheme);
+            attempt.setStoreId(storeId);
+            attempt.setTableId(tableId);
+            attempt.setTableSessionId(session.getId());
+            attempt.setSessionRef(session.getSessionId());
+            attempt.setSettlementAmountCents(amountCents);
+            attempt.setCurrencyCode(currencyCode);
+            attempt.setAttemptStatus("PENDING_CUSTOMER");
+            attempt.setProviderStatus("CREATING_LINK");
+            attempt.setSettlementRecordId(settlementId);  // stacking path marker
+            attempt.setCreatedAt(OffsetDateTime.now());
+            attempt.setUpdatedAt(OffsetDateTime.now());
+            paymentAttemptRepository.saveAndFlush(attempt);
 
-        long amountCents = settlement.getExternalPaymentCents();
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("amount", amountCents);
+            payload.put("currency", currencyCode);
+            payload.put("name", "Table " + tableId + " payment");
+            payload.put("description", "Stacking payment for settlement " + settlement.getSettlementNo());
+            payload.put("paymentMethodTypes", List.of(toGatewayScheme(paymentScheme)));
+            payload.put("metadata", Map.of(
+                    "paymentAttemptId", attemptId,
+                    "tableSessionId", session.getSessionId(),
+                    "storeId", String.valueOf(storeId),
+                    "tableId", String.valueOf(tableId),
+                    "settlementId", String.valueOf(settlementId)
+            ));
+            return new Phase1(attemptId, payload);
+        });
 
-        PaymentAttemptEntity attempt = new PaymentAttemptEntity();
-        attempt.setPaymentAttemptId("PAT" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
-        attempt.setProvider(PROVIDER);
-        attempt.setPaymentMethod(PAYMENT_METHOD);
-        attempt.setPaymentScheme(paymentScheme);
-        attempt.setStoreId(storeId);
-        attempt.setTableId(tableId);
-        attempt.setTableSessionId(session.getId());
-        attempt.setSessionRef(session.getSessionId());
-        attempt.setSettlementAmountCents(amountCents);
-        attempt.setCurrencyCode(currencyCode);
-        attempt.setAttemptStatus("PENDING_CUSTOMER");
-        attempt.setProviderStatus("CREATING_LINK");
-        attempt.setSettlementRecordId(settlementId);  // stacking path marker
-        attempt.setCreatedAt(OffsetDateTime.now());
-        attempt.setUpdatedAt(OffsetDateTime.now());
-        paymentAttemptRepository.saveAndFlush(attempt);
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("amount", amountCents);
-        payload.put("currency", currencyCode);
-        payload.put("name", "Table " + tableId + " payment");
-        payload.put("description", "Stacking payment for settlement " + settlement.getSettlementNo());
-        payload.put("paymentMethodTypes", List.of(toGatewayScheme(paymentScheme)));
-        payload.put("metadata", Map.of(
-                "paymentAttemptId", attempt.getPaymentAttemptId(),
-                "tableSessionId", session.getSessionId(),
-                "storeId", String.valueOf(storeId),
-                "tableId", String.valueOf(tableId),
-                "settlementId", String.valueOf(settlementId)
-        ));
-
+        // HTTP call — outside any transaction; Phase 1 is already committed
+        HttpResponse<String> response;
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl.replaceAll("/$", "") + "/v1/payment_links"))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + secret)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(p1.payload())))
                     .build();
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            markAttemptFailed(p1.attemptId(), "REQUEST_FAILED", e.getMessage());
+            throw new IllegalStateException("Failed to create VibeCash stacking payment link.", e);
+        }
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 300) {
-                attempt.setAttemptStatus("FAILED");
-                attempt.setProviderStatus("HTTP_" + response.statusCode());
-                attempt.setLastWebhookPayloadJson(response.body());
-                attempt.setUpdatedAt(OffsetDateTime.now());
-                paymentAttemptRepository.saveAndFlush(attempt);
-                throw new IllegalStateException("VibeCash stacking payment link creation failed: " + response.body());
-            }
+        if (response.statusCode() >= 300) {
+            markAttemptFailed(p1.attemptId(), "HTTP_" + response.statusCode(), response.body());
+            throw new IllegalStateException("VibeCash stacking payment link creation failed: " + response.body());
+        }
 
+        // Phase 2: persist provider URL — new committed transaction
+        try {
             JsonNode root = objectMapper.readTree(response.body());
             JsonNode data = root.path("data");
-            attempt.setProviderPaymentId(textOrNull(data, "id", "paymentLinkId"));
-            attempt.setProviderCheckoutUrl(textOrNull(data, "url", "checkoutUrl"));
-            attempt.setProviderStatus(textOrDefault(data, "status", "open"));
-            attempt.setUpdatedAt(OffsetDateTime.now());
-            paymentAttemptRepository.saveAndFlush(attempt);
-            return toDto(attempt);
-        } catch (IOException | InterruptedException exception) {
-            attempt.setAttemptStatus("FAILED");
-            attempt.setProviderStatus("REQUEST_FAILED");
-            attempt.setLastWebhookPayloadJson(exception.getMessage());
-            attempt.setUpdatedAt(OffsetDateTime.now());
-            paymentAttemptRepository.saveAndFlush(attempt);
-            throw new IllegalStateException("Failed to create VibeCash stacking payment link.", exception);
+            String providerPaymentId = textOrNull(data, "id", "paymentLinkId");
+            String checkoutUrl = textOrNull(data, "url", "checkoutUrl");
+            String providerStatus = textOrDefault(data, "status", "open");
+            return txTemplate.execute(txStatus -> {
+                var fresh = paymentAttemptRepository.findByPaymentAttemptId(p1.attemptId())
+                        .orElseThrow(() -> new IllegalArgumentException("Attempt not found: " + p1.attemptId()));
+                fresh.setProviderPaymentId(providerPaymentId);
+                fresh.setProviderCheckoutUrl(checkoutUrl);
+                fresh.setProviderStatus(providerStatus);
+                fresh.setUpdatedAt(OffsetDateTime.now());
+                paymentAttemptRepository.save(fresh);
+                return toDto(fresh);
+            });
+        } catch (IOException e) {
+            markAttemptFailed(p1.attemptId(), "PARSE_ERROR", e.getMessage());
+            throw new IllegalStateException("Failed to parse VibeCash stacking payment response.", e);
         }
     }
 
@@ -254,29 +275,48 @@ public class VibeCashPaymentApplicationService implements UseCase {
      * Creates a VibeCash payment link for an already-saved PaymentAttemptEntity.
      * Used by switchMethod after creating the replacement attempt entity with correct
      * retry tracking metadata (retryCount, parentAttemptId, etc.).
+     *
+     * Transaction discipline: snapshot the attempt in Phase 1 (committed), make the HTTP
+     * call outside any transaction, then persist the provider URL in Phase 2 (committed).
      */
-    @Transactional
     public VibeCashPaymentAttemptDto createPaymentLinkForSavedAttempt(String paymentAttemptId) {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("VibeCash secret is not configured.");
         }
-        PaymentAttemptEntity attempt = paymentAttemptRepository.findByPaymentAttemptId(paymentAttemptId)
-                .orElseThrow(() -> new IllegalArgumentException("Attempt not found: " + paymentAttemptId));
+
+        // Phase 1: snapshot attempt data needed for payload
+        record AttemptSnapshot(String attemptId, long amountCents, String paymentScheme,
+                               Long tableId, Long storeId, String sessionRef, Long settlementRecordId) {}
+        AttemptSnapshot snapshot = txTemplate.execute(status -> {
+            PaymentAttemptEntity a = paymentAttemptRepository.findByPaymentAttemptId(paymentAttemptId)
+                    .orElseThrow(() -> new IllegalArgumentException("Attempt not found: " + paymentAttemptId));
+            return new AttemptSnapshot(
+                    a.getPaymentAttemptId(),
+                    a.getSettlementAmountCents(),
+                    a.getPaymentScheme(),
+                    a.getTableId(),
+                    a.getStoreId(),
+                    a.getSessionRef(),
+                    a.getSettlementRecordId()
+            );
+        });
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("amount", attempt.getSettlementAmountCents());
+        payload.put("amount", snapshot.amountCents());
         payload.put("currency", currencyCode);
-        payload.put("name", "Table " + attempt.getTableId() + " payment");
-        payload.put("description", "Stacking switch-method attempt " + attempt.getPaymentAttemptId());
-        payload.put("paymentMethodTypes", List.of(toGatewayScheme(attempt.getPaymentScheme())));
+        payload.put("name", "Table " + snapshot.tableId() + " payment");
+        payload.put("description", "Stacking switch-method attempt " + snapshot.attemptId());
+        payload.put("paymentMethodTypes", List.of(toGatewayScheme(snapshot.paymentScheme())));
         payload.put("metadata", Map.of(
-                "paymentAttemptId", attempt.getPaymentAttemptId(),
-                "tableSessionId", attempt.getSessionRef() != null ? attempt.getSessionRef() : "",
-                "storeId", String.valueOf(attempt.getStoreId()),
-                "tableId", String.valueOf(attempt.getTableId()),
-                "settlementId", String.valueOf(attempt.getSettlementRecordId())
+                "paymentAttemptId", snapshot.attemptId(),
+                "tableSessionId", snapshot.sessionRef() != null ? snapshot.sessionRef() : "",
+                "storeId", String.valueOf(snapshot.storeId()),
+                "tableId", String.valueOf(snapshot.tableId()),
+                "settlementId", String.valueOf(snapshot.settlementRecordId())
         ));
 
+        // HTTP call — outside any transaction
+        HttpResponse<String> response;
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl.replaceAll("/$", "") + "/v1/payment_links"))
@@ -284,32 +324,38 @@ public class VibeCashPaymentApplicationService implements UseCase {
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                     .build();
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            markAttemptFailed(snapshot.attemptId(), "REQUEST_FAILED", e.getMessage());
+            throw new IllegalStateException("Failed to create VibeCash payment link.", e);
+        }
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 300) {
-                attempt.setAttemptStatus("FAILED");
-                attempt.setProviderStatus("HTTP_" + response.statusCode());
-                attempt.setLastWebhookPayloadJson(response.body());
-                attempt.setUpdatedAt(OffsetDateTime.now());
-                paymentAttemptRepository.saveAndFlush(attempt);
-                throw new IllegalStateException("VibeCash payment link creation failed: " + response.body());
-            }
+        if (response.statusCode() >= 300) {
+            markAttemptFailed(snapshot.attemptId(), "HTTP_" + response.statusCode(), response.body());
+            throw new IllegalStateException("VibeCash payment link creation failed: " + response.body());
+        }
 
+        // Phase 2: persist provider URL — new committed transaction
+        try {
             JsonNode root = objectMapper.readTree(response.body());
             JsonNode data = root.path("data");
-            attempt.setProviderPaymentId(textOrNull(data, "id", "paymentLinkId"));
-            attempt.setProviderCheckoutUrl(textOrNull(data, "url", "checkoutUrl"));
-            attempt.setProviderStatus(textOrDefault(data, "status", "open"));
-            attempt.setUpdatedAt(OffsetDateTime.now());
-            paymentAttemptRepository.saveAndFlush(attempt);
-            return toDto(attempt);
-        } catch (IOException | InterruptedException exception) {
-            attempt.setAttemptStatus("FAILED");
-            attempt.setProviderStatus("REQUEST_FAILED");
-            attempt.setLastWebhookPayloadJson(exception.getMessage());
-            attempt.setUpdatedAt(OffsetDateTime.now());
-            paymentAttemptRepository.saveAndFlush(attempt);
-            throw new IllegalStateException("Failed to create VibeCash payment link.", exception);
+            String providerPaymentId = textOrNull(data, "id", "paymentLinkId");
+            String checkoutUrl = textOrNull(data, "url", "checkoutUrl");
+            String providerStatus = textOrDefault(data, "status", "open");
+            return txTemplate.execute(txStatus -> {
+                var fresh = paymentAttemptRepository.findByPaymentAttemptId(snapshot.attemptId())
+                        .orElseThrow(() -> new IllegalArgumentException("Attempt not found: " + snapshot.attemptId()));
+                fresh.setProviderPaymentId(providerPaymentId);
+                fresh.setProviderCheckoutUrl(checkoutUrl);
+                fresh.setProviderStatus(providerStatus);
+                fresh.setUpdatedAt(OffsetDateTime.now());
+                paymentAttemptRepository.save(fresh);
+                return toDto(fresh);
+            });
+        } catch (IOException e) {
+            markAttemptFailed(snapshot.attemptId(), "PARSE_ERROR", e.getMessage());
+            throw new IllegalStateException("Failed to parse VibeCash payment response.", e);
         }
     }
 
@@ -420,6 +466,27 @@ public class VibeCashPaymentApplicationService implements UseCase {
                 paymentAttempt.getAttemptStatus(),
                 settlementTriggered
         );
+        }
+    }
+
+    /**
+     * Marks an attempt FAILED in its own committed transaction.
+     * Called from error paths that execute outside any open transaction.
+     */
+    private void markAttemptFailed(String attemptId, String providerStatus, String detail) {
+        try {
+            txTemplate.execute(txStatus -> {
+                paymentAttemptRepository.findByPaymentAttemptId(attemptId).ifPresent(a -> {
+                    a.setAttemptStatus("FAILED");
+                    a.setProviderStatus(providerStatus);
+                    a.setLastWebhookPayloadJson(detail);
+                    a.setUpdatedAt(OffsetDateTime.now());
+                    paymentAttemptRepository.save(a);
+                });
+                return null;
+            });
+        } catch (Exception ex) {
+            log.error("Failed to mark attempt {} as FAILED: {}", attemptId, ex.getMessage());
         }
     }
 
