@@ -2,6 +2,7 @@ package com.developer.pos.v2.inventory.interfaces.rest;
 
 import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
+import com.developer.pos.v2.inventory.application.dto.OcrResultDto;
 import com.developer.pos.v2.inventory.application.dto.PurchaseInvoiceDto;
 import com.developer.pos.v2.inventory.application.service.PurchaseInvoiceService;
 import com.developer.pos.v2.inventory.interfaces.rest.request.*;
@@ -38,12 +39,19 @@ public class PurchaseInvoiceV2Controller implements V2Api {
 
     /** Trigger OCR scan on a purchase invoice image. */
     @PostMapping("/stores/{storeId}/invoices/{invoiceId}/ocr-scan")
-    public ApiResponse<PurchaseInvoiceDto> triggerOcrScan(
+    public ApiResponse<OcrResultDto> triggerOcrScan(
             @PathVariable Long storeId,
             @PathVariable Long invoiceId,
             @Valid @RequestBody TriggerOcrRequest request) {
         return ApiResponse.success(purchaseInvoiceService.triggerOcrScan(
             storeId, invoiceId, request.imageAssetId()));
+    }
+
+    /** Get OCR result with auto-matched items. */
+    @GetMapping("/stores/{storeId}/invoices/{invoiceId}/ocr-result")
+    public ApiResponse<OcrResultDto> getOcrResult(
+            @PathVariable Long storeId, @PathVariable Long invoiceId) {
+        return ApiResponse.success(purchaseInvoiceService.getOcrResult(storeId, invoiceId));
     }
 
     /** Confirm OCR result → create batches + movements + update stock. */

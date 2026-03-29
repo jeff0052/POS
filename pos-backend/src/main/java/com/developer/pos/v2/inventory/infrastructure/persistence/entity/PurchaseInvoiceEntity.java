@@ -1,6 +1,7 @@
 package com.developer.pos.v2.inventory.infrastructure.persistence.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -44,6 +45,18 @@ public class PurchaseInvoiceEntity {
     @Column(name = "ocr_raw_result", columnDefinition = "JSON")
     private String ocrRawResult;
 
+    @Column(name = "ocr_confidence", precision = 3, scale = 2)
+    private BigDecimal ocrConfidence;
+
+    @Column(name = "ocr_reviewed")
+    private Boolean ocrReviewed = false;
+
+    @Column(name = "ocr_reviewed_by")
+    private Long ocrReviewedBy;
+
+    @Column(name = "ocr_reviewed_at")
+    private LocalDateTime ocrReviewedAt;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
@@ -72,13 +85,25 @@ public class PurchaseInvoiceEntity {
         this.ocrStatus = "PROCESSING";
     }
 
-    public void completeOcr(Long totalAmountCents) {
-        if (!"PROCESSING".equals(this.ocrStatus)) {
-            throw new IllegalStateException("Invoice " + id + " is not in OCR PROCESSING state, current: " + ocrStatus);
+    public void completeOcrScan(BigDecimal confidence, String rawResultJson) {
+        this.ocrStatus = "COMPLETED";
+        this.ocrConfidence = confidence;
+        this.ocrRawResult = rawResultJson;
+    }
+
+    public void completeOcr(Long totalAmountCents, Long reviewedBy) {
+        if (!"COMPLETED".equals(this.ocrStatus)) {
+            throw new IllegalStateException("Invoice " + id + " OCR is not completed, current: " + ocrStatus);
         }
         this.invoiceStatus = "CONFIRMED";
-        this.ocrStatus = "COMPLETED";
         this.totalAmountCents = totalAmountCents;
+        this.ocrReviewed = true;
+        this.ocrReviewedBy = reviewedBy;
+        this.ocrReviewedAt = LocalDateTime.now();
+    }
+
+    public void completeOcr(Long totalAmountCents) {
+        completeOcr(totalAmountCents, null);
     }
 
     public Long getId() { return id; }
@@ -91,4 +116,9 @@ public class PurchaseInvoiceEntity {
     public String getInvoiceStatus() { return invoiceStatus; }
     public String getOcrStatus() { return ocrStatus; }
     public String getScanImageUrl() { return scanImageUrl; }
+    public String getOcrRawResult() { return ocrRawResult; }
+    public BigDecimal getOcrConfidence() { return ocrConfidence; }
+    public boolean isOcrReviewed() { return Boolean.TRUE.equals(ocrReviewed); }
+    public Long getOcrReviewedBy() { return ocrReviewedBy; }
+    public LocalDateTime getOcrReviewedAt() { return ocrReviewedAt; }
 }

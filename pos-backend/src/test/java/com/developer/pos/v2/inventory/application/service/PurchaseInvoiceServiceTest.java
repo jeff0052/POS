@@ -2,8 +2,8 @@ package com.developer.pos.v2.inventory.application.service;
 
 import com.developer.pos.auth.security.AuthenticatedActor;
 import com.developer.pos.v2.common.application.StoreAccessEnforcer;
-import com.developer.pos.v2.inventory.application.dto.ConfirmedItemInput;
-import com.developer.pos.v2.inventory.application.dto.PurchaseInvoiceDto;
+import com.developer.pos.v2.inventory.application.dto.*;
+import com.developer.pos.v2.inventory.application.port.OcrClient;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.*;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.*;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +38,8 @@ class PurchaseInvoiceServiceTest {
     @Mock JpaInventoryBatchRepository batchRepository;
     @Mock JpaInventoryMovementRepository movementRepository;
     @Mock JpaStoreLookupRepository storeLookupRepository;
+    @Mock OcrClient ocrClient;
+    @Mock OcrAutoMatchService autoMatchService;
     MockedStatic<SecurityContextHolder> securityMock;
 
     @AfterEach
@@ -47,7 +50,8 @@ class PurchaseInvoiceServiceTest {
     private PurchaseInvoiceService buildService() {
         StoreAccessEnforcer enforcer = new StoreAccessEnforcer(storeLookupRepository);
         return new PurchaseInvoiceService(invoiceRepository, invoiceItemRepository,
-            inventoryItemRepository, batchRepository, movementRepository, enforcer);
+            inventoryItemRepository, batchRepository, movementRepository, enforcer,
+            ocrClient, autoMatchService);
     }
 
     private void setupActor(Long merchantId, Long storeId, Set<String> permissions) {
@@ -121,8 +125,7 @@ class PurchaseInvoiceServiceTest {
     }
 
     @Test
-    void triggerOcr_happy_setsProcessingStatus() {
-
+    void triggerOcr_happy_callsOcrClientAndReturnsResult() {
         setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
         StoreEntity store = buildStore(100L);
         when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
@@ -130,10 +133,24 @@ class PurchaseInvoiceServiceTest {
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
         when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        PurchaseInvoiceDto result = buildService().triggerOcrScan(10L, 1L, "asset-abc-123");
+        List<OcrLineItem> ocrLines = List.of(
+            new OcrLineItem("牛腩", BigDecimal.valueOf(10), "kg", 5000L, 50000L));
+        OcrRawResult rawResult = new OcrRawResult("Supplier A", "2026-03-30", 50000L,
+            new BigDecimal("0.95"), ocrLines);
+        when(ocrClient.recognize("asset-abc-123")).thenReturn(rawResult);
 
-        assertThat(result.ocrStatus()).isEqualTo("PROCESSING");
-        assertThat(result.scanImageUrl()).contains("asset-abc-123");
+        List<OcrMatchedItem> matched = List.of(
+            new OcrMatchedItem("牛腩", 20L, "牛腩", new BigDecimal("0.95"),
+                BigDecimal.valueOf(10), "kg", 5000L, 50000L));
+        when(autoMatchService.match(eq(10L), eq(ocrLines))).thenReturn(matched);
+
+        OcrResultDto result = buildService().triggerOcrScan(10L, 1L, "asset-abc-123");
+
+        assertThat(result.supplierName()).isEqualTo("Supplier A");
+        assertThat(result.avgConfidence()).isEqualByComparingTo(new BigDecimal("0.95"));
+        assertThat(result.items()).hasSize(1);
+        verify(ocrClient).recognize("asset-abc-123");
+        verify(autoMatchService).match(eq(10L), eq(ocrLines));
     }
 
     @Test
@@ -169,7 +186,7 @@ class PurchaseInvoiceServiceTest {
         setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
         StoreEntity store = buildStore(100L);
         when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
-        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING");
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "COMPLETED");
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
 
         InventoryItemEntity item = new InventoryItemEntity(10L, "BEEF-001", "牛腩", "kg", BigDecimal.valueOf(5));
@@ -198,7 +215,7 @@ class PurchaseInvoiceServiceTest {
         setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
         StoreEntity store = buildStore(100L);
         when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
-        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING");
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "COMPLETED");
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
 
         InventoryItemEntity beef = new InventoryItemEntity(10L, "BEEF-001", "牛腩", "kg", BigDecimal.ZERO);
@@ -241,7 +258,7 @@ class PurchaseInvoiceServiceTest {
         setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
         StoreEntity store = buildStore(100L);
         when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
-        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING");
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "COMPLETED");
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
         when(inventoryItemRepository.findById(99L)).thenReturn(Optional.empty());
 
@@ -259,5 +276,47 @@ class PurchaseInvoiceServiceTest {
 
         assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L, List.of()))
             .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void confirmOcr_requiresCompletedOcrStatus() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "PROCESSING"); // not COMPLETED
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L,
+            List.of(new ConfirmedItemInput(20L, BigDecimal.TEN, "kg", 5000L, null))))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("not completed");
+    }
+
+    @Test
+    void triggerOcrScan_callsOcrClientAndReturnsMatchedResult() {
+        setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, null);
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<OcrLineItem> ocrLines = List.of(
+            new OcrLineItem("辣椒", BigDecimal.valueOf(5), "kg", 3000L, 15000L));
+        OcrRawResult rawResult = new OcrRawResult("Supplier B", "2026-03-30", 15000L,
+            new BigDecimal("0.88"), ocrLines);
+        when(ocrClient.recognize("asset-xyz")).thenReturn(rawResult);
+
+        List<OcrMatchedItem> matched = List.of(
+            new OcrMatchedItem("辣椒", 21L, "辣椒", new BigDecimal("0.88"),
+                BigDecimal.valueOf(5), "kg", 3000L, 15000L));
+        when(autoMatchService.match(eq(10L), eq(ocrLines))).thenReturn(matched);
+
+        OcrResultDto result = buildService().triggerOcrScan(10L, 1L, "asset-xyz");
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).matchedItemName()).isEqualTo("辣椒");
+        assertThat(result.totalAmountCents()).isEqualTo(15000L);
+        verify(ocrClient).recognize("asset-xyz");
     }
 }

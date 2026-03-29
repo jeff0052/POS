@@ -1,11 +1,13 @@
 package com.developer.pos.v2.inventory.application.service;
 
+import com.developer.pos.auth.security.AuthContext;
 import com.developer.pos.v2.common.application.StoreAccessEnforcer;
 import com.developer.pos.v2.common.application.UseCase;
-import com.developer.pos.v2.inventory.application.dto.ConfirmedItemInput;
-import com.developer.pos.v2.inventory.application.dto.PurchaseInvoiceDto;
+import com.developer.pos.v2.inventory.application.dto.*;
+import com.developer.pos.v2.inventory.application.port.OcrClient;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.*;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,25 +18,33 @@ import java.util.List;
 @Service
 public class PurchaseInvoiceService implements UseCase {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final JpaPurchaseInvoiceRepository invoiceRepository;
     private final JpaPurchaseInvoiceItemRepository invoiceItemRepository;
     private final JpaInventoryItemRepository inventoryItemRepository;
     private final JpaInventoryBatchRepository batchRepository;
     private final JpaInventoryMovementRepository movementRepository;
     private final StoreAccessEnforcer enforcer;
+    private final OcrClient ocrClient;
+    private final OcrAutoMatchService autoMatchService;
 
     public PurchaseInvoiceService(JpaPurchaseInvoiceRepository invoiceRepository,
                                    JpaPurchaseInvoiceItemRepository invoiceItemRepository,
                                    JpaInventoryItemRepository inventoryItemRepository,
                                    JpaInventoryBatchRepository batchRepository,
                                    JpaInventoryMovementRepository movementRepository,
-                                   StoreAccessEnforcer enforcer) {
+                                   StoreAccessEnforcer enforcer,
+                                   OcrClient ocrClient,
+                                   OcrAutoMatchService autoMatchService) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceItemRepository = invoiceItemRepository;
         this.inventoryItemRepository = inventoryItemRepository;
         this.batchRepository = batchRepository;
         this.movementRepository = movementRepository;
         this.enforcer = enforcer;
+        this.ocrClient = ocrClient;
+        this.autoMatchService = autoMatchService;
     }
 
     @Transactional
@@ -51,12 +61,23 @@ public class PurchaseInvoiceService implements UseCase {
     }
 
     @Transactional
-    public PurchaseInvoiceDto triggerOcrScan(Long storeId, Long invoiceId, String imageAssetId) {
+    public OcrResultDto triggerOcrScan(Long storeId, Long invoiceId, String imageAssetId) {
         enforcer.enforce(storeId);
         enforcer.enforcePermission("PURCHASE_CREATE");
         PurchaseInvoiceEntity invoice = loadInvoiceForStore(storeId, invoiceId);
         invoice.startOcrScan(imageAssetId);
-        return toDto(invoiceRepository.save(invoice));
+
+        // Call OCR provider and store raw result
+        OcrRawResult ocrResult = ocrClient.recognize(imageAssetId);
+        invoice.completeOcrScan(ocrResult.avgConfidence(), serializeJson(ocrResult));
+        invoiceRepository.save(invoice);
+
+        // Auto-match recognized items to inventory
+        List<OcrMatchedItem> matched = autoMatchService.match(storeId, ocrResult.items());
+
+        return new OcrResultDto(
+            ocrResult.supplierName(), ocrResult.invoiceDate(),
+            ocrResult.totalAmountCents(), ocrResult.avgConfidence(), matched);
     }
 
     /**
@@ -70,10 +91,10 @@ public class PurchaseInvoiceService implements UseCase {
         enforcer.enforcePermission("PURCHASE_APPROVE");
         PurchaseInvoiceEntity invoice = loadInvoiceForStore(storeId, invoiceId);
 
-        // Eager state guard — must be PROCESSING before touching any line items
-        if (!"PROCESSING".equals(invoice.getOcrStatus())) {
+        // Eager state guard — must be COMPLETED before touching any line items
+        if (!"COMPLETED".equals(invoice.getOcrStatus())) {
             throw new IllegalStateException(
-                "Invoice " + invoiceId + " is not in OCR PROCESSING state, current: " + invoice.getOcrStatus());
+                "Invoice " + invoiceId + " OCR is not completed, current: " + invoice.getOcrStatus());
         }
 
         long totalCents = 0L;
@@ -120,7 +141,7 @@ public class PurchaseInvoiceService implements UseCase {
         }
 
         // 5. Confirm invoice
-        invoice.completeOcr(totalCents);
+        invoice.completeOcr(totalCents, AuthContext.current().userId());
         return toDto(invoiceRepository.save(invoice));
     }
 
@@ -130,6 +151,30 @@ public class PurchaseInvoiceService implements UseCase {
         enforcer.enforcePermission("INVENTORY_VIEW"); // read operation — lowest inventory permission
         return invoiceRepository.findByStoreIdOrderByCreatedAtDesc(storeId)
             .stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public OcrResultDto getOcrResult(Long storeId, Long invoiceId) {
+        enforcer.enforce(storeId);
+        enforcer.enforcePermission("INVENTORY_VIEW");
+        PurchaseInvoiceEntity invoice = loadInvoiceForStore(storeId, invoiceId);
+        if (invoice.getOcrRawResult() == null) {
+            throw new IllegalStateException("Invoice " + invoiceId + " has no OCR result");
+        }
+        OcrRawResult raw = deserializeOcrResult(invoice.getOcrRawResult());
+        List<OcrMatchedItem> matched = autoMatchService.match(storeId, raw.items());
+        return new OcrResultDto(raw.supplierName(), raw.invoiceDate(),
+            raw.totalAmountCents(), raw.avgConfidence(), matched);
+    }
+
+    private String serializeJson(Object obj) {
+        try { return MAPPER.writeValueAsString(obj); }
+        catch (Exception e) { return null; }
+    }
+
+    private OcrRawResult deserializeOcrResult(String json) {
+        try { return MAPPER.readValue(json, OcrRawResult.class); }
+        catch (Exception e) { throw new IllegalStateException("Failed to parse OCR result", e); }
     }
 
     private PurchaseInvoiceEntity loadInvoiceForStore(Long storeId, Long invoiceId) {
