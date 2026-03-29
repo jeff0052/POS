@@ -131,4 +131,57 @@ class PaymentStackingServiceTest {
         assertThat(result.settlementNo()).isEqualTo("STK-EXISTING");
         verify(settlementRepo, never()).save(any());
     }
+
+    @Test
+    void confirmStacking_alreadySettled_idempotent() {
+        SettlementRecordEntity settled = new SettlementRecordEntity();
+        settled.setFinalStatus("SETTLED");
+        lenient().when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(settled));
+        assertThatNoException().isThrownBy(() -> service.confirmStacking(1L));
+    }
+
+    @Test
+    void confirmStacking_cancelled_throws() {
+        SettlementRecordEntity cancelled = new SettlementRecordEntity();
+        cancelled.setFinalStatus("CANCELLED");
+        when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
+        assertThatThrownBy(() -> service.confirmStacking(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("CANCELLED");
+    }
+
+    @Test
+    void releaseStacking_alreadyCancelled_idempotent() {
+        SettlementRecordEntity cancelled = new SettlementRecordEntity();
+        cancelled.setFinalStatus("CANCELLED");
+        lenient().when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(cancelled));
+        assertThatNoException().isThrownBy(() -> service.releaseStacking(1L, "TEST"));
+    }
+
+    @Test
+    void releaseStacking_alreadySettled_throws() {
+        SettlementRecordEntity settled = new SettlementRecordEntity();
+        settled.setFinalStatus("SETTLED");
+        when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(settled));
+        assertThatThrownBy(() -> service.releaseStacking(1L, "TEST"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SETTLED");
+    }
+
+    @Test
+    void releaseStacking_withSucceededAttempt_throwsCannotRelease() {
+        SettlementRecordEntity pending = new SettlementRecordEntity();
+        pending.setFinalStatus("PENDING");
+        setId(pending, 1L);
+        when(settlementRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(pending));
+
+        var succeededAttempt = new com.developer.pos.v2.settlement.infrastructure.persistence.entity.PaymentAttemptEntity();
+        succeededAttempt.setAttemptStatus("SUCCEEDED");
+        when(attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(1L))
+                .thenReturn(List.of(succeededAttempt));
+
+        assertThatThrownBy(() -> service.releaseStacking(1L, "TEST"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already charged");
+    }
 }

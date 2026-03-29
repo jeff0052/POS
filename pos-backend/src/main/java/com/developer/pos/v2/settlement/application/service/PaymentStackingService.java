@@ -273,12 +273,125 @@ public class PaymentStackingService {
         return h;
     }
 
-    // Stub methods for Task 9
     @Transactional
-    public void confirmStacking(Long settlementId) { /* Task 9 */ }
+    public void confirmStacking(Long settlementId) {
+        SettlementRecordEntity settlement = settlementRepo.findByIdForUpdate(settlementId)
+                .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
+
+        if ("SETTLED".equals(settlement.getFinalStatus())) return; // 幂等
+        if ("CANCELLED".equals(settlement.getFinalStatus())) {
+            throw new IllegalStateException("Cannot confirm a CANCELLED settlement: " + settlementId);
+        }
+
+        // If there are EXTERNAL holds, verify payment attempt SUCCEEDED
+        var holds = holdRepo.findHeldBySettlementForUpdate(settlementId);
+        boolean hasExternal = holds.stream().anyMatch(h -> "EXTERNAL".equals(h.getHoldType()));
+        if (hasExternal) {
+            var attempts = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(settlementId);
+            boolean hasSucceeded = attempts.stream().anyMatch(a -> "SUCCEEDED".equals(a.getAttemptStatus()));
+            if (!hasSucceeded) {
+                throw new IllegalStateException("External payment not yet SUCCEEDED for settlement: " + settlementId);
+            }
+            attempts.stream()
+                    .filter(a -> "SUCCEEDED".equals(a.getAttemptStatus()))
+                    .forEach(a -> {
+                        a.setAttemptStatus("SETTLED");
+                        attemptRepo.save(a);
+                    });
+        }
+
+        // Transition holds HELD → CONFIRMED
+        holds.forEach(h -> {
+            h.setHoldStatus("CONFIRMED");
+            h.setConfirmedAt(OffsetDateTime.now());
+        });
+        holdRepo.saveAll(holds);
+
+        // Deduct balances
+        Long memberId = holds.stream().map(h -> h.getMemberId()).filter(Objects::nonNull).findFirst().orElse(null);
+        if (memberId != null) {
+            long pointsDeduct = settlement.getPointsDeducted();
+            if (pointsDeduct > 0) memberAccountRepo.deductPoints(memberId, pointsDeduct);
+            long cashDeduct = settlement.getCashBalanceDeductCents();
+            if (cashDeduct > 0) memberAccountRepo.deductCash(memberId, cashDeduct);
+
+            // Confirm coupon
+            if (settlement.getCouponId() != null) {
+                Long sessionId = holds.stream()
+                        .filter(h -> "COUPON".equals(h.getHoldType()))
+                        .map(h -> h.getTableSessionId()).findFirst().orElse(null);
+                couponLockingService.confirmCoupon(settlement.getCouponId(), sessionId,
+                        settlement.getActiveOrderId(), settlement.getStoreId());
+            }
+        }
+
+        // Settlement → SETTLED
+        settlement.setFinalStatus("SETTLED");
+        settlementRepo.save(settlement);
+
+        // Finalize table (close session, mark table PENDING_CLEAN, etc.)
+        List<Long> sessionChainIds = buildSessionChainFromSettlement(settlement);
+        finalizer.finalize(sessionChainIds);
+    }
 
     @Transactional
-    public void releaseStacking(Long settlementId, String reason) { /* Task 9 */ }
+    public void releaseStacking(Long settlementId, String reason) {
+        SettlementRecordEntity settlement = settlementRepo.findByIdForUpdate(settlementId)
+                .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
+
+        if ("CANCELLED".equals(settlement.getFinalStatus())) return; // 幂等
+        if ("SETTLED".equals(settlement.getFinalStatus())) {
+            throw new IllegalStateException("Cannot release a SETTLED settlement: " + settlementId);
+        }
+
+        // Check live attempts — block release if already charged
+        var attempts = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(settlementId);
+        for (var attempt : attempts) {
+            if ("SUCCEEDED".equals(attempt.getAttemptStatus())) {
+                throw new IllegalStateException("Cannot release: payment already charged for settlement " + settlementId);
+            }
+            if ("PENDING_CUSTOMER".equals(attempt.getAttemptStatus())) {
+                int affected = attemptRepo.markReplacedCas(attempt.getPaymentAttemptId(), "PENDING_CUSTOMER");
+                if (affected == 0) {
+                    throw new IllegalStateException("Cannot release: payment race condition for settlement " + settlementId);
+                }
+            }
+        }
+
+        // Transition holds HELD → RELEASED
+        var holds = holdRepo.findHeldBySettlementForUpdate(settlementId);
+        holds.forEach(h -> {
+            h.setHoldStatus("RELEASED");
+            h.setReleasedAt(OffsetDateTime.now());
+            h.setReleaseReason(reason);
+        });
+        holdRepo.saveAll(holds);
+
+        // Unfreeze balances
+        Long memberId = holds.stream().map(h -> h.getMemberId()).filter(Objects::nonNull).findFirst().orElse(null);
+        if (memberId != null) {
+            long pointsDeduct = settlement.getPointsDeducted();
+            if (pointsDeduct > 0) memberAccountRepo.unfreezePoints(memberId, pointsDeduct);
+            long cashDeduct = settlement.getCashBalanceDeductCents();
+            if (cashDeduct > 0) memberAccountRepo.unfreezeCash(memberId, cashDeduct);
+            if (settlement.getCouponId() != null) {
+                Long sessionId = holds.stream()
+                        .filter(h -> "COUPON".equals(h.getHoldType()))
+                        .map(h -> h.getTableSessionId()).findFirst().orElse(null);
+                couponLockingService.releaseCoupon(settlement.getCouponId(), sessionId);
+            }
+        }
+
+        settlement.setFinalStatus("CANCELLED");
+        settlementRepo.save(settlement);
+    }
+
+    private List<Long> buildSessionChainFromSettlement(SettlementRecordEntity settlement) {
+        if (settlement.getStackingSessionId() == null) return Collections.emptyList();
+        TableSessionEntity master = sessionRepo.findById(settlement.getStackingSessionId()).orElse(null);
+        if (master == null) return Collections.emptyList();
+        return buildSessionChain(master);
+    }
 
     // Stub for Task 10
     public void reclaimPendingSettlements() { /* Task 10 */ }
