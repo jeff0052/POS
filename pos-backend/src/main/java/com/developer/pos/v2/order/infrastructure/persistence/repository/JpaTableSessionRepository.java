@@ -21,7 +21,7 @@ public interface JpaTableSessionRepository extends JpaRepository<TableSessionEnt
     Optional<TableSessionEntity> findActiveByTableId(@Param("tableId") Long tableId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT s FROM TableSessionEntity s WHERE s.tableId = :tableId AND s.sessionStatus = 'ACTIVE'")
+    @Query("SELECT s FROM TableSessionEntity s WHERE s.tableId = :tableId AND s.sessionStatus = 'ACTIVE' ORDER BY s.id DESC")
     Optional<TableSessionEntity> findActiveByTableIdForUpdate(@Param("tableId") Long tableId);
 
     List<TableSessionEntity> findAllByMergedIntoSessionId(Long masterSessionId);

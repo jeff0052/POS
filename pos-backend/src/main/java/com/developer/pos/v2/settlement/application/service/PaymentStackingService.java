@@ -15,6 +15,8 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.repository.Jpa
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementPaymentHoldRepository;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementRecordRepository;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,8 @@ import java.util.*;
 
 @Service
 public class PaymentStackingService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentStackingService.class);
 
     public record StackingChoices(
         boolean usePoints,
@@ -106,7 +110,7 @@ public class PaymentStackingService {
                 availableCoupons = coupons.stream()
                         .filter(c -> c.getValidUntil().isAfter(OffsetDateTime.now()))
                         .map(c -> new StackingPreviewDto.AvailableCouponItem(
-                                c.getId(), c.getCouponNo(), 0L, c.getLockVersion()))
+                                c.getId(), c.getCouponNo(), 0L /* TODO: calculate discount from coupon template */, c.getLockVersion()))
                         .toList();
                 long availCash = account.getCashBalanceCents() - account.getFrozenCashCents();
                 if (availCash > 0 && remaining > 0) {
@@ -158,7 +162,10 @@ public class PaymentStackingService {
         settlement.setRefundedAmountCents(0L);
         settlement.setPaymentMethod(choices.externalPaymentMethod() != null ? choices.externalPaymentMethod() : "MIXED");
         try { settlement.setCashierId(AuthContext.current().userId()); }
-        catch (Exception ignored) { settlement.setCashierId(null); }
+        catch (Exception e) {
+            log.warn("Could not resolve cashier ID from AuthContext: {}", e.getMessage());
+            settlement.setCashierId(null);
+        }
         settlement = settlementRepo.save(settlement);
 
         long remaining = total;

@@ -6,7 +6,9 @@ import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrd
 import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTableSessionRepository;
+import com.developer.pos.v2.settlement.application.dto.StackingCollectResultDto;
 import com.developer.pos.v2.settlement.application.dto.StackingPreviewDto;
+import com.developer.pos.v2.settlement.infrastructure.persistence.entity.SettlementRecordEntity;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementPaymentHoldRepository;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaPaymentAttemptRepository;
 import com.developer.pos.v2.settlement.infrastructure.persistence.repository.JpaSettlementRecordRepository;
@@ -92,5 +94,41 @@ class PaymentStackingServiceTest {
 
         assertThatThrownBy(() -> service.previewStacking(5L, 10L))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void collectStacking_mergedChildTable_throws() {
+        StoreTableEntity table = new StoreTableEntity();
+        table.setMergedIntoTableId(99L);
+        when(storeTableRepo.findByStoreIdAndId(5L, 10L)).thenReturn(Optional.of(table));
+
+        var choices = new PaymentStackingService.StackingChoices(false, null, null, false, "ALIPAY_QR");
+        assertThatThrownBy(() -> service.collectStacking(5L, 10L, choices))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void collectStacking_idempotent_whenPendingExists() {
+        StoreTableEntity table = new StoreTableEntity();
+        // mergedIntoTableId defaults to null
+
+        TableSessionEntity session = buildSession(1L, 10L, 5L);
+        SettlementRecordEntity pending = new SettlementRecordEntity();
+        pending.setFinalStatus("PENDING");
+        pending.setSettlementNo("STK-EXISTING");
+        setId(pending, 99L);
+
+        when(storeTableRepo.findByStoreIdAndId(5L, 10L)).thenReturn(Optional.of(table));
+        when(sessionRepo.findActiveByTableIdForUpdate(10L)).thenReturn(Optional.of(session));
+        when(settlementRepo.findByStackingSessionIdAndFinalStatusForUpdate(1L, "PENDING"))
+                .thenReturn(Optional.of(pending));
+        when(holdRepo.findAllBySettlementRecordIdAndHoldStatus(99L, "HELD"))
+                .thenReturn(Collections.emptyList());
+
+        var choices = new PaymentStackingService.StackingChoices(false, null, null, false, "ALIPAY_QR");
+        StackingCollectResultDto result = service.collectStacking(5L, 10L, choices);
+
+        assertThat(result.settlementNo()).isEqualTo("STK-EXISTING");
+        verify(settlementRepo, never()).save(any());
     }
 }
