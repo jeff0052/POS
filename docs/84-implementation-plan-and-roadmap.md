@@ -226,6 +226,8 @@ Phase 6: 联调收尾 (Week 5-6)
 
 ### Session 2.2 — 结算引擎
 
+**设计规格：** `docs/superpowers/specs/2026-03-29-session-2.2-payment-stacking-design.md`
+
 **目标：** 支付叠加、幂等、冻结→确认→释放三态完整
 
 **Prompt：**
