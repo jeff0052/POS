@@ -193,6 +193,24 @@ class TicketRoutingServiceTest {
     }
 
     @Test
+    void routeOrder_skuBoundToAnotherStoreStation_throwsIllegalState() {
+        // Station 20 belongs to store 99, but order is for store 10
+        SubmittedOrderEntity order = buildOrder(10L, 5L, List.of(1L));
+        SkuEntity sku = buildSku(1L, 20L);
+        KitchenStationEntity foreignStation = buildStation(20L, 99L); // wrong store!
+        StoreTableEntity table = buildTable(5L, "T01");
+
+        when(storeTableRepository.findById(5L)).thenReturn(Optional.of(table));
+        when(skuRepository.findAllById(any())).thenReturn(List.of(sku));
+        when(stationRepository.findById(20L)).thenReturn(Optional.of(foreignStation));
+        when(ticketRepository.countDistinctSubmittedOrdersWithTicketsByTableId(5L)).thenReturn(0L);
+
+        assertThatThrownBy(() -> buildService().routeOrder(order))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Possible misbound SKU");
+    }
+
+    @Test
     void routeOrder_roundNumberIncrements() {
         SubmittedOrderEntity order = buildOrder(10L, 5L, List.of(1L));
         SkuEntity sku = buildSku(1L, 20L);

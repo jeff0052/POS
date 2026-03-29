@@ -78,14 +78,22 @@ public class TicketRoutingService implements UseCase {
             KitchenStationEntity station = stationRepository.findById(stationId)
                 .orElseThrow(() -> new IllegalStateException("Station not found: " + stationId));
 
+            // Guard: station must belong to the same store as the order (prevents cross-tenant routing)
+            if (!station.getStoreId().equals(order.getStoreId())) {
+                throw new IllegalStateException(
+                    "Station " + stationId + " belongs to store " + station.getStoreId()
+                    + ", not order store " + order.getStoreId() + ". Possible misbound SKU.");
+            }
+
             // Passive heartbeat check
             if (station.isHeartbeatExpired(HEARTBEAT_TIMEOUT_SECONDS)) {
                 station.markOffline();
                 stationRepository.save(station); // persist OFFLINE state
             }
 
+            // Millisecond precision prevents collision when two orders route concurrently
             String ticketNo = "KT-" + order.getStoreId() + "-"
-                + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+                + LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))
                 + "-" + seq++;
 
             KitchenTicketEntity ticket = new KitchenTicketEntity(
