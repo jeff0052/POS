@@ -52,16 +52,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 Long merchantId = claims.get("merchantId", Long.class);
                 Long storeId = claims.get("storeId", Long.class);
 
-                // Legacy token detection: userCode is absent in old JWTs.
-                // Legacy tokens carry auth_users.id as subject, which may differ from users.id.
-                // Resolve the correct users.id via username lookup before hitting RBAC cache.
+                // Legacy token detection: userCode claim is absent in old JWTs.
+                // Legacy tokens carry auth_users.id as subject, which differs from users.id.
+                // V103 migrated auth_users with user_code = 'AU-' + auth_users.id,
+                // so we derive the stable mapping key from the token subject.
                 Long rbacUserId = userId;
-                if (userCode == null && username != null) {
-                    Optional<UserEntity> rbacUser = userRepository.findByUsername(username);
+                if (userCode == null) {
+                    String derivedUserCode = "AU-" + userId;
+                    Long resolvedMerchantId = merchantId != null ? merchantId : 0L;
+                    Optional<UserEntity> rbacUser = userRepository.findByUserCodeAndMerchantId(derivedUserCode, resolvedMerchantId);
                     if (rbacUser.isPresent()) {
                         rbacUserId = rbacUser.get().getId();
                     } else {
-                        // User not in RBAC users table — pure legacy, skip RBAC resolution
+                        // Not migrated or skipped — pure legacy, skip RBAC resolution
                         rbacUserId = null;
                     }
                 }
