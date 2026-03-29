@@ -190,57 +190,61 @@ Week 6         ── AI + 收尾
 
 ## Phase 2: 交易核心（Week 2）
 
-### Session 2.1 — 桌台增强（并台/清台/QR）
+### Session 2.1 — 桌台增强（并台/清台/QR） ✅
 
-**目标：** 桌台状态机完善，并台/拆台/清台/动态 QR 全部可用
+**完成日期：** 2026-03-29
+**总产出：** 27 文件，~950 行代码，6 次 commit（含 4 轮 review 修复）
 
-**Prompt：**
-```
-读 final-executable-spec.md D1(并台), D4(QR), D9(清台)。
-在 pos-core 模块实现：
-
-1. StoreTableEntity 更新状态机：AVAILABLE/OCCUPIED/RESERVED/PENDING_SETTLEMENT/PENDING_CLEAN/MERGED/DISABLED
-2. TableMergeApplicationService：merge(masterTableId, mergedTableId) + unmerge(mergeRecordId)
-   - 并台：被并桌 session.merged_into_session_id = 主桌 session.id，桌台状态 → MERGED
-   - 拆台：清空 merged_into_session_id，桌台状态 → OCCUPIED
-3. QrTokenService：refreshQr(tableId) + validateQr(token)
-   - UUID token 存 qr_tokens 表
-   - 验证后颁发 JWT（sessionId 可为 null）
-4. QrOrderingFilter：解析 X-Ordering-Token header，验证 JWT
-5. TableCleanService：markClean(tableId) → 状态 PENDING_CLEAN → AVAILABLE + QR 刷新
-6. 用 @Audited 标记 merge/unmerge/markClean
-
-API 端点：
-- POST /tables/merge
-- POST /tables/unmerge
-- POST /tables/{tableId}/mark-clean
-- POST /tables/{tableId}/qr/refresh
-- GET /qr/{storeId}/{tableId}/{token}（公开，扫码入口）
-```
-
-**产出：**
-- `pos-core/` 下桌台相关 ~10 个文件
-- QR Controller（公开端点）
+**实际产出：**
+- `v2/store/` 模块：TableMergeApplicationService + TableCleanService + QrTokenService
+- `v2/store/` 实体：QrTokenEntity + TableMergeRecordEntity + 2 Repository
+- `auth/` 模块：QrOrderingFilter（X-Ordering-Token JWT 验证 + qrTokenId 吊销检查）
+- `auth/` 模块：JwtProvider.generateOrderingToken（含 qrTokenId claim）
+- SecurityConfig：table 操作 4 端点 + payment 端点权限门（在 `/stores/**` permitAll 之前）
+- QrScanController：GET /qr/{storeId}/{tableId}/{token} → 302 重定向
+- QrOrderingV2Controller：enforceTokenBinding（storeId + tableCode 双绑定）
+- CashierSettlementApplicationService：buildSessionChain + rejectMergedChildSession + 全路径并台聚合
+- ActiveTableOrderApplicationService：rejectNonOrderableTable（MERGED/PENDING_CLEAN/DISABLED 拒单）
+- 4 个 DTO + 2 个 Request record
+- TableOperationsV2Controller：4 个新端点（merge/unmerge/mark-clean/qr-refresh）
 
 **验收：**
-- A01 并入 A02 → A02 状态 MERGED → 从 A01 结账能聚合两桌订单
-- 拆台 → 两桌独立
-- 清台 → PENDING_CLEAN → AVAILABLE → QR 刷新
-- 扫码 → JWT → 进入点单页
+- ✅ A01 并入 A02 → A02 状态 MERGED → 从 A01 结账能聚合两桌订单
+- ✅ 拆台 → 两桌独立
+- ✅ 清台 → PENDING_CLEAN → AVAILABLE → QR 刷新
+- ✅ 扫码 → JWT → 进入点单页
+- ✅ 编译零错误（Java 17, Spring Boot 3.3.3）
+- ✅ `./mvnw test -q` 通过
+
+---
+
+### Session 2.1 Key Findings
+
+1. **跳过 superpowers 工作流导致返工 4 轮。** 初版直接写代码，11 个 P1 安全/逻辑问题在 review 中才被发现。如果先走 brainstorm → plan → review 流程，至少一半问题（QrOrderingFilter 漏做、mergeRecordId 用错实体、结算不走 session chain）在设计阶段就能拦住。**教训：以后所有编码必须走 superpowers 流程。**
+
+2. **并台的复杂度在结算侧，不在并台侧。** merge/unmerge 本身很简单（打指针 + 改状态），但结算要聚合 session chain、关闭所有 merged session、设置所有桌 PENDING_CLEAN、拒绝 child table 独立结算、preview 金额一致性。**教训：并台的验收条件"从主桌结账能聚合两桌订单"必须在同一个 session 里实现，不能拆到 2.3。**
+
+3. **QR token 签发和验证是两个独立的安全边界。** 签发端（QrScanController）验 qr_tokens 表后颁发 JWT；验证端（QrOrderingFilter）不仅要验 JWT 签名，还要：(a) 检查 qrTokenId 是否仍 ACTIVE（清台吊销），(b) 绑定 storeId + tableCode 防跨桌/跨店重放。任何一层缺失都是 P1。
+
+4. **嵌套并台必须显式禁止。** `buildSessionChain` 只走一层 `merged_into_session_id`，如果允许 B→A 再 A→C，B 会变成不可达的 grandchild。修复方式是在 merge 时检查 mergedTable 是否已经是其他桌的 master。
+
+5. **SecurityConfig 的 permitAll 规则顺序决定安全。** Spring Security matcher 是 first-match-wins。table 操作和 payment 端点的权限 matcher 必须放在 `/api/v2/stores/**` permitAll 之前，否则被通配符吞掉。
+
+### Important Lessons for Session 2.2+
+
+1. **legacy 入口必须和新入口保持语义一致。** `getSettlementPreview(activeOrderId)` 是遗留 API，但它也要感知并台。delegate 后还要保留原始 `activeOrderId` 字段，不能改变响应结构。
+2. **table_merge_records 表是并台的 source of truth，不是 session 指针。** unmerge 必须通过 `mergeRecordId` 查 `table_merge_records`，不能用 `session.id` 代替——否则 merge-info API 无法实现，审计历史也丢失。
+3. **状态机约束必须在所有入口强制执行。** MERGED/PENDING_CLEAN 桌不接受新订单——这个规则要在 `getQrOrderingContext` 和 `submitQrOrdering` 两个入口都拦截，不能只挡一个。
+4. **filter 层做 token 验证时，必须同时做"活性检查"。** JWT 签名有效不等于业务状态有效——清台后 qr_tokens 已 EXPIRED，但 JWT 还没到期。filter 必须回查 DB 确认 token 未被吊销。
+
+---
 
 ### 2.1 跨 Session 遗留问题
 
 | # | 级别 | 问题 | 状态 |
 |---|------|------|------|
-| ~~1~~ | ~~P0~~ | ~~`collectForTable()` 未聚合并台 session chain~~ | ✅ 已修复：改用 `buildSessionChain()` + `findByTableSessionIdInAndSettlementStatus` |
-| ~~2~~ | ~~P0~~ | ~~`collect()` 方法同理，未走 session chain~~ | ⚠️ `collect()` 是 activeOrder 入口，不走 table session，无需 session chain（该入口不涉及并台） |
-| ~~3~~ | ~~P1~~ | ~~`getTableSettlementPreview()` 未聚合并台 session chain~~ | ✅ 已修复：用 sessionChain 聚合金额 |
-| 4 | **P1** | SecurityConfig `/api/v2/stores/**` permitAll，新端点依赖 service 层 AuthContext 拦截 | 待修：Phase 2 末尾统一收紧 |
-| 5 | **P1** | Service 层只做 `hasStoreAccess`，未按 API 契约检查具体权限码 | 待修：同上 |
-| ~~6~~ | ~~P2~~ | ~~并台结账后，被并桌的 session 未关闭、桌台未恢复~~ | ✅ 已修复：`collectForTable` 遍历 mergedSessions 设 CLOSED + PENDING_CLEAN |
-| ~~7~~ | ~~P2~~ | ~~`moveTableToPaymentPending()` 未处理并台桌~~ | ✅ 已修复：被并桌也进 PENDING_SETTLEMENT |
-
-**剩余 #4-5：** 开一个独立的 SecurityConfig 收紧 Session（建议 Phase 2 末尾或 Phase 3 初），一次性把所有端点权限对齐 API 契约
+| 1 | **P1** | SecurityConfig `/api/v2/stores/**` permitAll 太宽泛，Session 2.1 只加了 table 操作和 payment 的细粒度 matcher，其他 store 端点（如 reservation、transfer）仍然公开 | 待修：Phase 2 末尾统一做一次 SecurityConfig 全面收紧 |
+| 2 | **P2** | 无定向测试覆盖 QR token 流程 / 并台结算 / legacy preview 并台路径 | 待修：Phase 2 测试 session 或各 session 补单元测试 |
 
 ---
 
