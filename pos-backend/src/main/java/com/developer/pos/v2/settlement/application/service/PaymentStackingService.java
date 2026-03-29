@@ -397,6 +397,32 @@ public class PaymentStackingService {
         return buildSessionChain(master);
     }
 
-    // Stub for Task 10
-    public void reclaimPendingSettlements() { /* Task 10 */ }
+    @Transactional
+    public void reclaimPendingSettlements() {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(30);
+        List<SettlementRecordEntity> pending = settlementRepo.findPendingOlderThan(cutoff);
+        for (SettlementRecordEntity settlement : pending) {
+            try {
+                var attempts = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(settlement.getId());
+                if (attempts.isEmpty()) {
+                    releaseStacking(settlement.getId(), "SETTLEMENT_TIMEOUT");
+                    continue;
+                }
+                var latest = attempts.get(0);
+                switch (latest.getAttemptStatus()) {
+                    case "SUCCEEDED" -> confirmStacking(settlement.getId()); // compensate lost webhook
+                    case "PENDING_CUSTOMER" -> {
+                        if (latest.getCreatedAt().isBefore(cutoff)) {
+                            releaseStacking(settlement.getId(), "ATTEMPT_EXPIRED_NO_WEBHOOK");
+                        }
+                        // else: young attempt, skip
+                    }
+                    default -> releaseStacking(settlement.getId(), "SETTLEMENT_TIMEOUT");
+                }
+            } catch (IllegalStateException e) {
+                log.error("CRITICAL: reclaimPendingSettlements failed for settlement {}: {}",
+                        settlement.getId(), e.getMessage());
+            }
+        }
+    }
 }

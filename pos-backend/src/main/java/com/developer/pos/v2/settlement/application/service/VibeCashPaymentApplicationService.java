@@ -12,7 +12,10 @@ import com.developer.pos.v2.settlement.infrastructure.persistence.repository.Jpa
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.HmacUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -34,12 +37,14 @@ import java.util.UUID;
 @Service
 public class VibeCashPaymentApplicationService implements UseCase {
 
+    private static final Logger log = LoggerFactory.getLogger(VibeCashPaymentApplicationService.class);
     private static final String PROVIDER = "VIBECASH";
     private static final String PAYMENT_METHOD = "QR";
 
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaPaymentAttemptRepository paymentAttemptRepository;
     private final CashierSettlementApplicationService cashierSettlementApplicationService;
+    private final PaymentStackingService paymentStackingService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final String apiUrl;
@@ -51,6 +56,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
             JpaTableSessionRepository tableSessionRepository,
             JpaPaymentAttemptRepository paymentAttemptRepository,
             CashierSettlementApplicationService cashierSettlementApplicationService,
+            @Lazy PaymentStackingService paymentStackingService,
             ObjectMapper objectMapper,
             @Value("${vibecash.api-url}") String apiUrl,
             @Value("${vibecash.secret}") String secret,
@@ -60,6 +66,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
         this.tableSessionRepository = tableSessionRepository;
         this.paymentAttemptRepository = paymentAttemptRepository;
         this.cashierSettlementApplicationService = cashierSettlementApplicationService;
+        this.paymentStackingService = paymentStackingService;
         this.objectMapper = objectMapper;
         this.apiUrl = apiUrl;
         this.secret = secret;
@@ -92,6 +99,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
         paymentAttempt.setCurrencyCode(currencyCode);
         paymentAttempt.setAttemptStatus("PENDING_CUSTOMER");
         paymentAttempt.setProviderStatus("CREATING_LINK");
+        paymentAttempt.setSettlementRecordId(null); // legacy path: no stacking record
         paymentAttempt.setCreatedAt(OffsetDateTime.now());
         paymentAttempt.setUpdatedAt(OffsetDateTime.now());
         paymentAttemptRepository.saveAndFlush(paymentAttempt);
@@ -185,6 +193,35 @@ public class VibeCashPaymentApplicationService implements UseCase {
             throw new IllegalArgumentException("Payment attempt not found for webhook.");
         }
 
+        // Stacking path: attempt is linked to a SettlementRecord
+        if (paymentAttempt.getSettlementRecordId() != null) {
+            if ("REPLACED".equals(paymentAttempt.getAttemptStatus())) {
+                log.info("Webhook for REPLACED attempt {}, ignoring", paymentAttempt.getPaymentAttemptId());
+                return new VibeCashWebhookResultDto(eventType, paymentAttempt.getPaymentAttemptId(),
+                        paymentAttempt.getAttemptStatus(), false);
+            }
+            paymentAttempt.setWebhookEventType(eventType);
+            paymentAttempt.setLastWebhookPayloadJson(payload.toPrettyString());
+            paymentAttempt.setProviderStatus(textOrDefault(objectNode, "status", eventType));
+            paymentAttempt.setUpdatedAt(OffsetDateTime.now());
+            if ("payment.succeeded".equals(eventType)) {
+                paymentAttempt.setAttemptStatus("SUCCEEDED");
+                paymentAttemptRepository.save(paymentAttempt);
+                paymentStackingService.confirmStacking(paymentAttempt.getSettlementRecordId());
+            } else if ("payment.failed".equals(eventType)) {
+                paymentAttempt.setAttemptStatus("FAILED");
+                paymentAttemptRepository.save(paymentAttempt);
+                log.info("Payment failed for settlement {}, keeping PENDING (switch-method window open)",
+                        paymentAttempt.getSettlementRecordId());
+            } else if ("checkout.session.expired".equals(eventType)) {
+                paymentAttempt.setAttemptStatus("EXPIRED");
+                paymentAttemptRepository.save(paymentAttempt);
+                paymentStackingService.releaseStacking(paymentAttempt.getSettlementRecordId(), "CHECKOUT_EXPIRED");
+            }
+            return new VibeCashWebhookResultDto(eventType, paymentAttempt.getPaymentAttemptId(),
+                    paymentAttempt.getAttemptStatus(), false);
+        } else {
+        // Legacy path: no stacking record
         paymentAttempt.setWebhookEventType(eventType);
         paymentAttempt.setLastWebhookPayloadJson(payload.toPrettyString());
         paymentAttempt.setProviderStatus(textOrDefault(objectNode, "status", eventType));
@@ -223,6 +260,7 @@ public class VibeCashPaymentApplicationService implements UseCase {
                 paymentAttempt.getAttemptStatus(),
                 settlementTriggered
         );
+        }
     }
 
     private VibeCashPaymentAttemptDto toDto(PaymentAttemptEntity paymentAttempt) {
