@@ -45,7 +45,7 @@ public class PaymentStackingV2Controller implements V2Api {
             @PathVariable Long storeId,
             @PathVariable Long tableId,
             @PathVariable Long settlementId) {
-        stackingService.confirmStacking(settlementId);
+        stackingService.confirmStacking(storeId, settlementId);
         return ApiResponse.<Void>success(null);
     }
 
@@ -55,7 +55,7 @@ public class PaymentStackingV2Controller implements V2Api {
             @PathVariable Long tableId,
             @PathVariable Long settlementId,
             @RequestParam(defaultValue = "MANUAL_RELEASE") String reason) {
-        stackingService.releaseStacking(settlementId, reason);
+        stackingService.releaseStacking(storeId, settlementId, reason);
         return ApiResponse.<Void>success(null);
     }
 

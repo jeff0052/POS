@@ -234,7 +234,7 @@ public class PaymentStackingService {
         if (remaining > 0) {
             checkoutUrl = "PENDING_VIBECASH";
         } else {
-            confirmStacking(settlement.getId());
+            confirmStacking(storeId, settlement.getId());
         }
 
         return new StackingCollectResultDto(settlement.getId(), settlement.getSettlementNo(), holdIds, checkoutUrl);
@@ -274,9 +274,12 @@ public class PaymentStackingService {
     }
 
     @Transactional
-    public void confirmStacking(Long settlementId) {
+    public void confirmStacking(Long storeId, Long settlementId) {
         SettlementRecordEntity settlement = settlementRepo.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
+        if (!storeId.equals(settlement.getStoreId())) {
+            throw new IllegalArgumentException("Settlement " + settlementId + " does not belong to store " + storeId);
+        }
 
         if ("SETTLED".equals(settlement.getFinalStatus())) return; // 幂等
         if ("CANCELLED".equals(settlement.getFinalStatus())) {
@@ -335,9 +338,12 @@ public class PaymentStackingService {
     }
 
     @Transactional
-    public void releaseStacking(Long settlementId, String reason) {
+    public void releaseStacking(Long storeId, Long settlementId, String reason) {
         SettlementRecordEntity settlement = settlementRepo.findByIdForUpdate(settlementId)
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found: " + settlementId));
+        if (!storeId.equals(settlement.getStoreId())) {
+            throw new IllegalArgumentException("Settlement " + settlementId + " does not belong to store " + storeId);
+        }
 
         if ("CANCELLED".equals(settlement.getFinalStatus())) return; // 幂等
         if ("SETTLED".equals(settlement.getFinalStatus())) {
@@ -405,19 +411,19 @@ public class PaymentStackingService {
             try {
                 var attempts = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(settlement.getId());
                 if (attempts.isEmpty()) {
-                    releaseStacking(settlement.getId(), "SETTLEMENT_TIMEOUT");
+                    releaseStacking(settlement.getStoreId(), settlement.getId(), "SETTLEMENT_TIMEOUT");
                     continue;
                 }
                 var latest = attempts.get(0);
                 switch (latest.getAttemptStatus()) {
-                    case "SUCCEEDED" -> confirmStacking(settlement.getId()); // compensate lost webhook
+                    case "SUCCEEDED" -> confirmStacking(settlement.getStoreId(), settlement.getId()); // compensate lost webhook
                     case "PENDING_CUSTOMER" -> {
                         if (latest.getCreatedAt().isBefore(cutoff)) {
-                            releaseStacking(settlement.getId(), "ATTEMPT_EXPIRED_NO_WEBHOOK");
+                            releaseStacking(settlement.getStoreId(), settlement.getId(), "ATTEMPT_EXPIRED_NO_WEBHOOK");
                         }
                         // else: young attempt, skip
                     }
-                    default -> releaseStacking(settlement.getId(), "SETTLEMENT_TIMEOUT");
+                    default -> releaseStacking(settlement.getStoreId(), settlement.getId(), "SETTLEMENT_TIMEOUT");
                 }
             } catch (Exception e) {  // broadened from IllegalStateException to catch JPA/persistence exceptions too
                 log.error("CRITICAL: reclaimPendingSettlements failed for settlement {}: {}",
