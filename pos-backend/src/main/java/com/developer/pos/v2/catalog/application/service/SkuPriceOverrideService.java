@@ -39,6 +39,7 @@ public class SkuPriceOverrideService implements UseCase {
 
     @Transactional(readOnly = true)
     public List<SkuPriceOverrideDto> listOverrides(Long skuId) {
+        enforceMenuView();
         enforceSkuOwnership(skuId);
         return overrideRepository.findBySkuIdAndIsActive(skuId, true).stream()
                 .map(this::toDto)
@@ -68,6 +69,13 @@ public class SkuPriceOverrideService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Price override not found: " + overrideId));
         enforceSkuOwnership(entity.getSkuId());
         overrideRepository.delete(entity);
+    }
+
+    private void enforceMenuView() {
+        AuthenticatedActor actor = AuthContext.current();
+        if (!actor.hasPermission("MENU_VIEW") && !actor.hasPermission("MENU_MANAGE")) {
+            throw new SecurityException("MENU_VIEW permission required");
+        }
     }
 
     private void enforceMenuManage() {

@@ -41,6 +41,7 @@ public class MenuTimeSlotManagementService implements UseCase {
 
     @Transactional(readOnly = true)
     public List<MenuTimeSlotDto> listSlots(Long storeId) {
+        enforceMenuView();
         enforceStoreAccess(storeId);
         List<MenuTimeSlotEntity> slots = slotRepository.findByStoreIdOrderByPriorityDescStartTimeAsc(storeId);
         return slots.stream().map(this::toDto).toList();
@@ -48,6 +49,7 @@ public class MenuTimeSlotManagementService implements UseCase {
 
     @Transactional(readOnly = true)
     public MenuTimeSlotDto getSlot(Long slotId, Long expectedStoreId) {
+        enforceMenuView();
         enforceStoreAccess(expectedStoreId);
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
         enforceSlotStoreMatch(slot, expectedStoreId);
@@ -116,6 +118,13 @@ public class MenuTimeSlotManagementService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Time slot not found: " + slotId));
         enforceStoreAccess(slot.getStoreId());
         return slot;
+    }
+
+    private void enforceMenuView() {
+        AuthenticatedActor actor = AuthContext.current();
+        if (!actor.hasPermission("MENU_VIEW") && !actor.hasPermission("MENU_MANAGE")) {
+            throw new SecurityException("MENU_VIEW permission required");
+        }
     }
 
     private void enforceMenuManage() {

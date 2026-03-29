@@ -52,6 +52,7 @@ public class ModifierManagementService implements UseCase {
 
     @Transactional(readOnly = true)
     public List<ModifierGroupDetailDto> listGroups() {
+        enforceMenuView();
         Long merchantId = enforceCallerMerchant();
         List<ModifierGroupEntity> groups = groupRepository.findByMerchantIdOrderBySortOrderAscGroupNameAsc(merchantId);
         List<Long> groupIds = groups.stream().map(ModifierGroupEntity::getId).toList();
@@ -64,6 +65,7 @@ public class ModifierManagementService implements UseCase {
 
     @Transactional(readOnly = true)
     public ModifierGroupDetailDto getGroup(Long groupId) {
+        enforceMenuView();
         ModifierGroupEntity group = findGroupAndEnforceMerchant(groupId);
         List<ModifierOptionEntity> options = optionRepository.findByGroupIdOrderBySortOrderAsc(group.getId());
         return toDto(group, options.stream().map(this::toOptionDto).toList());
@@ -140,6 +142,7 @@ public class ModifierManagementService implements UseCase {
 
     @Transactional(readOnly = true)
     public List<ModifierGroupDetailDto> getSkuModifiers(Long skuId) {
+        enforceMenuView();
         Long merchantId = enforceCallerMerchant();
         SkuEntity sku = skuRepository.findById(skuId)
                 .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + skuId));
@@ -192,6 +195,13 @@ public class ModifierManagementService implements UseCase {
             throw new SecurityException("Modifier group does not belong to your merchant");
         }
         return group;
+    }
+
+    private void enforceMenuView() {
+        AuthenticatedActor actor = AuthContext.current();
+        if (!actor.hasPermission("MENU_VIEW") && !actor.hasPermission("MENU_MANAGE")) {
+            throw new SecurityException("MENU_VIEW permission required");
+        }
     }
 
     private void enforceMenuManage() {
