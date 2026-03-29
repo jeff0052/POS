@@ -37,7 +37,6 @@ public class RefundV2Controller implements V2Api {
                 request.refundAmountCents(),
                 request.refundType(),
                 request.reason(),
-                request.maxRefundCents(),
                 items
         );
         return ApiResponse.success(refundApplicationService.createRefund(command));
@@ -76,7 +75,6 @@ public class RefundV2Controller implements V2Api {
         @PositiveOrZero(message = "refundAmountCents must be >= 0") long refundAmountCents,
         String refundType,
         String reason,
-        @PositiveOrZero long maxRefundCents,
         List<RefundItemRequest> refundItems
     ) {}
 

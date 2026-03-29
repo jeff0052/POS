@@ -37,7 +37,7 @@ public class ReservationExpiryScheduler {
         List<ReservationEntity> expired = reservationRepository.findExpiredReservations(cutoff);
 
         for (ReservationEntity reservation : expired) {
-            reservation.setReservationStatus("CANCELLED");
+            reservation.setReservationStatus("NO_SHOW");
 
             if (reservation.getTableId() != null) {
                 storeTableRepository.findById(reservation.getTableId()).ifPresent(table -> {
@@ -50,11 +50,11 @@ public class ReservationExpiryScheduler {
             }
 
             reservationRepository.save(reservation);
-            log.info("Auto-cancelled expired reservation: {}", reservation.getReservationNo());
+            log.info("Marked NO_SHOW for expired reservation: {}", reservation.getReservationNo());
         }
 
         if (!expired.isEmpty()) {
-            log.info("Cancelled {} expired reservations", expired.size());
+            log.info("Marked {} expired reservations as NO_SHOW", expired.size());
         }
     }
 }

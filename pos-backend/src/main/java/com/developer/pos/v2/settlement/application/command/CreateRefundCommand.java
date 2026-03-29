@@ -7,7 +7,6 @@ public record CreateRefundCommand(
         long refundAmountCents,
         String refundType,
         String reason,
-        long maxRefundCents,
         List<RefundItemCommand> refundItems
 ) {
     public record RefundItemCommand(Long itemId, int quantity) {}

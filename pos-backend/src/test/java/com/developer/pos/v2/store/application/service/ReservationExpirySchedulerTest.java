@@ -38,7 +38,7 @@ class ReservationExpirySchedulerTest {
 
         scheduler.cancelExpiredReservations();
 
-        assertEquals("CANCELLED", expired.getReservationStatus());
+        assertEquals("NO_SHOW", expired.getReservationStatus());
         verify(reservationRepo).save(expired);
     }
 
@@ -58,7 +58,7 @@ class ReservationExpirySchedulerTest {
 
         scheduler.cancelExpiredReservations();
 
-        assertEquals("CANCELLED", expired.getReservationStatus());
+        assertEquals("NO_SHOW", expired.getReservationStatus());
         assertNull(expired.getTableId());
         assertEquals("AVAILABLE", table.getTableStatus());
     }

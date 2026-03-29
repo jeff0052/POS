@@ -53,6 +53,7 @@ public class ReservationApplicationService implements UseCase {
         storeAccessEnforcer.enforce(storeId);
         StoreEntity store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeId));
+
         ReservationEntity entity = new ReservationEntity();
         entity.setReservationNo("RSV" + UUID.randomUUID().toString().replace("-", "").substring(0, 10));
         entity.setMerchantId(store.getMerchantId());
@@ -64,16 +65,26 @@ public class ReservationApplicationService implements UseCase {
         entity.setReservationStatus(reservationStatus.toUpperCase());
         entity.setArea(area);
 
-        // Optional table pre-assignment: lock table as RESERVED
-        if (tableId != null) {
-            StoreTableEntity table = storeTableRepository.findByIdAndStoreId(tableId, storeId)
-                    .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableId));
+        // Table assignment: explicit tableId, or auto-select when CONFIRMED
+        Long resolvedTableId = tableId;
+        if (resolvedTableId == null && "CONFIRMED".equals(entity.getReservationStatus())) {
+            resolvedTableId = storeTableRepository.findAllByStoreIdOrderByIdAsc(storeId).stream()
+                    .filter(t -> "AVAILABLE".equalsIgnoreCase(t.getTableStatus()))
+                    .map(StoreTableEntity::getId)
+                    .findFirst()
+                    .orElse(null);
+        }
+        final Long assignedTableId = resolvedTableId;
+
+        if (assignedTableId != null) {
+            StoreTableEntity table = storeTableRepository.findByIdAndStoreId(assignedTableId, storeId)
+                    .orElseThrow(() -> new IllegalArgumentException("Table not found: " + assignedTableId));
             if (!"AVAILABLE".equalsIgnoreCase(table.getTableStatus())) {
                 throw new IllegalStateException("Table is not available for reservation.");
             }
             table.setTableStatus("RESERVED");
             storeTableRepository.save(table);
-            entity.setTableId(tableId);
+            entity.setTableId(assignedTableId);
         }
 
         return toDto(reservationRepository.save(entity));
@@ -86,17 +97,25 @@ public class ReservationApplicationService implements UseCase {
         ReservationEntity entity = reservationRepository.findByIdAndStoreId(reservationId, storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found: " + reservationId));
         String nextStatus = reservationStatus.toUpperCase();
+        String currentStatus = entity.getReservationStatus();
 
-        if ("CHECKED_IN".equalsIgnoreCase(entity.getReservationStatus())
-                && entity.getTableId() != null
-                && !"CHECKED_IN".equals(nextStatus)) {
-            storeTableRepository.findByIdAndStoreId(entity.getTableId(), storeId).ifPresent(table -> {
-                if ("RESERVED".equalsIgnoreCase(table.getTableStatus()) || "OCCUPIED".equalsIgnoreCase(table.getTableStatus())) {
-                    table.setTableStatus("AVAILABLE");
-                    storeTableRepository.save(table);
-                }
-            });
-            entity.setTableId(null);
+        // Release pre-assigned table when leaving CONFIRMED/CHECKED_IN
+        if (entity.getTableId() != null && !nextStatus.equals(currentStatus)) {
+            boolean leavingConfirmed = "CONFIRMED".equals(currentStatus)
+                    && !"CHECKED_IN".equals(nextStatus);
+            boolean leavingCheckedIn = "CHECKED_IN".equals(currentStatus)
+                    && !"CHECKED_IN".equals(nextStatus);
+
+            if (leavingConfirmed || leavingCheckedIn) {
+                storeTableRepository.findByIdAndStoreId(entity.getTableId(), storeId).ifPresent(table -> {
+                    String ts = table.getTableStatus();
+                    if ("RESERVED".equalsIgnoreCase(ts) || "OCCUPIED".equalsIgnoreCase(ts)) {
+                        table.setTableStatus("AVAILABLE");
+                        storeTableRepository.save(table);
+                    }
+                });
+                entity.setTableId(null);
+            }
         }
 
         entity.setGuestName(guestName);
@@ -118,17 +137,18 @@ public class ReservationApplicationService implements UseCase {
             throw new IllegalStateException("Cannot seat reservation in status: " + entity.getReservationStatus());
         }
 
+        // Determine target table
         StoreTableEntity targetTable;
         if (requestedTableId != null) {
             targetTable = storeTableRepository.findByIdAndStoreId(requestedTableId, storeId)
                     .orElseThrow(() -> new IllegalArgumentException("Table not found: " + requestedTableId));
         } else if (entity.getTableId() != null) {
-            // Use pre-assigned table from reservation
+            // Use pre-assigned table
             targetTable = storeTableRepository.findByIdAndStoreId(entity.getTableId(), storeId)
                     .orElseThrow(() -> new IllegalArgumentException("Pre-assigned table not found: " + entity.getTableId()));
         } else {
             targetTable = storeTableRepository.findAllByStoreIdOrderByIdAsc(storeId).stream()
-                    .filter(table -> "AVAILABLE".equalsIgnoreCase(table.getTableStatus()))
+                    .filter(t -> "AVAILABLE".equalsIgnoreCase(t.getTableStatus()))
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException("No available table found for seating."));
         }
@@ -138,7 +158,17 @@ public class ReservationApplicationService implements UseCase {
             throw new IllegalStateException("Target table is not available for seating. Status: " + targetTable.getTableStatus());
         }
 
-        // Create TableSession — use "OPEN" to match the rest of the POS chain
+        // If seating at a different table than pre-assigned, release the old one
+        if (entity.getTableId() != null && !entity.getTableId().equals(targetTable.getId())) {
+            storeTableRepository.findByIdAndStoreId(entity.getTableId(), storeId).ifPresent(oldTable -> {
+                if ("RESERVED".equalsIgnoreCase(oldTable.getTableStatus())) {
+                    oldTable.setTableStatus("AVAILABLE");
+                    storeTableRepository.save(oldTable);
+                }
+            });
+        }
+
+        // Create TableSession — "OPEN" matches the rest of the POS chain
         TableSessionEntity session = new TableSessionEntity();
         session.setSessionId("SES" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
         session.setMerchantId(entity.getMerchantId());
@@ -148,7 +178,6 @@ public class ReservationApplicationService implements UseCase {
         session.setGuestCount(entity.getPartySize());
         tableSessionRepository.save(session);
 
-        // Mark table as OCCUPIED — guest is physically seated
         targetTable.setTableStatus("OCCUPIED");
         storeTableRepository.save(targetTable);
 
