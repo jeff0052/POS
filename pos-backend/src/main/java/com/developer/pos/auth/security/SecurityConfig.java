@@ -27,9 +27,11 @@ public class SecurityConfig {
     }
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final QrOrderingFilter qrOrderingFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, QrOrderingFilter qrOrderingFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.qrOrderingFilter = qrOrderingFilter;
     }
 
     @Bean
@@ -44,7 +46,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/logout", "/api/v2/auth/logout").permitAll()
                 .requestMatchers("/api/v1/auth/bootstrap", "/api/v2/auth/bootstrap").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
-                // QR ordering is public (customer-facing)
+                // QR ordering is public (protected by QrOrderingFilter, not Spring Security)
                 .requestMatchers("/api/v2/qr-ordering/**").permitAll()
                 // QR scan entry point is public (302 redirect to ordering page)
                 .requestMatchers("/qr/**").permitAll()
@@ -54,6 +56,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/v2/internal/**").permitAll()
                 // OPTIONS preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                // Table operations requiring specific permissions (BEFORE the broad /stores/** matcher)
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/merge").hasAuthority("TABLE_MERGE")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/unmerge").hasAuthority("TABLE_MERGE")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/mark-clean").hasAuthority("TABLE_CLEAN")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/qr/refresh").hasAuthority("TABLE_MANAGE")
+
                 // POS tablet endpoints (WebView, no auth token)
                 .requestMatchers("/api/v2/stores/**").permitAll()
                 .requestMatchers("/api/v1/stores/**").permitAll()
@@ -85,7 +94,8 @@ public class SecurityConfig {
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(qrOrderingFilter, JwtAuthFilter.class);
 
         return http.build();
     }

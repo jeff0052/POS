@@ -228,6 +228,20 @@ API 端点：
 - 清台 → PENDING_CLEAN → AVAILABLE → QR 刷新
 - 扫码 → JWT → 进入点单页
 
+### 2.1 跨 Session 遗留问题
+
+| # | 级别 | 问题 | 状态 |
+|---|------|------|------|
+| ~~1~~ | ~~P0~~ | ~~`collectForTable()` 未聚合并台 session chain~~ | ✅ 已修复：改用 `buildSessionChain()` + `findByTableSessionIdInAndSettlementStatus` |
+| ~~2~~ | ~~P0~~ | ~~`collect()` 方法同理，未走 session chain~~ | ⚠️ `collect()` 是 activeOrder 入口，不走 table session，无需 session chain（该入口不涉及并台） |
+| ~~3~~ | ~~P1~~ | ~~`getTableSettlementPreview()` 未聚合并台 session chain~~ | ✅ 已修复：用 sessionChain 聚合金额 |
+| 4 | **P1** | SecurityConfig `/api/v2/stores/**` permitAll，新端点依赖 service 层 AuthContext 拦截 | 待修：Phase 2 末尾统一收紧 |
+| 5 | **P1** | Service 层只做 `hasStoreAccess`，未按 API 契约检查具体权限码 | 待修：同上 |
+| ~~6~~ | ~~P2~~ | ~~并台结账后，被并桌的 session 未关闭、桌台未恢复~~ | ✅ 已修复：`collectForTable` 遍历 mergedSessions 设 CLOSED + PENDING_CLEAN |
+| ~~7~~ | ~~P2~~ | ~~`moveTableToPaymentPending()` 未处理并台桌~~ | ✅ 已修复：被并桌也进 PENDING_SETTLEMENT |
+
+**剩余 #4-5：** 开一个独立的 SecurityConfig 收紧 Session（建议 Phase 2 末尾或 Phase 3 初），一次性把所有端点权限对齐 API 契约
+
 ---
 
 ### Session 2.2 — 订单引擎修补

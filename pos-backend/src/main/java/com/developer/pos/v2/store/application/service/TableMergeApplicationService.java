@@ -9,22 +9,29 @@ import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaTable
 import com.developer.pos.v2.store.application.dto.TableMergeResultDto;
 import com.developer.pos.v2.store.application.dto.TableUnmergeResultDto;
 import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreTableEntity;
+import com.developer.pos.v2.store.infrastructure.persistence.entity.TableMergeRecordEntity;
 import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreTableRepository;
+import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaTableMergeRecordRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
 
 @Service
 public class TableMergeApplicationService implements UseCase {
 
     private final JpaStoreTableRepository storeTableRepository;
     private final JpaTableSessionRepository tableSessionRepository;
+    private final JpaTableMergeRecordRepository mergeRecordRepository;
 
     public TableMergeApplicationService(
             JpaStoreTableRepository storeTableRepository,
-            JpaTableSessionRepository tableSessionRepository
+            JpaTableSessionRepository tableSessionRepository,
+            JpaTableMergeRecordRepository mergeRecordRepository
     ) {
         this.storeTableRepository = storeTableRepository;
         this.tableSessionRepository = tableSessionRepository;
+        this.mergeRecordRepository = mergeRecordRepository;
     }
 
     @Transactional
@@ -66,13 +73,20 @@ public class TableMergeApplicationService implements UseCase {
             throw new IllegalStateException("Merged table is already merged into another table.");
         }
 
+        // Set session pointer
         mergedSession.setMergedIntoSessionId(masterSession.getId());
         tableSessionRepository.saveAndFlush(mergedSession);
+
+        // Create merge record for audit/history
+        TableMergeRecordEntity record = new TableMergeRecordEntity(
+                storeId, masterTableId, masterSession.getId(),
+                mergedTableId, mergedSession.getId());
+        mergeRecordRepository.saveAndFlush(record);
 
         mergedTable.setTableStatus("MERGED");
         storeTableRepository.saveAndFlush(mergedTable);
 
-        return new TableMergeResultDto(mergedSession.getId(), masterSession.getId());
+        return new TableMergeResultDto(record.getId(), masterSession.getId());
     }
 
     @Transactional
@@ -83,23 +97,30 @@ public class TableMergeApplicationService implements UseCase {
             throw new IllegalArgumentException("No access to store: " + storeId);
         }
 
-        TableSessionEntity mergedSession = tableSessionRepository.findById(mergeRecordId)
+        // Look up via table_merge_records, not table_sessions
+        TableMergeRecordEntity record = mergeRecordRepository.findByIdAndStoreId(mergeRecordId, storeId)
                 .orElseThrow(() -> new IllegalArgumentException("Merge record not found: " + mergeRecordId));
 
-        if (!storeId.equals(mergedSession.getStoreId())) {
-            throw new IllegalArgumentException("Merge record does not belong to store: " + storeId);
+        if (!"ACTIVE".equals(record.getMergeStatus())) {
+            throw new IllegalStateException("Merge record is not active, current: " + record.getMergeStatus());
         }
+
+        TableSessionEntity mergedSession = tableSessionRepository.findById(record.getMergedSessionId())
+                .orElseThrow(() -> new IllegalStateException("Merged session not found."));
 
         if (!"OPEN".equals(mergedSession.getSessionStatus())) {
             throw new IllegalStateException("Cannot unmerge a closed session.");
         }
 
-        if (mergedSession.getMergedIntoSessionId() == null) {
-            throw new IllegalStateException("Session is not merged.");
-        }
-
+        // Clear session pointer
         mergedSession.setMergedIntoSessionId(null);
         tableSessionRepository.saveAndFlush(mergedSession);
+
+        // Update merge record
+        record.setMergeStatus("UNMERGED");
+        record.setUnmergedAt(OffsetDateTime.now());
+        record.setUnmergedBy(actor.userId());
+        mergeRecordRepository.saveAndFlush(record);
 
         StoreTableEntity mergedTable = storeTableRepository.findByIdAndStoreId(mergedSession.getTableId(), storeId)
                 .orElseThrow(() -> new IllegalStateException("Merged table not found."));

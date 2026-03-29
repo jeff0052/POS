@@ -82,6 +82,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
         StoreTableEntity table = storeTableRepository.findByStoreIdAndTableCode(store.getId(), tableCode)
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + tableCode));
 
+        rejectNonOrderableTable(table);
+
         ActiveTableOrderDto currentActiveOrder = activeTableOrderRepository.findByStoreIdAndTableId(store.getId(), table.getId())
                 .filter(entity -> entity.getStatus() != ActiveOrderStatus.SETTLED)
                 .map(this::toDto)
@@ -168,6 +170,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Store not found: " + command.storeCode()));
         StoreTableEntity table = storeTableRepository.findByStoreIdAndTableCode(store.getId(), command.tableCode())
                 .orElseThrow(() -> new IllegalArgumentException("Table not found: " + command.tableCode()));
+
+        rejectNonOrderableTable(table);
 
         ActiveTableOrderEntity entity = activeTableOrderRepository.findByStoreIdAndTableIdForUpdate(store.getId(), table.getId())
                 .filter(existing -> existing.getStatus() != ActiveOrderStatus.SETTLED)
@@ -381,6 +385,16 @@ public class ActiveTableOrderApplicationService implements UseCase {
         next.setItemRemark(item.remark());
         next.setLineTotalCents(sku.getBasePriceCents() * item.quantity());
         return next;
+    }
+
+    private static final java.util.Set<String> NON_ORDERABLE_STATUSES = java.util.Set.of(
+            "MERGED", "PENDING_CLEAN", "PENDING_SETTLEMENT", "DISABLED");
+
+    private void rejectNonOrderableTable(StoreTableEntity table) {
+        if (NON_ORDERABLE_STATUSES.contains(table.getTableStatus())) {
+            throw new IllegalStateException(
+                    "Table " + table.getTableCode() + " is not accepting orders, current status: " + table.getTableStatus());
+        }
     }
 
     private long resolveMemberDiscount(Long memberId, long originalAmountCents) {

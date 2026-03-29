@@ -26,6 +26,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.time.OffsetDateTime;
@@ -60,6 +61,21 @@ public class CashierSettlementApplicationService implements UseCase {
         this.objectMapper = objectMapper;
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
+    }
+
+    /**
+     * Build the full session chain for a master session: [masterSessionId] + all merged session IDs.
+     * Used by preview, payment-pending, and settlement to aggregate across merged tables.
+     */
+    private List<Long> buildSessionChain(TableSessionEntity masterSession) {
+        List<Long> chain = new ArrayList<>();
+        chain.add(masterSession.getId());
+        List<TableSessionEntity> mergedSessions = tableSessionRepository
+                .findAllByMergedIntoSessionIdAndSessionStatus(masterSession.getId(), "OPEN");
+        for (TableSessionEntity merged : mergedSessions) {
+            chain.add(merged.getId());
+        }
+        return chain;
     }
 
     @Transactional(readOnly = true)
@@ -104,7 +120,9 @@ public class CashierSettlementApplicationService implements UseCase {
         TableSessionEntity session = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
 
-        List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(session.getId(), "UNPAID");
+        List<Long> sessionChain = buildSessionChain(session);
+        List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository
+                .findByTableSessionIdInAndSettlementStatusOrderByIdAsc(sessionChain, "UNPAID");
         if (unpaidOrders.isEmpty()) {
             throw new IllegalStateException("No unpaid submitted orders found for table.");
         }
@@ -151,7 +169,9 @@ public class CashierSettlementApplicationService implements UseCase {
         TableSessionEntity session = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
 
-        List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(session.getId(), "UNPAID");
+        List<Long> sessionChain = buildSessionChain(session);
+        List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository
+                .findByTableSessionIdInAndSettlementStatusOrderByIdAsc(sessionChain, "UNPAID");
         if (unpaidOrders.isEmpty()) {
             throw new IllegalStateException("No submitted orders are ready for payment.");
         }
@@ -161,10 +181,22 @@ public class CashierSettlementApplicationService implements UseCase {
             throw new IllegalStateException("Current draft must be sent to kitchen before payment.");
         }
 
+        // Set master table to PENDING_SETTLEMENT
         StoreTableEntity table = storeTableRepository.findByIdAndStoreId(tableId, storeId)
                 .orElseThrow(() -> new IllegalStateException("Store table not found for payment pending."));
         table.setTableStatus("PENDING_SETTLEMENT");
         storeTableRepository.saveAndFlush(table);
+
+        // Set merged tables to PENDING_SETTLEMENT (prevent merged tables from initiating separate settlement)
+        List<TableSessionEntity> mergedSessions = tableSessionRepository
+                .findAllByMergedIntoSessionIdAndSessionStatus(session.getId(), "OPEN");
+        for (TableSessionEntity mergedSession : mergedSessions) {
+            StoreTableEntity mergedTable = storeTableRepository.findByIdAndStoreId(mergedSession.getTableId(), storeId).orElse(null);
+            if (mergedTable != null && "MERGED".equals(mergedTable.getTableStatus())) {
+                mergedTable.setTableStatus("PENDING_SETTLEMENT");
+                storeTableRepository.saveAndFlush(mergedTable);
+            }
+        }
 
         ActiveTableOrderEntity activeOrder = activeTableOrderRepository.findByStoreIdAndTableId(storeId, tableId).orElse(null);
         if (activeOrder != null && activeOrder.getStatus() == ActiveOrderStatus.SUBMITTED) {
@@ -177,22 +209,27 @@ public class CashierSettlementApplicationService implements UseCase {
 
     @Transactional
     public CashierSettlementResultDto collectForTable(Long storeId, Long tableId, CollectCashierSettlementCommand command) {
-        TableSessionEntity session = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
+        TableSessionEntity masterSession = tableSessionRepository.findFirstByStoreIdAndTableIdAndSessionStatusOrderByIdDesc(storeId, tableId, "OPEN")
                 .orElseThrow(() -> new IllegalArgumentException("Open table session not found."));
 
-        SettlementRecordEntity existingRecord = settlementRecordRepository.findByActiveOrderId(session.getSessionId()).orElse(null);
+        SettlementRecordEntity existingRecord = settlementRecordRepository.findByActiveOrderId(masterSession.getSessionId()).orElse(null);
         if (existingRecord != null) {
-            return toSettlementResult(session.getSessionId(), existingRecord);
+            return toSettlementResult(masterSession.getSessionId(), existingRecord);
         }
 
-        List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository.findByTableSessionIdAndSettlementStatusOrderByIdAsc(session.getId(), "UNPAID");
+        // D1: build session chain = [master] + all merged sessions
+        List<Long> sessionChain = buildSessionChain(masterSession);
+        List<TableSessionEntity> mergedSessions = tableSessionRepository
+                .findAllByMergedIntoSessionIdAndSessionStatus(masterSession.getId(), "OPEN");
+
+        List<SubmittedOrderEntity> unpaidOrders = submittedOrderRepository
+                .findByTableSessionIdInAndSettlementStatusOrderByIdAsc(sessionChain, "UNPAID");
         if (unpaidOrders.isEmpty()) {
             throw new IllegalStateException("No unpaid submitted orders found for collection.");
         }
 
         long payableAmount = unpaidOrders.stream().mapToLong(SubmittedOrderEntity::getPayableAmountCents).sum();
 
-        // Validate collected amount: must cover the payable amount for cash; exact match for digital
         if ("CASH".equalsIgnoreCase(command.paymentMethod())) {
             if (command.collectedAmountCents() < payableAmount) {
                 throw new IllegalArgumentException(
@@ -200,7 +237,6 @@ public class CashierSettlementApplicationService implements UseCase {
                         " is less than payable amount " + payableAmount + ". Underpayment not allowed.");
             }
         } else {
-            // Digital payment: must match exactly (provider confirms amount)
             if (command.collectedAmountCents() != payableAmount && command.collectedAmountCents() > 0) {
                 throw new IllegalArgumentException(
                         "Digital payment collected amount " + command.collectedAmountCents() +
@@ -210,7 +246,7 @@ public class CashierSettlementApplicationService implements UseCase {
 
         SettlementRecordEntity settlementRecord = new SettlementRecordEntity();
         settlementRecord.setSettlementNo("SET" + UUID.randomUUID().toString().replace("-", "").substring(0, 12));
-        settlementRecord.setActiveOrderId(session.getSessionId());
+        settlementRecord.setActiveOrderId(masterSession.getSessionId());
         settlementRecord.setMerchantId(unpaidOrders.get(0).getMerchantId());
         settlementRecord.setStoreId(storeId);
         settlementRecord.setTableId(tableId);
@@ -222,32 +258,56 @@ public class CashierSettlementApplicationService implements UseCase {
         try {
             settlementRecordRepository.saveAndFlush(settlementRecord);
         } catch (DataIntegrityViolationException exception) {
-            return settlementRecordRepository.findByActiveOrderId(session.getSessionId())
-                    .map(record -> toSettlementResult(session.getSessionId(), record))
+            return settlementRecordRepository.findByActiveOrderId(masterSession.getSessionId())
+                    .map(record -> toSettlementResult(masterSession.getSessionId(), record))
                     .orElseThrow(() -> exception);
         }
 
+        // Mark all orders across session chain as SETTLED
+        OffsetDateTime now = OffsetDateTime.now();
         unpaidOrders.forEach(submittedOrder -> {
             submittedOrder.setSettlementStatus("SETTLED");
-            submittedOrder.setSettledAt(OffsetDateTime.now());
+            submittedOrder.setSettledAt(now);
         });
         submittedOrderRepository.saveAllAndFlush(unpaidOrders);
 
-        session.setSessionStatus("CLOSED");
-        session.setClosedAt(OffsetDateTime.now());
-        tableSessionRepository.saveAndFlush(session);
+        // Close master session
+        masterSession.setSessionStatus("CLOSED");
+        masterSession.setClosedAt(now);
+        tableSessionRepository.saveAndFlush(masterSession);
 
+        // Close merged sessions + clear merge pointer + set merged tables to PENDING_CLEAN
+        for (TableSessionEntity mergedSession : mergedSessions) {
+            mergedSession.setSessionStatus("CLOSED");
+            mergedSession.setClosedAt(now);
+            mergedSession.setMergedIntoSessionId(null);
+            tableSessionRepository.saveAndFlush(mergedSession);
+
+            // Delete active order on merged table if exists
+            activeTableOrderRepository.findByStoreIdAndTableId(storeId, mergedSession.getTableId())
+                    .ifPresent(activeTableOrderRepository::delete);
+
+            // Set merged table to PENDING_CLEAN
+            storeTableRepository.findByIdAndStoreId(mergedSession.getTableId(), storeId)
+                    .ifPresent(mergedTable -> {
+                        mergedTable.setTableStatus("PENDING_CLEAN");
+                        storeTableRepository.saveAndFlush(mergedTable);
+                    });
+        }
+
+        // Delete active order on master table
         ActiveTableOrderEntity currentActiveOrder = activeTableOrderRepository.findByStoreIdAndTableId(storeId, tableId).orElse(null);
         if (currentActiveOrder != null) {
             activeTableOrderRepository.delete(currentActiveOrder);
         }
 
+        // Set master table to PENDING_CLEAN
         StoreTableEntity table = storeTableRepository.findByIdAndStoreId(tableId, storeId)
                 .orElseThrow(() -> new IllegalStateException("Store table not found for settlement."));
         table.setTableStatus("PENDING_CLEAN");
         storeTableRepository.saveAndFlush(table);
 
-        return toSettlementResult(session.getSessionId(), settlementRecord);
+        return toSettlementResult(masterSession.getSessionId(), settlementRecord);
     }
 
     @Transactional
