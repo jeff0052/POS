@@ -256,12 +256,12 @@ public class VibeCashPaymentApplicationService implements UseCase {
      * retry tracking metadata (retryCount, parentAttemptId, etc.).
      */
     @Transactional
-    public VibeCashPaymentAttemptDto createPaymentLinkForSavedAttempt(Long attemptPk) {
+    public VibeCashPaymentAttemptDto createPaymentLinkForSavedAttempt(String paymentAttemptId) {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("VibeCash secret is not configured.");
         }
-        PaymentAttemptEntity attempt = paymentAttemptRepository.findById(attemptPk)
-                .orElseThrow(() -> new IllegalArgumentException("Attempt PK not found: " + attemptPk));
+        PaymentAttemptEntity attempt = paymentAttemptRepository.findByPaymentAttemptId(paymentAttemptId)
+                .orElseThrow(() -> new IllegalArgumentException("Attempt not found: " + paymentAttemptId));
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("amount", attempt.getSettlementAmountCents());

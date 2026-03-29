@@ -7,6 +7,7 @@ import com.developer.pos.v2.settlement.application.dto.StackingPreviewDto;
 import com.developer.pos.v2.settlement.application.dto.PaymentRetryResultDto;
 import com.developer.pos.v2.settlement.application.service.PaymentRetryService;
 import com.developer.pos.v2.settlement.application.service.PaymentStackingService;
+import com.developer.pos.v2.settlement.application.service.VibeCashPaymentApplicationService;
 import com.developer.pos.v2.settlement.interfaces.rest.request.CollectStackingRequest;
 import com.developer.pos.v2.settlement.interfaces.rest.request.SwitchMethodRequest;
 import org.springframework.web.bind.annotation.*;
@@ -17,10 +18,14 @@ public class PaymentStackingV2Controller implements V2Api {
 
     private final PaymentStackingService stackingService;
     private final PaymentRetryService retryService;
+    private final VibeCashPaymentApplicationService vibecashService;
 
-    public PaymentStackingV2Controller(PaymentStackingService stackingService, PaymentRetryService retryService) {
+    public PaymentStackingV2Controller(PaymentStackingService stackingService,
+                                       PaymentRetryService retryService,
+                                       VibeCashPaymentApplicationService vibecashService) {
         this.stackingService = stackingService;
         this.retryService = retryService;
+        this.vibecashService = vibecashService;
     }
 
     @PostMapping("/stores/{storeId}/tables/{tableId}/payment/preview-stacking")
@@ -37,7 +42,16 @@ public class PaymentStackingV2Controller implements V2Api {
         var choices = new PaymentStackingService.StackingChoices(
                 req.usePoints(), req.couponId(), req.couponLockVersion(),
                 req.useCashBalance(), req.externalPaymentMethod());
-        return ApiResponse.success(stackingService.collectStacking(storeId, tableId, choices));
+        // DB transaction commits inside collectStacking(); VibeCash called here, outside that transaction
+        StackingCollectResultDto result = stackingService.collectStacking(storeId, tableId, choices);
+        if (result.externalPaymentCents() > 0 && result.externalPaymentUrl() == null) {
+            var attemptDto = vibecashService.startStackingPayment(
+                    storeId, tableId, result.settlementId(), choices.externalPaymentMethod());
+            result = new StackingCollectResultDto(
+                    result.settlementId(), result.settlementNo(), result.holdIds(),
+                    attemptDto.checkoutUrl(), result.externalPaymentCents());
+        }
+        return ApiResponse.success(result);
     }
 
     @PostMapping("/stores/{storeId}/tables/{tableId}/payment/{settlementId}/confirm-stacking")
@@ -45,7 +59,7 @@ public class PaymentStackingV2Controller implements V2Api {
             @PathVariable Long storeId,
             @PathVariable Long tableId,
             @PathVariable Long settlementId) {
-        stackingService.confirmStacking(storeId, settlementId);
+        stackingService.confirmStacking(storeId, tableId, settlementId);
         return ApiResponse.<Void>success(null);
     }
 
@@ -55,7 +69,7 @@ public class PaymentStackingV2Controller implements V2Api {
             @PathVariable Long tableId,
             @PathVariable Long settlementId,
             @RequestParam(defaultValue = "MANUAL_RELEASE") String reason) {
-        stackingService.releaseStacking(storeId, settlementId, reason);
+        stackingService.releaseStacking(storeId, tableId, settlementId, reason);
         return ApiResponse.<Void>success(null);
     }
 
@@ -64,6 +78,9 @@ public class PaymentStackingV2Controller implements V2Api {
             @PathVariable Long storeId,
             @PathVariable Long tableId,
             @RequestBody SwitchMethodRequest req) {
-        return ApiResponse.success(retryService.switchMethod(storeId, tableId, req.paymentAttemptId(), req.newPaymentScheme()));
+        // DB transaction commits inside switchMethod(); VibeCash called here, outside that transaction
+        PaymentRetryResultDto result = retryService.switchMethod(storeId, tableId, req.paymentAttemptId(), req.newPaymentScheme());
+        var attemptDto = vibecashService.createPaymentLinkForSavedAttempt(result.newAttemptId());
+        return ApiResponse.success(new PaymentRetryResultDto(result.newAttemptId(), attemptDto.checkoutUrl()));
     }
 }

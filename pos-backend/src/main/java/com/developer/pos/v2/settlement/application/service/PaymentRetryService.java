@@ -14,14 +14,11 @@ public class PaymentRetryService {
 
     private final JpaPaymentAttemptRepository attemptRepo;
     private final JpaSettlementRecordRepository settlementRepo;
-    private final VibeCashPaymentApplicationService vibecashService;
 
     public PaymentRetryService(JpaPaymentAttemptRepository attemptRepo,
-                               JpaSettlementRecordRepository settlementRepo,
-                               VibeCashPaymentApplicationService vibecashService) {
+                               JpaSettlementRecordRepository settlementRepo) {
         this.attemptRepo = attemptRepo;
         this.settlementRepo = settlementRepo;
-        this.vibecashService = vibecashService;
     }
 
     @Transactional
@@ -81,8 +78,7 @@ public class PaymentRetryService {
         old.setReplacedByAttemptId(newAttempt.getId());
         attemptRepo.save(old);
 
-        // Create real VibeCash checkout link for the new attempt
-        var attemptDto = vibecashService.createPaymentLinkForSavedAttempt(newAttempt.getId());
-        return new PaymentRetryResultDto(newAttempt.getPaymentAttemptId(), attemptDto.checkoutUrl());
+        // VibeCash call intentionally excluded — controller calls it after this transaction commits
+        return new PaymentRetryResultDto(newAttempt.getPaymentAttemptId(), null);
     }
 }

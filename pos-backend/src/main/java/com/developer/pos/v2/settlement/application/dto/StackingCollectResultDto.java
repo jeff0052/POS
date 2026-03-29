@@ -6,5 +6,6 @@ public record StackingCollectResultDto(
     Long settlementId,
     String settlementNo,
     List<Long> holdIds,
-    String externalPaymentUrl
+    String externalPaymentUrl,
+    long externalPaymentCents
 ) {}

@@ -48,7 +48,6 @@ public class PaymentStackingService {
     private final JpaCouponTemplateRepository couponTemplateRepo;
     private final CouponLockingService couponLockingService;
     private final TableSettlementFinalizer finalizer;
-    private final VibeCashPaymentApplicationService vibecashService;
 
     public PaymentStackingService(
             JpaStoreTableRepository storeTableRepo,
@@ -61,8 +60,7 @@ public class PaymentStackingService {
             JpaMemberCouponRepository couponRepo,
             JpaCouponTemplateRepository couponTemplateRepo,
             CouponLockingService couponLockingService,
-            TableSettlementFinalizer finalizer,
-            VibeCashPaymentApplicationService vibecashService) {
+            TableSettlementFinalizer finalizer) {
         this.storeTableRepo = storeTableRepo;
         this.sessionRepo = sessionRepo;
         this.submittedOrderRepo = submittedOrderRepo;
@@ -74,7 +72,6 @@ public class PaymentStackingService {
         this.couponTemplateRepo = couponTemplateRepo;
         this.couponLockingService = couponLockingService;
         this.finalizer = finalizer;
-        this.vibecashService = vibecashService;
     }
 
     @Transactional(readOnly = true)
@@ -148,8 +145,16 @@ public class PaymentStackingService {
         if (existing.isPresent()) {
             var s = existing.get();
             var holds = holdRepo.findAllBySettlementRecordIdAndHoldStatus(s.getId(), "HELD");
+            // For idempotent response: re-surface existing PENDING_CUSTOMER checkout URL if present
+            String existingUrl = attemptRepo.findBySettlementRecordIdOrderByCreatedAtDesc(s.getId())
+                    .stream()
+                    .filter(a -> "PENDING_CUSTOMER".equals(a.getAttemptStatus()))
+                    .map(a -> a.getProviderCheckoutUrl())
+                    .findFirst()
+                    .orElse(null);
             return new StackingCollectResultDto(s.getId(), s.getSettlementNo(),
-                    holds.stream().map(SettlementPaymentHoldEntity::getId).toList(), null);
+                    holds.stream().map(SettlementPaymentHoldEntity::getId).toList(),
+                    existingUrl, s.getExternalPaymentCents());
         }
 
         List<Long> sessionChainIds = buildSessionChain(masterSession);
@@ -253,16 +258,12 @@ public class PaymentStackingService {
             holdIds.add(extHold.getId());
         }
 
-        String checkoutUrl = null;
-        if (remaining > 0) {
-            var attemptDto = vibecashService.startStackingPayment(
-                    storeId, tableId, settlement.getId(), choices.externalPaymentMethod());
-            checkoutUrl = attemptDto.checkoutUrl();
-        } else {
+        if (remaining == 0) {
             confirmStacking(storeId, tableId, settlement.getId());
         }
+        // VibeCash call intentionally excluded — controller calls it after this transaction commits
 
-        return new StackingCollectResultDto(settlement.getId(), settlement.getSettlementNo(), holdIds, checkoutUrl);
+        return new StackingCollectResultDto(settlement.getId(), settlement.getSettlementNo(), holdIds, null, remaining);
     }
 
     private List<Long> buildSessionChain(TableSessionEntity masterSession) {
