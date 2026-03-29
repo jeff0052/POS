@@ -66,8 +66,19 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/mark-clean").hasAuthority("TABLE_CLEAN")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/qr/refresh").hasAuthority("TABLE_MANAGE")
 
-                // Settlement/payment endpoints require SETTLEMENT_COLLECT (BEFORE the broad /stores/** matcher)
-                .requestMatchers("/api/v2/stores/*/tables/*/payment/**").hasAuthority("SETTLEMENT_COLLECT")
+                // Settlement/payment endpoints — explicit matchers (BEFORE the broad /stores/** matcher)
+                // Existing table payment endpoints (explicit)
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/payment/preview").hasAuthority("SETTLEMENT_COLLECT")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment").hasAuthority("SETTLEMENT_COLLECT")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/collect").hasAuthority("SETTLEMENT_COLLECT")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/vibecash").hasAuthority("SETTLEMENT_COLLECT")
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/payment/attempts/*").hasAuthority("SETTLEMENT_COLLECT")
+                // New stacking endpoints
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/preview-stacking").hasAuthority("SETTLEMENT_STACKING")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/collect-stacking").hasAuthority("SETTLEMENT_STACKING")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/*/confirm-stacking").hasAuthority("SETTLEMENT_STACKING")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/*/release-stacking").hasAuthority("SETTLEMENT_STACKING")
+                .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/*/payment/switch-method").hasAuthority("PAYMENT_SWITCH")
 
                 // Inventory endpoints (BEFORE the broad /stores/** permitAll)
                 .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/inventory-items").hasAnyAuthority("INVENTORY_VIEW", "INVENTORY_MANAGE")

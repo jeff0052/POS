@@ -5,6 +5,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -25,4 +26,13 @@ public interface JpaSettlementRecordRepository extends JpaRepository<SettlementR
             OffsetDateTime from,
             OffsetDateTime to
     );
+
+    Optional<SettlementRecordEntity> findByStackingSessionIdAndFinalStatus(Long stackingSessionId, String finalStatus);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM SettlementRecordEntity s WHERE s.stackingSessionId = :stackingSessionId AND s.finalStatus = :status")
+    Optional<SettlementRecordEntity> findByStackingSessionIdAndFinalStatusForUpdate(@Param("stackingSessionId") Long stackingSessionId, @Param("status") String status);
+
+    @Query("SELECT s FROM SettlementRecordEntity s WHERE s.finalStatus = 'PENDING' AND s.createdAt < :before")
+    List<SettlementRecordEntity> findPendingOlderThan(@Param("before") OffsetDateTime before);
 }
