@@ -27,8 +27,12 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSku
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaStoreSkuAvailabilityRepository;
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
+import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +47,9 @@ import java.util.stream.Collectors;
 @Service
 public class MenuQueryService implements UseCase {
 
+    private static final Logger log = LoggerFactory.getLogger(MenuQueryService.class);
+
+    private final JpaStoreLookupRepository storeLookupRepository;
     private final JpaProductCategoryRepository categoryRepository;
     private final JpaProductRepository productRepository;
     private final JpaSkuRepository skuRepository;
@@ -56,6 +63,7 @@ public class MenuQueryService implements UseCase {
     private final ObjectMapper objectMapper;
 
     public MenuQueryService(
+            JpaStoreLookupRepository storeLookupRepository,
             JpaProductCategoryRepository categoryRepository,
             JpaProductRepository productRepository,
             JpaSkuRepository skuRepository,
@@ -68,6 +76,7 @@ public class MenuQueryService implements UseCase {
             JpaMenuTimeSlotProductRepository timeSlotProductRepository,
             ObjectMapper objectMapper
     ) {
+        this.storeLookupRepository = storeLookupRepository;
         this.categoryRepository = categoryRepository;
         this.productRepository = productRepository;
         this.skuRepository = skuRepository;
@@ -83,6 +92,10 @@ public class MenuQueryService implements UseCase {
 
     @Transactional(readOnly = true)
     public MenuQueryResultDto queryMenu(Long storeId, String diningMode, Long timeSlotId) {
+        // 0. Validate store exists (tenant isolation: store data is scoped by storeId FK)
+        storeLookupRepository.findById(storeId)
+                .orElseThrow(() -> new IllegalArgumentException("Store not found: " + storeId));
+
         // 1. Load categories
         List<ProductCategoryEntity> categories = categoryRepository
                 .findByStoreIdOrderBySortOrderAscCategoryNameAsc(storeId);
@@ -107,7 +120,7 @@ public class MenuQueryService implements UseCase {
         List<Long> skuIds = allSkus.stream().map(SkuEntity::getId).toList();
 
         Map<Long, Boolean> availabilityMap = buildAvailabilityMap(storeId, skuIds);
-        Map<Long, Long> effectivePriceMap = buildEffectivePriceMap(skuIds, storeId, allSkus);
+        Map<Long, Long> effectivePriceMap = buildEffectivePriceMap(skuIds, storeId, diningMode, allSkus);
 
         // 4. Load modifier bindings + groups + options
         Map<Long, List<MenuModifierGroupDto>> skuModifierMap = buildSkuModifierMap(skuIds);
@@ -206,11 +219,10 @@ public class MenuQueryService implements UseCase {
                 Set<Long> visibleProductIds = slotProducts.stream()
                         .map(MenuTimeSlotProductEntity::getProductId)
                         .collect(Collectors.toSet());
-                if (!visibleProductIds.isEmpty()) {
-                    filtered = filtered.stream()
-                            .filter(p -> visibleProductIds.contains(p.getId()))
-                            .toList();
-                }
+                // Empty slot = no products visible (not "show all")
+                filtered = filtered.stream()
+                        .filter(p -> visibleProductIds.contains(p.getId()))
+                        .toList();
             }
         }
 
@@ -226,6 +238,7 @@ public class MenuQueryService implements UseCase {
             List<String> modes = objectMapper.readValue(menuModesJson, new TypeReference<>() {});
             return modes.contains(diningMode);
         } catch (Exception e) {
+            log.warn("Failed to parse menu_modes JSON for product {}: {}", product.getId(), e.getMessage());
             return true;
         }
     }
@@ -240,23 +253,52 @@ public class MenuQueryService implements UseCase {
     }
 
     /**
-     * Price override chain: sku_price_overrides (store-specific, active) → skus.base_price_cents
+     * Price override chain (highest priority wins):
+     *   1. store-specific override matching price_context → highest
+     *   2. global override (store_id=NULL) matching price_context
+     *   3. store-specific override with no context filter
+     *   4. global override with no context filter
+     *   5. skus.base_price_cents → lowest (fallback)
      */
-    private Map<Long, Long> buildEffectivePriceMap(List<Long> skuIds, Long storeId, List<SkuEntity> skus) {
+    private Map<Long, Long> buildEffectivePriceMap(List<Long> skuIds, Long storeId,
+                                                    String diningMode, List<SkuEntity> skus) {
         if (skuIds.isEmpty()) return Map.of();
         Map<Long, Long> priceMap = new HashMap<>();
-        // Base prices
+        // Base prices (lowest priority)
         for (SkuEntity sku : skus) {
             priceMap.put(sku.getId(), sku.getBasePriceCents());
         }
-        // Override: store-specific active overrides take precedence
+
         List<SkuPriceOverrideEntity> overrides = priceOverrideRepository.findBySkuIdInAndIsActive(skuIds, true);
+
+        // Pass 1: apply global overrides (store_id=NULL), context-unaware
         for (SkuPriceOverrideEntity override : overrides) {
-            if (override.getStoreId() == null || override.getStoreId().equals(storeId)) {
+            if (override.getStoreId() == null && !matchesPriceContext(override, diningMode)) {
+                continue;
+            }
+            if (override.getStoreId() == null) {
+                priceMap.put(override.getSkuId(), override.getOverridePriceCents());
+            }
+        }
+        // Pass 2: store-specific overrides win over global
+        for (SkuPriceOverrideEntity override : overrides) {
+            if (override.getStoreId() != null && override.getStoreId().equals(storeId)
+                    && matchesPriceContext(override, diningMode)) {
                 priceMap.put(override.getSkuId(), override.getOverridePriceCents());
             }
         }
         return priceMap;
+    }
+
+    private boolean matchesPriceContext(SkuPriceOverrideEntity override, String diningMode) {
+        String context = override.getPriceContext();
+        if (context == null || context.isBlank() || "DEFAULT".equalsIgnoreCase(context)) {
+            return true; // no context restriction
+        }
+        if (diningMode == null || diningMode.isBlank()) {
+            return true; // no diningMode filter = accept all
+        }
+        return context.equalsIgnoreCase(diningMode);
     }
 
     private Map<Long, List<MenuModifierGroupDto>> buildSkuModifierMap(List<Long> skuIds) {

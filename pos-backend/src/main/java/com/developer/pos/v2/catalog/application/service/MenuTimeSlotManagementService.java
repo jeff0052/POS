@@ -47,8 +47,9 @@ public class MenuTimeSlotManagementService implements UseCase {
     }
 
     @Transactional(readOnly = true)
-    public MenuTimeSlotDto getSlot(Long slotId) {
+    public MenuTimeSlotDto getSlot(Long slotId, Long expectedStoreId) {
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
+        enforceSlotStoreMatch(slot, expectedStoreId);
         return toDto(slot);
     }
 
@@ -58,6 +59,7 @@ public class MenuTimeSlotManagementService implements UseCase {
                                       List<String> applicableDays, List<String> diningModes,
                                       boolean active, int priority, List<Long> productIds) {
         enforceStoreAccess(storeId);
+        validateTimeRange(startTime, endTime);
         slotRepository.findByStoreIdAndSlotCode(storeId, slotCode).ifPresent(existing -> {
             throw new IllegalArgumentException("Time slot code already exists: " + slotCode);
         });
@@ -77,6 +79,7 @@ public class MenuTimeSlotManagementService implements UseCase {
                                       List<String> applicableDays, List<String> diningModes,
                                       boolean active, int priority, List<Long> productIds) {
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
+        validateTimeRange(startTime, endTime);
         slot.update(slotCode, slotName, startTime, endTime,
                 writeJson(applicableDays), writeJson(diningModes), active, priority);
         slot = slotRepository.save(slot);
@@ -87,8 +90,9 @@ public class MenuTimeSlotManagementService implements UseCase {
     }
 
     @Transactional
-    public void deleteSlot(Long slotId) {
+    public void deleteSlot(Long slotId, Long expectedStoreId) {
         MenuTimeSlotEntity slot = findSlotAndEnforceAccess(slotId);
+        enforceSlotStoreMatch(slot, expectedStoreId);
         slotProductRepository.deleteByTimeSlotId(slot.getId());
         slotRepository.delete(slot);
     }
@@ -107,6 +111,18 @@ public class MenuTimeSlotManagementService implements UseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Time slot not found: " + slotId));
         enforceStoreAccess(slot.getStoreId());
         return slot;
+    }
+
+    private void enforceSlotStoreMatch(MenuTimeSlotEntity slot, Long expectedStoreId) {
+        if (expectedStoreId != null && !Objects.equals(slot.getStoreId(), expectedStoreId)) {
+            throw new IllegalArgumentException("Time slot does not belong to store: " + expectedStoreId);
+        }
+    }
+
+    private void validateTimeRange(LocalTime startTime, LocalTime endTime) {
+        if (!startTime.isBefore(endTime)) {
+            throw new IllegalArgumentException("startTime must be before endTime: " + startTime + " >= " + endTime);
+        }
     }
 
     private void enforceStoreAccess(Long storeId) {

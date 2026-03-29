@@ -53,7 +53,7 @@ public class MenuV2Controller implements V2Api {
 
     @GetMapping("/menu-time-slots/{slotId}")
     public ApiResponse<MenuTimeSlotDto> getTimeSlot(@PathVariable Long storeId, @PathVariable Long slotId) {
-        return ApiResponse.success(timeSlotManagementService.getSlot(slotId));
+        return ApiResponse.success(timeSlotManagementService.getSlot(slotId, storeId));
     }
 
     @PostMapping("/menu-time-slots")
@@ -83,7 +83,7 @@ public class MenuV2Controller implements V2Api {
 
     @DeleteMapping("/menu-time-slots/{slotId}")
     public ApiResponse<Void> deleteTimeSlot(@PathVariable Long storeId, @PathVariable Long slotId) {
-        timeSlotManagementService.deleteSlot(slotId);
+        timeSlotManagementService.deleteSlot(slotId, storeId);
         return ApiResponse.success(null);
     }
 }

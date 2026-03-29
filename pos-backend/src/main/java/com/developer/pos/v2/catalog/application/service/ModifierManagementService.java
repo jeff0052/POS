@@ -8,7 +8,10 @@ import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ModifierGr
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ModifierOptionEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuModifierGroupBindingEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuEntity;
+import com.developer.pos.v2.catalog.infrastructure.persistence.entity.ProductEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaModifierGroupRepository;
+import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaProductRepository;
+import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaModifierOptionRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuModifierGroupBindingRepository;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
@@ -28,17 +31,23 @@ public class ModifierManagementService implements UseCase {
     private final JpaModifierOptionRepository optionRepository;
     private final JpaSkuModifierGroupBindingRepository bindingRepository;
     private final JpaSkuRepository skuRepository;
+    private final JpaProductRepository productRepository;
+    private final JpaStoreLookupRepository storeLookupRepository;
 
     public ModifierManagementService(
             JpaModifierGroupRepository groupRepository,
             JpaModifierOptionRepository optionRepository,
             JpaSkuModifierGroupBindingRepository bindingRepository,
-            JpaSkuRepository skuRepository
+            JpaSkuRepository skuRepository,
+            JpaProductRepository productRepository,
+            JpaStoreLookupRepository storeLookupRepository
     ) {
         this.groupRepository = groupRepository;
         this.optionRepository = optionRepository;
         this.bindingRepository = bindingRepository;
         this.skuRepository = skuRepository;
+        this.productRepository = productRepository;
+        this.storeLookupRepository = storeLookupRepository;
     }
 
     @Transactional(readOnly = true)
@@ -103,6 +112,7 @@ public class ModifierManagementService implements UseCase {
         Long merchantId = enforceCallerMerchant();
         SkuEntity sku = skuRepository.findById(skuId)
                 .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + skuId));
+        enforceSkuMerchantOwnership(sku, merchantId);
 
         bindingRepository.deleteBySkuId(skuId);
 
@@ -126,6 +136,11 @@ public class ModifierManagementService implements UseCase {
 
     @Transactional(readOnly = true)
     public List<ModifierGroupDetailDto> getSkuModifiers(Long skuId) {
+        Long merchantId = enforceCallerMerchant();
+        SkuEntity sku = skuRepository.findById(skuId)
+                .orElseThrow(() -> new IllegalArgumentException("SKU not found: " + skuId));
+        enforceSkuMerchantOwnership(sku, merchantId);
+
         List<SkuModifierGroupBindingEntity> bindings = bindingRepository.findBySkuIdOrderBySortOrderAsc(skuId);
         List<Long> groupIds = bindings.stream().map(SkuModifierGroupBindingEntity::getModifierGroupId).toList();
         if (groupIds.isEmpty()) {
@@ -173,6 +188,15 @@ public class ModifierManagementService implements UseCase {
             throw new SecurityException("Modifier group does not belong to your merchant");
         }
         return group;
+    }
+
+    /** SKU → Product → Store → merchant_id must match caller's merchantId. */
+    private void enforceSkuMerchantOwnership(SkuEntity sku, Long merchantId) {
+        ProductEntity product = productRepository.findById(sku.getProductId())
+                .orElseThrow(() -> new IllegalArgumentException("Product not found for SKU: " + sku.getId()));
+        storeLookupRepository.findById(product.getStoreId())
+                .filter(store -> store.getMerchantId().equals(merchantId))
+                .orElseThrow(() -> new SecurityException("SKU does not belong to your merchant"));
     }
 
     private Long enforceCallerMerchant() {
