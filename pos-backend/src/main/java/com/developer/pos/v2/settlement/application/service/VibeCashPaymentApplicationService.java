@@ -360,20 +360,31 @@ public class VibeCashPaymentApplicationService implements UseCase {
     }
 
     /**
-     * Returns the most recently created PENDING_CUSTOMER attempt for a stacking settlement.
-     * Used by the recovery endpoint when the frontend has lost the newAttemptId (e.g. the
-     * switch-method response never arrived due to a network error).
+     * Returns the most recently created non-REPLACED attempt for a stacking settlement.
+     * Used by the recovery endpoint when the frontend has lost the newAttemptId.
+     *
+     * Intentionally returns any status except REPLACED:
+     *  - PENDING_CUSTOMER (with URL)   → normal; present checkout URL to customer
+     *  - PENDING_CUSTOMER (null URL)   → link creation pending/failed; retry link creation
+     *  - FAILED (providerStatus=REQUEST_FAILED/HTTP_xxx/PARSE_ERROR) → link infrastructure
+     *                                    failure; retry link creation
+     *  - FAILED (payment declined)     → show payment-failed message to customer
+     *  - EXPIRED                       → show expired message
+     *  - SUCCEEDED                     → settlement already confirmed
+     *
+     * REPLACED attempts are excluded because they have been superseded; the replacement
+     * is always newer in createdAt and will appear first in the result.
      */
     @Transactional(readOnly = true)
     public VibeCashPaymentAttemptDto getActiveStackingAttempt(Long storeId, Long tableId, Long settlementId) {
         return paymentAttemptRepository.findBySettlementRecordIdOrderByCreatedAtDesc(settlementId)
                 .stream()
                 .filter(a -> a.getStoreId().equals(storeId) && a.getTableId().equals(tableId))
-                .filter(a -> "PENDING_CUSTOMER".equals(a.getAttemptStatus()))
+                .filter(a -> !"REPLACED".equals(a.getAttemptStatus()))
                 .findFirst()
                 .map(this::toDto)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "No active attempt found for settlement " + settlementId));
+                        "No attempt found for settlement " + settlementId));
     }
 
     @Transactional(readOnly = true)
