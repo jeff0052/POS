@@ -1,0 +1,9 @@
+.worktrees/
+target/
+*.class
+*.jar
+*.war
+*.ear
+.idea/
+*.iml
+.DS_Store
