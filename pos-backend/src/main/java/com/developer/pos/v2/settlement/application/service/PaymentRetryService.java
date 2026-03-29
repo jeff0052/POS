@@ -32,6 +32,12 @@ public class PaymentRetryService {
         var settlement = settlementRepo.findByIdForUpdate(old.getSettlementRecordId())
                 .orElseThrow(() -> new IllegalArgumentException("Settlement not found"));
 
+        // Scope validation — prevent cross-store/cross-table attacks
+        if (!storeId.equals(old.getStoreId()) || !tableId.equals(old.getTableId())) {
+            throw new IllegalArgumentException(
+                    "Attempt " + paymentAttemptId + " does not belong to store " + storeId + " / table " + tableId);
+        }
+
         if (!"PENDING".equals(settlement.getFinalStatus())) {
             throw new IllegalStateException("Settlement is not PENDING: " + settlement.getFinalStatus());
         }
@@ -71,7 +77,8 @@ public class PaymentRetryService {
         old.setReplacedByAttemptId(newAttempt.getId());
         attemptRepo.save(old);
 
-        // VibeCash call happens outside transaction at controller layer
-        return new PaymentRetryResultDto(newAttempt.getPaymentAttemptId(), "PENDING_VIBECASH");
+        // Create real VibeCash checkout link for the new attempt
+        var attemptDto = vibecashService.createPaymentLinkForSavedAttempt(newAttempt.getId());
+        return new PaymentRetryResultDto(newAttempt.getPaymentAttemptId(), attemptDto.checkoutUrl());
     }
 }

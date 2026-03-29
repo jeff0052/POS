@@ -250,6 +250,69 @@ public class VibeCashPaymentApplicationService implements UseCase {
         }
     }
 
+    /**
+     * Creates a VibeCash payment link for an already-saved PaymentAttemptEntity.
+     * Used by switchMethod after creating the replacement attempt entity with correct
+     * retry tracking metadata (retryCount, parentAttemptId, etc.).
+     */
+    @Transactional
+    public VibeCashPaymentAttemptDto createPaymentLinkForSavedAttempt(Long attemptPk) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("VibeCash secret is not configured.");
+        }
+        PaymentAttemptEntity attempt = paymentAttemptRepository.findById(attemptPk)
+                .orElseThrow(() -> new IllegalArgumentException("Attempt PK not found: " + attemptPk));
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("amount", attempt.getSettlementAmountCents());
+        payload.put("currency", currencyCode);
+        payload.put("name", "Table " + attempt.getTableId() + " payment");
+        payload.put("description", "Stacking switch-method attempt " + attempt.getPaymentAttemptId());
+        payload.put("paymentMethodTypes", List.of(toGatewayScheme(attempt.getPaymentScheme())));
+        payload.put("metadata", Map.of(
+                "paymentAttemptId", attempt.getPaymentAttemptId(),
+                "tableSessionId", attempt.getSessionRef() != null ? attempt.getSessionRef() : "",
+                "storeId", String.valueOf(attempt.getStoreId()),
+                "tableId", String.valueOf(attempt.getTableId()),
+                "settlementId", String.valueOf(attempt.getSettlementRecordId())
+        ));
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(apiUrl.replaceAll("/$", "") + "/v1/payment_links"))
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + secret)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 300) {
+                attempt.setAttemptStatus("FAILED");
+                attempt.setProviderStatus("HTTP_" + response.statusCode());
+                attempt.setLastWebhookPayloadJson(response.body());
+                attempt.setUpdatedAt(OffsetDateTime.now());
+                paymentAttemptRepository.saveAndFlush(attempt);
+                throw new IllegalStateException("VibeCash payment link creation failed: " + response.body());
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode data = root.path("data");
+            attempt.setProviderPaymentId(textOrNull(data, "id", "paymentLinkId"));
+            attempt.setProviderCheckoutUrl(textOrNull(data, "url", "checkoutUrl"));
+            attempt.setProviderStatus(textOrDefault(data, "status", "open"));
+            attempt.setUpdatedAt(OffsetDateTime.now());
+            paymentAttemptRepository.saveAndFlush(attempt);
+            return toDto(attempt);
+        } catch (IOException | InterruptedException exception) {
+            attempt.setAttemptStatus("FAILED");
+            attempt.setProviderStatus("REQUEST_FAILED");
+            attempt.setLastWebhookPayloadJson(exception.getMessage());
+            attempt.setUpdatedAt(OffsetDateTime.now());
+            paymentAttemptRepository.saveAndFlush(attempt);
+            throw new IllegalStateException("Failed to create VibeCash payment link.", exception);
+        }
+    }
+
     @Transactional(readOnly = true)
     public VibeCashPaymentAttemptDto getAttempt(Long storeId, Long tableId, String paymentAttemptId) {
         PaymentAttemptEntity paymentAttempt = paymentAttemptRepository.findByPaymentAttemptId(paymentAttemptId)
