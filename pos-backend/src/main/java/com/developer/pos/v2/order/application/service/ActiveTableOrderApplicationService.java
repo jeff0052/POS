@@ -369,7 +369,8 @@ public class ActiveTableOrderApplicationService implements UseCase {
         for (SubmitQrOrderingCommand.SubmitQrOrderingItemInput incoming : incomingItems) {
             ActiveTableOrderItemEntity matched = merged.stream()
                     .filter(item -> item.getSkuId().equals(incoming.skuId())
-                            && java.util.Objects.equals(item.getItemRemark(), incoming.remark()))
+                            && java.util.Objects.equals(item.getItemRemark(), incoming.remark())
+                            && java.util.Objects.equals(item.getOptionSnapshotJson(), incoming.optionSnapshotJson()))
                     .findFirst()
                     .orElse(null);
 
