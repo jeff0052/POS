@@ -57,6 +57,9 @@ public class SecurityConfig {
                 // OPTIONS preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
+                // Buffet status polling is public (frontend polling, no auth needed)
+                .requestMatchers(HttpMethod.GET, "/api/v2/stores/*/tables/*/buffet/status").permitAll()
+
                 // Table operations requiring specific permissions (BEFORE the broad /stores/** matcher)
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/merge").hasAuthority("TABLE_MERGE")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/tables/unmerge").hasAuthority("TABLE_MERGE")
