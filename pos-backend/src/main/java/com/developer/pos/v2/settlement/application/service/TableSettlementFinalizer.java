@@ -1,5 +1,6 @@
 package com.developer.pos.v2.settlement.application.service;
 
+import com.developer.pos.v2.inventory.application.service.StockDeductionService;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.TableSessionEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaSubmittedOrderRepository;
@@ -19,16 +20,19 @@ public class TableSettlementFinalizer {
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaActiveTableOrderRepository activeTableOrderRepository;
     private final JpaStoreTableRepository storeTableRepository;
+    private final StockDeductionService stockDeductionService;
 
     public TableSettlementFinalizer(
             JpaSubmittedOrderRepository submittedOrderRepository,
             JpaTableSessionRepository tableSessionRepository,
             JpaActiveTableOrderRepository activeTableOrderRepository,
-            JpaStoreTableRepository storeTableRepository) {
+            JpaStoreTableRepository storeTableRepository,
+            StockDeductionService stockDeductionService) {
         this.submittedOrderRepository = submittedOrderRepository;
         this.tableSessionRepository = tableSessionRepository;
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.storeTableRepository = storeTableRepository;
+        this.stockDeductionService = stockDeductionService;
     }
 
     /**
@@ -49,6 +53,11 @@ public class TableSettlementFinalizer {
             o.setSettledAt(now);
         }
         submittedOrderRepository.saveAll(orders);
+
+        // Deduct inventory stock (SOP recipe-based FIFO deduction)
+        if (!orders.isEmpty()) {
+            stockDeductionService.deductForOrders(orders.get(0).getStoreId(), orders);
+        }
 
         // 2. sessions → CLOSED
         List<TableSessionEntity> sessions = tableSessionRepository.findAllById(sessionChainIds);
