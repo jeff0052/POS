@@ -24,7 +24,7 @@ import java.util.*;
 public class SopImportService implements UseCase {
 
     private static final Logger log = LoggerFactory.getLogger(SopImportService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
     private final JpaSopImportBatchRepository batchRepository;
     private final JpaRecipeRepository recipeRepository;
@@ -63,6 +63,8 @@ public class SopImportService implements UseCase {
         Map<String, Long> itemCodeToId = new HashMap<>();
 
         for (SopCsvRow row : parseResult.validRows()) {
+            // TODO: Add store-scoped SKU validation. Currently existsById is global.
+            // Store isolation is enforced at the recipe level via inventory item store check below.
             if (!skuRepository.existsById(row.skuId())) {
                 allErrors.add(new SopCsvParser.RowError(row.rowNumber(), "sku_id",
                     "SKU not found: " + row.skuId()));
@@ -119,7 +121,10 @@ public class SopImportService implements UseCase {
     private String serializeErrors(List<SopCsvParser.RowError> errors) {
         if (errors.isEmpty()) return null;
         try { return MAPPER.writeValueAsString(errors); }
-        catch (Exception e) { return "[{\"error\":\"serialization failed\"}]"; }
+        catch (Exception e) {
+            log.warn("Failed to serialize import errors: {}", e.getMessage());
+            return "[{\"error\":\"serialization failed\"}]";
+        }
     }
 
     private SopImportBatchDto toDto(SopImportBatchEntity e) {

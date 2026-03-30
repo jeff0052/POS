@@ -71,6 +71,18 @@ public class InventoryBatchEntity {
 
     protected InventoryBatchEntity() {}
 
+    /**
+     * Creates a batch without supplier or production date.
+     * @param storeId        owning store
+     * @param inventoryItemId linked inventory item
+     * @param batchNo        unique batch number
+     * @param sourceType     e.g. PURCHASE, ADJUSTMENT
+     * @param sourceRef      reference to source document
+     * @param receivedQty    quantity received
+     * @param unit           stock unit
+     * @param unitCostCents  cost per unit in cents (nullable)
+     * @param expiryDate     batch expiry date (nullable)
+     */
     public InventoryBatchEntity(Long storeId, Long inventoryItemId, String batchNo,
                                  String sourceType, String sourceRef,
                                  BigDecimal receivedQty, String unit,
@@ -92,6 +104,19 @@ public class InventoryBatchEntity {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * Creates a batch with supplier and production date.
+     * @param storeId         owning store
+     * @param inventoryItemId linked inventory item
+     * @param batchNo         unique batch number
+     * @param sourceType      e.g. PURCHASE, ADJUSTMENT
+     * @param supplierId      supplier who provided the batch
+     * @param receivedQty     quantity received
+     * @param unit            stock unit
+     * @param unitCostCents   cost per unit in cents (nullable)
+     * @param productionDate  production/manufacture date (nullable)
+     * @param expiryDate      batch expiry date (nullable)
+     */
     public InventoryBatchEntity(Long storeId, Long inventoryItemId, String batchNo,
                                  String sourceType, Long supplierId,
                                  BigDecimal receivedQty, String unit,
@@ -139,11 +164,15 @@ public class InventoryBatchEntity {
     public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
 
     public void deductRemainingQty(BigDecimal qty) {
+        if (qty.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("Deduction quantity must be positive");
         if (qty.compareTo(this.remainingQty) > 0) {
             throw new IllegalStateException("Cannot deduct " + qty
                 + " from batch " + id + " (remaining: " + remainingQty + ")");
         }
         this.remainingQty = this.remainingQty.subtract(qty);
+        if (this.remainingQty.compareTo(BigDecimal.ZERO) == 0) {
+            this.batchStatus = "EXHAUSTED";
+        }
         this.updatedAt = LocalDateTime.now();
     }
 

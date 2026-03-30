@@ -46,6 +46,7 @@ public class PurchaseInvoiceEntity {
     @Column(name = "ocr_raw_result", columnDefinition = "JSON")
     private String ocrRawResult;
 
+    /** OCR confidence as a ratio 0.00–1.00 (NOT a percentage) */
     @Column(name = "ocr_confidence", precision = 3, scale = 2)
     private BigDecimal ocrConfidence;
 
@@ -66,6 +67,10 @@ public class PurchaseInvoiceEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     protected PurchaseInvoiceEntity() {}
 
@@ -99,8 +104,11 @@ public class PurchaseInvoiceEntity {
     }
 
     public void failOcrScan(String errorMessage) {
+        String safe = (errorMessage != null ? errorMessage : "unknown")
+            .replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+        this.ocrRawResult = "{\"error\":\"" + safe + "\"}";
         this.ocrStatus = "FAILED";
-        this.ocrRawResult = "{\"error\":\"" + (errorMessage != null ? errorMessage.replace("\"", "'") : "unknown") + "\"}";
         this.updatedAt = LocalDateTime.now();
     }
 

@@ -8,12 +8,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface JpaInventoryBatchRepository extends JpaRepository<InventoryBatchEntity, Long> {
-    /** FIFO order: oldest expiry first, null expiry last */
-    List<InventoryBatchEntity> findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(
-        Long inventoryItemId, String batchStatus);
-    /** FIFO order with store isolation */
-    List<InventoryBatchEntity> findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(
-        Long storeId, Long inventoryItemId, String batchStatus);
+    /** FIFO order with store isolation: oldest expiry first, NULL expiry last */
+    @Query("SELECT b FROM V2InventoryBatchEntity b WHERE b.storeId = :storeId AND b.inventoryItemId = :itemId AND b.batchStatus = :status ORDER BY CASE WHEN b.expiryDate IS NULL THEN 1 ELSE 0 END, b.expiryDate ASC, b.id ASC")
+    List<InventoryBatchEntity> findActiveByStoreAndItemFifo(@Param("storeId") Long storeId, @Param("itemId") Long itemId, @Param("status") String status);
     List<InventoryBatchEntity> findByStoreIdAndInventoryItemId(Long storeId, Long inventoryItemId);
 
     @Query("SELECT b FROM V2InventoryBatchEntity b " +

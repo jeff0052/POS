@@ -100,6 +100,7 @@ public class InventoryItemEntity {
     }
 
     public void addStock(BigDecimal qty) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("Stock quantity must be positive");
         this.currentStock = this.currentStock.add(qty);
         this.updatedAt = LocalDateTime.now();
     }
@@ -111,6 +112,7 @@ public class InventoryItemEntity {
      * responsible for recording an audit movement in that case.
      */
     public void deductStock(BigDecimal qty) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException("Deduction quantity must be positive");
         this.currentStock = this.currentStock.subtract(qty);
         this.updatedAt = LocalDateTime.now();
     }
@@ -137,7 +139,10 @@ public class InventoryItemEntity {
     // Setters for updates
     public void setItemName(String itemName) { this.itemName = itemName; this.updatedAt = LocalDateTime.now(); }
     public void setCategory(String category) { this.category = category; this.updatedAt = LocalDateTime.now(); }
-    public void setSafetyStock(BigDecimal safetyStock) { this.safetyStock = safetyStock; this.updatedAt = LocalDateTime.now(); }
+    public void setSafetyStock(BigDecimal safetyStock) {
+        if (safetyStock.compareTo(BigDecimal.ZERO) < 0) throw new IllegalArgumentException("Safety stock cannot be negative");
+        this.safetyStock = safetyStock; this.updatedAt = LocalDateTime.now();
+    }
     public void setDefaultSupplierId(Long defaultSupplierId) { this.defaultSupplierId = defaultSupplierId; this.updatedAt = LocalDateTime.now(); }
     public void setLastPurchasePriceCents(Long price) { this.lastPurchasePriceCents = price; this.updatedAt = LocalDateTime.now(); }
 }

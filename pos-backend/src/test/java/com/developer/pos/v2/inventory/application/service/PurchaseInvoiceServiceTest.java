@@ -333,6 +333,114 @@ class PurchaseInvoiceServiceTest {
         verify(ocrClient).recognize("asset-xyz");
     }
 
+    // ─── I2: Duplicate inventoryItemId test ─────────────────────────────
+
+    @Test
+    void confirmOcr_duplicateInventoryItemId_createsBothBatches() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "COMPLETED");
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        InventoryItemEntity item = new InventoryItemEntity(10L, "BEEF-001", "牛腩", "kg", BigDecimal.ZERO);
+        when(inventoryItemRepository.findById(20L)).thenReturn(Optional.of(item));
+        when(invoiceItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(batchRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(movementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(inventoryItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<ConfirmedItemInput> items = List.of(
+            new ConfirmedItemInput(20L, BigDecimal.valueOf(5), "kg", 5000L, null),
+            new ConfirmedItemInput(20L, BigDecimal.valueOf(3), "kg", 6000L, null));
+
+        buildService().confirmOcr(10L, 1L, items);
+
+        // Both batches created for the same inventoryItemId
+        verify(batchRepository, times(2)).save(any());
+        verify(movementRepository, times(2)).save(any());
+        // Stock should reflect both additions
+        assertThat(item.getCurrentStock()).isEqualByComparingTo(BigDecimal.valueOf(8));
+    }
+
+    // ─── I3: OCR retry after FAILED ──────────────────────────────────────
+
+    @Test
+    void triggerOcr_retryAfterFailed_succeeds() {
+        setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "FAILED");
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<OcrLineItem> ocrLines = List.of(
+            new OcrLineItem("牛腩", BigDecimal.valueOf(10), "kg", 5000L, 50000L));
+        OcrRawResult rawResult = new OcrRawResult("Supplier A", "2026-03-30", 50000L,
+            new BigDecimal("0.95"), ocrLines);
+        when(ocrClient.recognize("asset-retry")).thenReturn(rawResult);
+        when(autoMatchService.match(eq(10L), eq(ocrLines))).thenReturn(List.of());
+
+        OcrResultDto result = buildService().triggerOcrScan(10L, 1L, "asset-retry");
+
+        assertThat(result.supplierName()).isEqualTo("Supplier A");
+        verify(ocrClient).recognize("asset-retry");
+    }
+
+    // ─── I13: OCR client exception test ──────────────────────────────────
+
+    @Test
+    void triggerOcr_ocrClientThrows_failsInvoiceAndThrows() {
+        setupActor(100L, 10L, Set.of("PURCHASE_CREATE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, null);
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+        when(invoiceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(ocrClient.recognize("asset-fail")).thenThrow(new RuntimeException("OCR service down"));
+
+        assertThatThrownBy(() -> buildService().triggerOcrScan(10L, 1L, "asset-fail"))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("OCR recognition failed");
+
+        assertThat(invoice.getOcrStatus()).isEqualTo("FAILED");
+    }
+
+    // ─── I14: Empty confirmedItems test ──────────────────────────────────
+
+    @Test
+    void confirmOcr_emptyList_throwsIllegalArgument() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "COMPLETED");
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L, List.of()))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("must not be empty");
+    }
+
+    // ─── I15: Cross-store inventoryItem test ─────────────────────────────
+
+    @Test
+    void confirmOcr_crossStoreInventoryItem_throwsSecurityException() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "COMPLETED");
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        // Item belongs to store 99, not store 10
+        InventoryItemEntity crossStoreItem = new InventoryItemEntity(99L, "BEEF-001", "牛腩", "kg", BigDecimal.ZERO);
+        when(inventoryItemRepository.findById(20L)).thenReturn(Optional.of(crossStoreItem));
+
+        assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L,
+            List.of(new ConfirmedItemInput(20L, BigDecimal.TEN, "kg", 5000L, null))))
+            .isInstanceOf(SecurityException.class);
+    }
+
     // ─── getOcrResult tests ──────────────────────────────────────────────
 
     @Test

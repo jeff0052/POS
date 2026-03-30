@@ -5,6 +5,8 @@ CREATE TABLE inventory_driven_promotions (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     store_id BIGINT NOT NULL,
     inventory_item_id BIGINT NOT NULL,
+    -- NOTE: inventory_batch_id intentionally has no FK constraint — batches may be EXHAUSTED/deleted
+    -- while the promotion draft record needs to be retained for audit purposes.
     inventory_batch_id BIGINT NULL,
     trigger_type VARCHAR(32) NOT NULL
       COMMENT 'NEAR_EXPIRY | OVERSTOCK | LOW_TURNOVER',

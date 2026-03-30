@@ -111,6 +111,14 @@ public class PurchaseInvoiceService implements UseCase {
         enforcer.enforcePermission("PURCHASE_APPROVE");
         PurchaseInvoiceEntity invoice = loadInvoiceForStore(storeId, invoiceId);
 
+        if ("CONFIRMED".equals(invoice.getInvoiceStatus())) {
+            throw new IllegalStateException("Invoice " + invoiceId + " is already confirmed");
+        }
+
+        if (confirmedItems == null || confirmedItems.isEmpty()) {
+            throw new IllegalArgumentException("Confirmed items list must not be empty");
+        }
+
         // Eager state guard — must be COMPLETED before touching any line items
         if (!"COMPLETED".equals(invoice.getOcrStatus())) {
             throw new IllegalStateException(
@@ -188,6 +196,17 @@ public class PurchaseInvoiceService implements UseCase {
             throw new IllegalStateException("Invoice " + invoiceId + " has no OCR result");
         }
         OcrRawResult raw = deserializeOcrResult(invoice.getOcrRawResult());
+
+        // If already confirmed, return raw OCR without re-matching (confirmed invoices have final data)
+        if ("CONFIRMED".equals(invoice.getInvoiceStatus())) {
+            List<OcrMatchedItem> rawItems = raw.items().stream()
+                .map(line -> new OcrMatchedItem(line.rawText(), null, null, BigDecimal.ZERO,
+                    line.qty(), line.unit(), line.unitPriceCents(), line.lineTotalCents()))
+                .toList();
+            return new OcrResultDto(raw.supplierName(), raw.invoiceDate(),
+                raw.totalAmountCents(), raw.avgConfidence(), rawItems);
+        }
+
         // NOTE: Auto-matching is re-computed on each call to reflect latest inventory state. This is intentional.
         List<OcrMatchedItem> matched = autoMatchService.match(storeId, raw.items());
         return new OcrResultDto(raw.supplierName(), raw.invoiceDate(),
@@ -208,7 +227,7 @@ public class PurchaseInvoiceService implements UseCase {
         PurchaseInvoiceEntity invoice = invoiceRepository.findById(invoiceId)
             .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + invoiceId));
         if (!invoice.getStoreId().equals(storeId)) {
-            throw new SecurityException("Invoice " + invoiceId + " does not belong to store " + storeId);
+            throw new SecurityException("Access denied");
         }
         return invoice;
     }

@@ -16,6 +16,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
@@ -112,7 +115,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("5.0000"));
-        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
@@ -139,7 +142,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("5.0000"));
-        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order1 = mock(SubmittedOrderEntity.class);
@@ -170,7 +173,7 @@ class StockDeductionServiceTest {
 
         InventoryBatchEntity batchA = makeBatch(1L, new BigDecimal("0.3000"));
         InventoryBatchEntity batchB = makeBatch(2L, new BigDecimal("5.0000"));
-        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batchA, batchB));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
@@ -199,7 +202,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("0.2000"));
-        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
@@ -225,7 +228,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("5.0000"));
-        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
@@ -250,6 +253,126 @@ class StockDeductionServiceTest {
         stockDeductionService.deductForOrders(10L, List.of(order));
 
         verifyNoInteractions(inventoryItemRepository, batchRepository, movementRepository);
+    }
+
+    // ── I8: Zero deduction quantity ────────────────────────────────────────
+
+    @Test
+    void deductForOrders_zeroQuantity_isNoOp() {
+        SkuEntity sku = makeSkuWithDeductFlag(100L, true);
+        when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
+
+        when(consumptionCalculationService.calculate(eq(100L), eq(0), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, BigDecimal.ZERO, "kg")));
+
+        InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
+        inventoryItem.addStock(new BigDecimal("5.0000"));
+        when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
+
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
+            .thenReturn(List.of(makeBatch(1L, new BigDecimal("5.0000"))));
+
+        SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
+        when(order.getItems()).thenReturn(List.of(makeOrderItem(100L, 0)));
+
+        stockDeductionService.deductForOrders(10L, List.of(order));
+
+        // Zero deduction: stock unchanged, no movement records created
+        assertThat(inventoryItem.getCurrentStock()).isEqualByComparingTo("5.0000");
+        verify(movementRepository, never()).save(any(InventoryMovementEntity.class));
+    }
+
+    // ── I10: OptimisticLockException retry ──────────────────────────────────
+
+    @Test
+    void deductForOrders_optimisticLockRetry_succeedsOnSecondAttempt() {
+        SkuEntity sku = makeSkuWithDeductFlag(100L, true);
+        when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
+
+        when(consumptionCalculationService.calculate(eq(100L), eq(1), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, new BigDecimal("1.0000"), "kg")));
+
+        InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
+        inventoryItem.addStock(new BigDecimal("5.0000"));
+        when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
+
+        InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("5.0000"));
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
+            .thenReturn(List.of(batch));
+
+        // First save throws optimistic lock, second call succeeds
+        when(batchRepository.save(any(InventoryBatchEntity.class)))
+            .thenThrow(new ObjectOptimisticLockingFailureException("conflict", null))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Re-read fresh state on retry
+        InventoryItemEntity freshItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
+        freshItem.addStock(new BigDecimal("5.0000"));
+        InventoryBatchEntity freshBatch = makeBatch(1L, new BigDecimal("5.0000"));
+        when(inventoryItemRepository.findById(1L))
+            .thenReturn(Optional.of(inventoryItem))
+            .thenReturn(Optional.of(freshItem));
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
+            .thenReturn(List.of(batch))
+            .thenReturn(List.of(freshBatch));
+
+        SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
+        when(order.getItems()).thenReturn(List.of(makeOrderItem(100L, 1)));
+
+        stockDeductionService.deductForOrders(10L, List.of(order));
+
+        // Verify batch save was called twice (first failed, second succeeded)
+        verify(batchRepository, times(2)).save(any(InventoryBatchEntity.class));
+    }
+
+    // ── I11: Missing InventoryItem ──────────────────────────────────────────
+
+    @Test
+    void deductForOrders_missingInventoryItem_throwsIllegalState() {
+        SkuEntity sku = makeSkuWithDeductFlag(100L, true);
+        when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
+
+        when(consumptionCalculationService.calculate(eq(100L), eq(1), any()))
+            .thenReturn(List.of(new ConsumptionResult(999L, new BigDecimal("1.0000"), "kg")));
+
+        when(inventoryItemRepository.findById(999L)).thenReturn(Optional.empty());
+
+        SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
+        when(order.getItems()).thenReturn(List.of(makeOrderItem(100L, 1)));
+
+        assertThatThrownBy(() -> stockDeductionService.deductForOrders(10L, List.of(order)))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("inventoryItem 999")
+            .hasMessageContaining("not found");
+    }
+
+    // ── I12: Empty batch list (overflow to negative stock) ──────────────────
+
+    @Test
+    void deductForOrders_noBatches_entireAmountOverflows() {
+        SkuEntity sku = makeSkuWithDeductFlag(100L, true);
+        when(skuRepository.findAllById(anyCollection())).thenReturn(List.of(sku));
+
+        when(consumptionCalculationService.calculate(eq(100L), eq(1), any()))
+            .thenReturn(List.of(new ConsumptionResult(1L, new BigDecimal("2.0000"), "kg")));
+
+        InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
+        inventoryItem.addStock(new BigDecimal("3.0000"));
+        when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
+
+        // No active batches at all
+        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
+            .thenReturn(List.of());
+
+        SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
+        when(order.getItems()).thenReturn(List.of(makeOrderItem(100L, 1)));
+
+        stockDeductionService.deductForOrders(10L, List.of(order));
+
+        // Full amount goes through overflow path: 3.0 - 2.0 = 1.0
+        assertThat(inventoryItem.getCurrentStock()).isEqualByComparingTo("1.0000");
+        // Single overflow movement record with null batchId
+        verify(movementRepository, times(1)).save(any(InventoryMovementEntity.class));
     }
 
     // ── test helpers ─────────────────────────────────────────────────────────

@@ -13,7 +13,9 @@ import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrd
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderItemEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -53,7 +55,9 @@ public class StockDeductionService {
      * Called from CashierSettlementApplicationService after orders are marked SETTLED.
      * Runs in the caller's transaction.
      */
-    @Transactional
+    // TODO: To enable per-order movement traceability, deduct per-order instead of aggregating.
+    // Current design aggregates all orders' consumption per inventory item for efficiency.
+    @Transactional(propagation = Propagation.MANDATORY)
     public void deductForOrders(Long storeId, List<SubmittedOrderEntity> settledOrders) {
         // 1. Collect all order items
         List<SubmittedOrderItemEntity> allItems = settledOrders.stream()
@@ -67,15 +71,15 @@ public class StockDeductionService {
                 .collect(Collectors.toSet());
         Map<Long, SkuEntity> skuMap = skuRepository.findAllById(allSkuIds).stream()
                 .collect(Collectors.toMap(SkuEntity::getId, s -> s));
-        Set<Long> deductableSkuIds = allSkuIds.stream()
+        Set<Long> deductibleSkuIds = allSkuIds.stream()
                 .filter(id -> skuMap.containsKey(id) && skuMap.get(id).isRequiresStockDeduct())
                 .collect(Collectors.toSet());
-        if (deductableSkuIds.isEmpty()) return;
+        if (deductibleSkuIds.isEmpty()) return;
 
         // 3. Compute total deduction per inventoryItemId using ConsumptionCalculationService
         Map<Long, BigDecimal> deductionByItemId = new HashMap<>();
         for (SubmittedOrderItemEntity orderItem : allItems) {
-            if (!deductableSkuIds.contains(orderItem.getSkuId())) continue;
+            if (!deductibleSkuIds.contains(orderItem.getSkuId())) continue;
             List<ConsumptionResult> consumptions = consumptionCalculationService.calculate(
                 orderItem.getSkuId(), orderItem.getQuantity(), orderItem.getOptionSnapshotJson());
             for (ConsumptionResult c : consumptions) {
@@ -90,14 +94,29 @@ public class StockDeductionService {
     }
 
     // NOTE: Concurrent safety via @Version optimistic locking on InventoryBatchEntity + InventoryItemEntity (V099 migration)
+    // C5: Retry up to 3 times on optimistic lock conflicts (concurrent settlement windows)
     private void deductItem(Long storeId, Long inventoryItemId, BigDecimal totalDeduct) {
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                doDeductItem(storeId, inventoryItemId, totalDeduct);
+                return;
+            } catch (ObjectOptimisticLockingFailureException e) {
+                if (attempt == 3) throw e;
+                log.warn("StockDeductionService: optimistic lock conflict for item {}, retrying (attempt {})",
+                        inventoryItemId, attempt);
+                // Retry: re-read fresh state from DB
+            }
+        }
+    }
+
+    private void doDeductItem(Long storeId, Long inventoryItemId, BigDecimal totalDeduct) {
         InventoryItemEntity item = inventoryItemRepository.findById(inventoryItemId)
                 .orElseThrow(() -> new IllegalStateException(
                     "StockDeductionService: inventoryItem " + inventoryItemId
                     + " not found — recipe references a missing item"));
 
         List<InventoryBatchEntity> batches = batchRepository
-                .findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(storeId, inventoryItemId, "ACTIVE");
+                .findActiveByStoreAndItemFifo(storeId, inventoryItemId, "ACTIVE");
 
         BigDecimal remaining = totalDeduct;
 
@@ -135,6 +154,10 @@ public class StockDeductionService {
             ));
         }
 
+        // C6: Single save is sufficient — JPA dirty checking within @Transactional tracks
+        // the managed entity, and @Version on both batch and item provides conflict detection.
+        // Each batch.save() above persists batch state immediately; the final item save
+        // flushes the accumulated stock changes at transaction commit.
         inventoryItemRepository.save(item);
     }
 }

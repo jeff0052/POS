@@ -69,6 +69,8 @@ public class InventoryItemService implements UseCase {
         if (!item.getStoreId().equals(storeId)) {
             throw new SecurityException("Item " + itemId + " does not belong to store " + storeId);
         }
+        // NOTE: null means "don't change" (partial update). To clear a field, use empty string for category
+        // or Long.valueOf(0) for defaultSupplierId. A dedicated PATCH-style API may be added later.
         if (itemName != null) item.setItemName(itemName);
         if (category != null) item.setCategory(category);
         if (safetyStock != null) item.setSafetyStock(safetyStock);

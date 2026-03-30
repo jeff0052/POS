@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 public class InventoryPromotionScanService {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryPromotionScanService.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
     private static final BigDecimal OVERSTOCK_MULTIPLIER = new BigDecimal("3");
     private static final int MAX_EXPIRY_SCAN_DAYS = 14;
     private static final BigDecimal DISCOUNT_3_DAYS = new BigDecimal("30.00");
@@ -64,6 +64,12 @@ public class InventoryPromotionScanService {
         all.addAll(scanOverstock(storeId));
         return all;
     }
+
+    // PERF: Each expiring batch triggers 1 isDuplicateDraft query + 1 findAffectedSkuIds query + 1 save.
+    // For stores with many expiring batches, consider batch-loading duplicates and SKU mappings upfront.
+
+    // NOTE: Duplicate scan calls are safe per-item (isDuplicateDraft check prevents duplicate drafts
+    // for the same inventory item), but may create drafts for different items discovered between scans.
 
     @Transactional
     public List<InventoryDrivenPromotionDto> scanNearExpiry(Long storeId) {
@@ -133,7 +139,10 @@ public class InventoryPromotionScanService {
 
     private String serializeSkuIds(List<Long> skuIds) {
         try { return MAPPER.writeValueAsString(skuIds); }
-        catch (Exception e) { return "[]"; }
+        catch (Exception e) {
+            log.warn("Failed to serialize SKU IDs: {}", e.getMessage());
+            return "[]"; // fallback
+        }
     }
 
 }

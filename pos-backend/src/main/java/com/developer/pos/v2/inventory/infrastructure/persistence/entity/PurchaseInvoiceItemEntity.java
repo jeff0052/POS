@@ -2,6 +2,7 @@ package com.developer.pos.v2.inventory.infrastructure.persistence.entity;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Entity(name = "V2PurchaseInvoiceItemEntity")
 @Table(name = "purchase_invoice_items")
@@ -29,18 +30,30 @@ public class PurchaseInvoiceItemEntity {
     @Column(name = "line_total_cents", nullable = false)
     private Long lineTotalCents;
 
+    @Column(name = "store_id", nullable = false)
+    private Long storeId;
+
     protected PurchaseInvoiceItemEntity() {}
 
+    /** @deprecated Use the overload that accepts storeId for tenant isolation. */
+    @Deprecated
     public PurchaseInvoiceItemEntity(Long invoiceId, Long inventoryItemId,
                                       BigDecimal quantity, String unit,
                                       Long unitPriceCents) {
+        this(invoiceId, inventoryItemId, quantity, unit, unitPriceCents, 0L);
+    }
+
+    public PurchaseInvoiceItemEntity(Long invoiceId, Long inventoryItemId,
+                                      BigDecimal quantity, String unit,
+                                      Long unitPriceCents, Long storeId) {
         this.invoiceId = invoiceId;
         this.inventoryItemId = inventoryItemId;
         this.quantity = quantity;
         this.unit = unit;
         this.unitPriceCents = unitPriceCents;
-        this.lineTotalCents = java.math.BigDecimal.valueOf(unitPriceCents).multiply(quantity)
-            .setScale(0, java.math.RoundingMode.HALF_UP).longValue();
+        this.lineTotalCents = BigDecimal.valueOf(unitPriceCents).multiply(quantity)
+            .setScale(0, RoundingMode.HALF_UP).longValue();
+        this.storeId = storeId;
     }
 
     public Long getId() { return id; }
@@ -50,4 +63,5 @@ public class PurchaseInvoiceItemEntity {
     public String getUnit() { return unit; }
     public Long getUnitPriceCents() { return unitPriceCents; }
     public Long getLineTotalCents() { return lineTotalCents; }
+    public Long getStoreId() { return storeId; }
 }

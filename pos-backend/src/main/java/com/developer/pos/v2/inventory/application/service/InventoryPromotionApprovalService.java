@@ -77,7 +77,12 @@ public class InventoryPromotionApprovalService implements UseCase {
         PromotionRuleConditionEntity condition = new PromotionRuleConditionEntity();
         condition.setRuleId(savedRule.getId());
         condition.setConditionType(CONDITION_TYPE);
+        // Inventory-driven promotions apply regardless of order amount — the trigger is
+        // the inventory condition (expiry/overstock), not a minimum spend threshold.
         condition.setThresholdAmountCents(0L);
+        // NOTE: The promotion rule's SKU scope is defined by the condition's applicable_sku_ids.
+        // The draft's suggestedSkuIds should be wired to the condition or reward entity.
+        // PromotionRuleConditionEntity and PromotionRuleRewardEntity currently lack an applicableSkuIds field.
         conditionRepository.save(condition);
 
         // Create PromotionRuleRewardEntity
@@ -102,6 +107,9 @@ public class InventoryPromotionApprovalService implements UseCase {
         enforcer.enforcePermission("PROMOTION_APPROVE");
 
         InventoryDrivenPromotionEntity draft = loadDraftForStore(draftId, storeId);
+        if (!"DRAFT".equals(draft.getDraftStatus())) {
+            throw new IllegalStateException("Promotion " + draftId + " is not in DRAFT status");
+        }
         Long userId = AuthContext.current().userId();
 
         draft.reject(userId);

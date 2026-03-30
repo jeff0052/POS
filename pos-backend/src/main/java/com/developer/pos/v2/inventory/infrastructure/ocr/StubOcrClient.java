@@ -5,6 +5,7 @@ import com.developer.pos.v2.inventory.application.dto.OcrRawResult;
 import com.developer.pos.v2.inventory.application.port.OcrClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -12,6 +13,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Component
+@Profile("!production")
 public class StubOcrClient implements OcrClient {
 
     private static final Logger log = LoggerFactory.getLogger(StubOcrClient.class);

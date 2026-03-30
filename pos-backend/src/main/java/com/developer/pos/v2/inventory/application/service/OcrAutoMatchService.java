@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
+// NOTE: Recipe queries use findBySkuId which is not store-scoped. Store isolation is
+// inherited from the SKU/catalog layer — recipes are only accessible for SKUs belonging
+// to the authenticated store. Direct recipe queries should not be exposed without store filtering.
 public class OcrAutoMatchService {
 
     private static final BigDecimal MATCH_THRESHOLD = new BigDecimal("0.60");
@@ -22,6 +25,8 @@ public class OcrAutoMatchService {
         this.itemRepository = itemRepository;
     }
 
+    // Loads all active items for the store on each call. For stores with very large inventories
+    // (10,000+ items), consider adding a cache or paginated matching strategy.
     // O(N*M) matching — acceptable for typical restaurant scale (50-200 items x 5-30 OCR lines)
     public List<OcrMatchedItem> match(Long storeId, List<OcrLineItem> ocrLines) {
         List<InventoryItemEntity> items = itemRepository.findByStoreIdAndItemStatusOrderByItemNameAsc(storeId, "ACTIVE");
