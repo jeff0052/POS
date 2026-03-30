@@ -64,6 +64,10 @@ public class InventoryBatchEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     protected InventoryBatchEntity() {}
 
     public InventoryBatchEntity(Long storeId, Long inventoryItemId, String batchNo,
@@ -134,6 +138,10 @@ public class InventoryBatchEntity {
     public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
 
     public void deductRemainingQty(BigDecimal qty) {
+        if (qty.compareTo(this.remainingQty) > 0) {
+            throw new IllegalStateException("Cannot deduct " + qty
+                + " from batch " + id + " (remaining: " + remainingQty + ")");
+        }
         this.remainingQty = this.remainingQty.subtract(qty);
         this.updatedAt = LocalDateTime.now();
     }

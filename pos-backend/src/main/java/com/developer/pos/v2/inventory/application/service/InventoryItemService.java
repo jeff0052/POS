@@ -88,6 +88,8 @@ public class InventoryItemService implements UseCase {
 
     @Transactional(readOnly = true)
     public List<InventoryItemDto> listLowStockItems(Long storeId) {
+        enforcer.enforce(storeId);
+        enforcer.enforcePermission("INVENTORY_VIEW");
         return itemRepository.findLowStockByStoreId(storeId)
                 .stream().map(this::toDto).toList();
     }

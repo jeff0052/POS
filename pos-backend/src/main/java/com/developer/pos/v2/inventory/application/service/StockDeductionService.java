@@ -90,14 +90,13 @@ public class StockDeductionService {
     }
 
     private void deductItem(Long storeId, Long inventoryItemId, BigDecimal totalDeduct) {
-        InventoryItemEntity item = inventoryItemRepository.findById(inventoryItemId).orElse(null);
-        if (item == null) {
-            log.warn("StockDeductionService: inventoryItem {} not found, skipping", inventoryItemId);
-            return;
-        }
+        InventoryItemEntity item = inventoryItemRepository.findById(inventoryItemId)
+                .orElseThrow(() -> new IllegalStateException(
+                    "StockDeductionService: inventoryItem " + inventoryItemId
+                    + " not found — recipe references a missing item"));
 
         List<InventoryBatchEntity> batches = batchRepository
-                .findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(inventoryItemId, "ACTIVE");
+                .findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(storeId, inventoryItemId, "ACTIVE");
 
         BigDecimal remaining = totalDeduct;
 

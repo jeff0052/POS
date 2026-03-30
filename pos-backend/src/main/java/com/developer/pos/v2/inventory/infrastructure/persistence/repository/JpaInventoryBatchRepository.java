@@ -11,6 +11,9 @@ public interface JpaInventoryBatchRepository extends JpaRepository<InventoryBatc
     /** FIFO order: oldest expiry first, null expiry last */
     List<InventoryBatchEntity> findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(
         Long inventoryItemId, String batchStatus);
+    /** FIFO order with store isolation */
+    List<InventoryBatchEntity> findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(
+        Long storeId, Long inventoryItemId, String batchStatus);
     List<InventoryBatchEntity> findByStoreIdAndInventoryItemId(Long storeId, Long inventoryItemId);
 
     @Query("SELECT b FROM V2InventoryBatchEntity b " +

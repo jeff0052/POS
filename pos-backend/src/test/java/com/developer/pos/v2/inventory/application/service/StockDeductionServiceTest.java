@@ -112,7 +112,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("5.0000"));
-        when(batchRepository.findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(1L, "ACTIVE"))
+        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
@@ -139,7 +139,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("5.0000"));
-        when(batchRepository.findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(1L, "ACTIVE"))
+        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order1 = mock(SubmittedOrderEntity.class);
@@ -170,7 +170,7 @@ class StockDeductionServiceTest {
 
         InventoryBatchEntity batchA = makeBatch(1L, new BigDecimal("0.3000"));
         InventoryBatchEntity batchB = makeBatch(2L, new BigDecimal("5.0000"));
-        when(batchRepository.findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(1L, "ACTIVE"))
+        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batchA, batchB));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
@@ -199,7 +199,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("0.2000"));
-        when(batchRepository.findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(1L, "ACTIVE"))
+        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
@@ -225,7 +225,7 @@ class StockDeductionServiceTest {
         when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
 
         InventoryBatchEntity batch = makeBatch(1L, new BigDecimal("5.0000"));
-        when(batchRepository.findByInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(1L, "ACTIVE"))
+        when(batchRepository.findByStoreIdAndInventoryItemIdAndBatchStatusOrderByExpiryDateAscIdAsc(10L, 1L, "ACTIVE"))
             .thenReturn(List.of(batch));
 
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);

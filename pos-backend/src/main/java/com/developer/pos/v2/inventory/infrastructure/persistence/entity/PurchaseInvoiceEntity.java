@@ -6,7 +6,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity(name = "V2PurchaseInvoiceEntity")
-@Table(name = "purchase_invoices")
+@Table(name = "purchase_invoices",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"store_id", "invoice_no"}))
 public class PurchaseInvoiceEntity {
 
     @Id

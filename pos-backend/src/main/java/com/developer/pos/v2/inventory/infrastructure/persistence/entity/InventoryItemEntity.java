@@ -5,7 +5,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity(name = "V2InventoryItemEntity")
-@Table(name = "inventory_items")
+@Table(name = "inventory_items",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"store_id", "item_code"}))
 public class InventoryItemEntity {
 
     @Id
@@ -77,6 +78,10 @@ public class InventoryItemEntity {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     protected InventoryItemEntity() {}
 

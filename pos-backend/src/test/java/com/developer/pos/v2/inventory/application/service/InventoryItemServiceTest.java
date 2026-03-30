@@ -154,6 +154,9 @@ class InventoryItemServiceTest {
 
     @Test
     void listLowStockItems_returnsOnlyItemsBelowSafetyStock() {
+        setupActor(100L, 10L, Set.of("INVENTORY_VIEW"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
         InventoryItemEntity lowItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("5.0000"));
         lowItem.addStock(new BigDecimal("2.0000")); // currentStock=2, safetyStock=5 → low
 
