@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/** Merchant-level supplier entity. Visible across all stores within the same merchant. */
 @Entity(name = "V2SupplierEntity")
 @Table(name = "suppliers")
 public class SupplierEntity {

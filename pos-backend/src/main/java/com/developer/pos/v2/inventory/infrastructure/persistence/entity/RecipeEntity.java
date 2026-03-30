@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/** Recipe linking SKU to inventory item. Store isolation is inherited from the SKU/item entities. */
 @Entity(name = "V2RecipeEntity")
 @Table(name = "recipes")
 public class RecipeEntity {
@@ -59,5 +60,6 @@ public class RecipeEntity {
     public BigDecimal getConsumptionQty() { return consumptionQty; }
     public String getConsumptionUnit() { return consumptionUnit; }
     public String getModifierConsumptionRules() { return modifierConsumptionRules; }
+    public void setModifierConsumptionRules(String rules) { this.modifierConsumptionRules = rules; }
     public BigDecimal getBaseMultiplier() { return baseMultiplier; }
 }

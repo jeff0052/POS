@@ -89,6 +89,7 @@ public class StockDeductionService {
         }
     }
 
+    // NOTE: Concurrent safety via @Version optimistic locking on InventoryBatchEntity + InventoryItemEntity (V099 migration)
     private void deductItem(Long storeId, Long inventoryItemId, BigDecimal totalDeduct) {
         InventoryItemEntity item = inventoryItemRepository.findById(inventoryItemId)
                 .orElseThrow(() -> new IllegalStateException(
@@ -109,7 +110,10 @@ public class StockDeductionService {
                 batch.exhaust();
             }
 
+            batchRepository.save(batch);
+
             item.deductStock(deductFromBatch);
+            // afterQty reflects stock after each batch deduction, not the final settled stock
             movementRepository.save(new InventoryMovementEntity(
                     storeId, inventoryItemId, batch.getId(),
                     "SALE_DEDUCT", deductFromBatch.negate(), batch.getUnitCostCents(),

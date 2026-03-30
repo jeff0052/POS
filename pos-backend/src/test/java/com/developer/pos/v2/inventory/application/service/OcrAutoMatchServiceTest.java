@@ -113,4 +113,27 @@ class OcrAutoMatchServiceTest {
         assertThat(results).hasSize(1);
         assertThat(results.get(0).matchedInventoryItemId()).isNull();
     }
+
+    @Test
+    void characterOverlapBranch_cjkPartialOverlap() {
+        // C-I18: OCR text "鲜牛腩" vs item name "牛腩肉" — should hit character-overlap branch
+        // Shared chars: 牛, 腩 (2 out of max(3,3)=3) → overlap = 0.6667 ≥ 0.60 threshold
+        InventoryItemEntity beefMeat = makeItem(100L, 1L, "牛腩肉");
+        when(itemRepository.findByStoreIdAndItemStatusOrderByItemNameAsc(1L, "ACTIVE"))
+            .thenReturn(List.of(beefMeat));
+
+        OcrLineItem line = new OcrLineItem("鲜牛腩", new BigDecimal("5.0"), "kg", 8000L, 40000L);
+        List<OcrMatchedItem> results = buildService().match(1L, List.of(line));
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).matchedInventoryItemId()).isEqualTo(100L);
+        assertThat(results.get(0).confidence()).isGreaterThanOrEqualTo(new BigDecimal("0.60"));
+    }
+
+    @Test
+    void shortOcrText_singleChar_returnsNoMatch() {
+        // C-I9: Single-character OCR text should return 0.0 similarity (min length check)
+        BigDecimal score = OcrAutoMatchService.computeSimilarity("a", "apple");
+        assertThat(score).isEqualByComparingTo("0.00");
+    }
 }

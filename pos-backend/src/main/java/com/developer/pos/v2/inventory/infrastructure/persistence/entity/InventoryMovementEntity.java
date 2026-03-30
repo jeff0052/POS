@@ -84,4 +84,5 @@ public class InventoryMovementEntity {
     public String getSourceRef() { return sourceRef; }
     public Long getUnitCostCents() { return unitCostCents; }
     public String getNotes() { return notes; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
 }

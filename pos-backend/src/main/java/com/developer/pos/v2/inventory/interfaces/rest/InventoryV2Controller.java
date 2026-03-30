@@ -28,7 +28,8 @@ public class InventoryV2Controller implements V2Api {
             @Valid @RequestBody CreateInventoryItemRequest request) {
         return ApiResponse.success(inventoryItemService.createItem(
             storeId, request.itemCode(), request.itemName(),
-            request.unit(), request.safetyStock()));
+            request.unit(), request.safetyStock(),
+            request.category(), request.defaultSupplierId()));
     }
 
     /** List active inventory items for a store. */

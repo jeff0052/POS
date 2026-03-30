@@ -20,11 +20,20 @@ public class SopImportV2Controller implements V2Api {
         this.sopImportService = sopImportService;
     }
 
+    private static final long MAX_CSV_SIZE = 5 * 1024 * 1024; // 5MB
+
     @PostMapping("/stores/{storeId}/sop-import")
     public ApiResponse<SopImportBatchDto> importSop(
             @PathVariable Long storeId,
             @RequestParam("file") MultipartFile file) {
         try {
+            if (file.getSize() > MAX_CSV_SIZE) {
+                throw new IllegalArgumentException("CSV file exceeds 5MB limit");
+            }
+            String contentType = file.getContentType();
+            if (contentType != null && !contentType.equals("text/csv") && !contentType.equals("application/octet-stream")) {
+                throw new IllegalArgumentException("Invalid content type: expected text/csv but got " + contentType);
+            }
             String csvContent = new String(file.getBytes(), StandardCharsets.UTF_8);
             String fileName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "sop.csv";
             return ApiResponse.success(sopImportService.importCsv(storeId, fileName, csvContent));

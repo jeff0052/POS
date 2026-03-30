@@ -79,6 +79,7 @@ public class InventoryDrivenPromotionEntity {
         this.updatedAt = LocalDateTime.now();
     }
 
+    // NOTE: approvedBy/approvedAt are reused to store the rejecting user and timestamp (schema limitation)
     public void reject(Long userId) {
         if (!"DRAFT".equals(this.draftStatus)) {
             throw new IllegalStateException("Promotion draft " + id + " is not in DRAFT status: " + draftStatus);

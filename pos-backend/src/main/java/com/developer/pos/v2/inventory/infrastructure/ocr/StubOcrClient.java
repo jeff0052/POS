@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @Component
@@ -20,7 +21,7 @@ public class StubOcrClient implements OcrClient {
         log.info("StubOcrClient: simulating OCR for image {}", imageUrl);
         return new OcrRawResult(
             "示例供应商",
-            "2026-03-30",
+            LocalDate.now().toString(),
             80000L,
             new BigDecimal("0.85"),
             List.of(

@@ -81,6 +81,7 @@ public class ConsumptionCalculationService {
                 recipe.getModifierConsumptionRules(),
                 new TypeReference<>() {}
             );
+            // Design decision: multiple multiplier modifiers stack multiplicatively (e.g., 1.5 * 1.2 = 1.8)
             BigDecimal multiplier = BigDecimal.ONE;
             BigDecimal extra = BigDecimal.ZERO;
             for (Map<String, Object> rule : rules) {
@@ -90,10 +91,14 @@ public class ConsumptionCalculationService {
                 if (rule.containsKey("multiplier")) {
                     // Multiplier modifier: 大份 × 1.5
                     multiplier = multiplier.multiply(new BigDecimal(rule.get("multiplier").toString()));
-                } else if (rule.containsKey("extraQty")) {
+                }
+                if (rule.containsKey("extraQty")) {
                     // Extra ingredient: 加辣 → +extraQty per unit
                     BigDecimal extraQty = new BigDecimal(rule.get("extraQty").toString());
                     extra = extra.add(extraQty.multiply(qty).setScale(4, RoundingMode.HALF_UP));
+                }
+                if (rule.containsKey("multiplier") && rule.containsKey("extraQty")) {
+                    log.debug("Rule for optionId {} has both multiplier and extraQty — both applied", optionId);
                 }
             }
             return new ModifierEffect(multiplier, extra);

@@ -25,13 +25,16 @@ public class InventoryItemService implements UseCase {
 
     @Transactional
     public InventoryItemDto createItem(Long storeId, String itemCode, String itemName,
-                                        String unit, BigDecimal safetyStock) {
+                                        String unit, BigDecimal safetyStock,
+                                        String category, Long defaultSupplierId) {
         enforcer.enforce(storeId);
         enforcer.enforcePermission("INVENTORY_MANAGE");
         if (itemRepository.existsByStoreIdAndItemCode(storeId, itemCode)) {
             throw new IllegalArgumentException("Item code already exists in store: " + itemCode);
         }
         InventoryItemEntity item = new InventoryItemEntity(storeId, itemCode, itemName, unit, safetyStock);
+        if (category != null) item.setCategory(category);
+        if (defaultSupplierId != null) item.setDefaultSupplierId(defaultSupplierId);
         return toDto(itemRepository.save(item));
     }
 

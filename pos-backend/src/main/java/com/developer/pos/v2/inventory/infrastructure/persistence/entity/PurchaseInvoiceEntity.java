@@ -64,6 +64,9 @@ public class PurchaseInvoiceEntity {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     protected PurchaseInvoiceEntity() {}
 
     public PurchaseInvoiceEntity(Long storeId, String invoiceNo, Long supplierId,
@@ -76,6 +79,7 @@ public class PurchaseInvoiceEntity {
         this.invoiceStatus = "PENDING";
         this.totalAmountCents = 0L;
         this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void startOcrScan(String imageUrl) {
@@ -84,12 +88,20 @@ public class PurchaseInvoiceEntity {
         }
         this.scanImageUrl = imageUrl;
         this.ocrStatus = "PROCESSING";
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void completeOcrScan(BigDecimal confidence, String rawResultJson) {
         this.ocrStatus = "COMPLETED";
         this.ocrConfidence = confidence;
         this.ocrRawResult = rawResultJson;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void failOcrScan(String errorMessage) {
+        this.ocrStatus = "FAILED";
+        this.ocrRawResult = "{\"error\":\"" + (errorMessage != null ? errorMessage.replace("\"", "'") : "unknown") + "\"}";
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void completeOcr(Long totalAmountCents, Long reviewedBy) {
@@ -101,6 +113,7 @@ public class PurchaseInvoiceEntity {
         this.ocrReviewed = true;
         this.ocrReviewedBy = reviewedBy;
         this.ocrReviewedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void completeOcr(Long totalAmountCents) {

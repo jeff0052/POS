@@ -193,4 +193,62 @@ class ConsumptionCalculationServiceTest {
 
         assertThat(results.get(0).qty()).isEqualByComparingTo("0.2000");
     }
+
+    @Test
+    void twoMultiplierModifiers_stackMultiplicatively() {
+        // C-I1: Two multiplier modifiers (1.5 * 1.2 = 1.8) should stack multiplicatively
+        String rules = "[{\"modifierOptionId\":201,\"multiplier\":1.5},{\"modifierOptionId\":202,\"multiplier\":1.2}]";
+        RecipeEntity recipe = makeRecipe(1L, 10L, 100L,
+            new BigDecimal("0.2000"), "kg", BigDecimal.ONE, rules);
+        when(recipeRepository.findBySkuId(10L)).thenReturn(List.of(recipe));
+
+        String optionJson = "[{\"modifierGroupId\":1,\"selectedOptions\":[{\"optionId\":201},{\"optionId\":202}]}]";
+
+        List<ConsumptionResult> results = buildService().calculate(10L, 1, optionJson);
+
+        // 0.2 * 1.0 * 1.5 * 1.2 * 1 = 0.36
+        assertThat(results.get(0).qty()).isEqualByComparingTo("0.3600");
+    }
+
+    @Test
+    void singleRuleWithBothMultiplierAndExtraQty_appliesBoth() {
+        // C-I2: A single rule with both multiplier and extraQty should apply both
+        String rules = "[{\"modifierOptionId\":301,\"multiplier\":1.5,\"extraQty\":0.05}]";
+        RecipeEntity recipe = makeRecipe(1L, 10L, 100L,
+            new BigDecimal("0.2000"), "kg", BigDecimal.ONE, rules);
+        when(recipeRepository.findBySkuId(10L)).thenReturn(List.of(recipe));
+
+        String optionJson = "[{\"modifierGroupId\":1,\"selectedOptions\":[{\"optionId\":301}]}]";
+
+        List<ConsumptionResult> results = buildService().calculate(10L, 2, optionJson);
+
+        // base = 0.2 * 1.0 * 1.5 * 2 = 0.6, extra = 0.05 * 2 = 0.10, total = 0.70
+        assertThat(results.get(0).qty()).isEqualByComparingTo("0.7000");
+    }
+
+    @Test
+    void malformedOptionSnapshotJson_gracefulFallback() {
+        // C-M16: Malformed optionSnapshotJson should fall back to base recipe only
+        RecipeEntity recipe = makeRecipe(1L, 10L, 100L,
+            new BigDecimal("0.2000"), "kg", BigDecimal.ONE, null);
+        when(recipeRepository.findBySkuId(10L)).thenReturn(List.of(recipe));
+
+        List<ConsumptionResult> results = buildService().calculate(10L, 1, "NOT VALID JSON {{{}");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).qty()).isEqualByComparingTo("0.2000");
+    }
+
+    @Test
+    void quantityZero_returnsZeroConsumption() {
+        // C-M17: quantity=0 should produce qty=0 for each recipe item
+        RecipeEntity recipe = makeRecipe(1L, 10L, 100L,
+            new BigDecimal("0.2000"), "kg", BigDecimal.ONE, null);
+        when(recipeRepository.findBySkuId(10L)).thenReturn(List.of(recipe));
+
+        List<ConsumptionResult> results = buildService().calculate(10L, 0, null);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).qty()).isEqualByComparingTo("0");
+    }
 }

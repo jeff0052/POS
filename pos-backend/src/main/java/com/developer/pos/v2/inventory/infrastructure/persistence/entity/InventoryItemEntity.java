@@ -28,6 +28,7 @@ public class InventoryItemEntity {
     @Column(name = "unit", nullable = false, length = 32)
     private String unit;
 
+    // Reserved for future multi-unit conversion support — not yet used in application code
     @Column(name = "purchase_unit", length = 32)
     private String purchaseUnit;
 

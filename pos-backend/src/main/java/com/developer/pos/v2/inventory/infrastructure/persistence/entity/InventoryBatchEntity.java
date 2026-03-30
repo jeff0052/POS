@@ -2,6 +2,7 @@ package com.developer.pos.v2.inventory.infrastructure.persistence.entity;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -116,9 +117,9 @@ public class InventoryBatchEntity {
 
     private static Long computeTotalCostCents(Long unitCostCents, BigDecimal receivedQty) {
         if (unitCostCents == null) return null;
-        return java.math.BigDecimal.valueOf(unitCostCents)
+        return BigDecimal.valueOf(unitCostCents)
                 .multiply(receivedQty)
-                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .setScale(0, RoundingMode.HALF_UP)
                 .longValue();
     }
 

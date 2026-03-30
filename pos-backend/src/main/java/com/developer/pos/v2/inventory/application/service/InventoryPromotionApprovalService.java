@@ -24,6 +24,11 @@ import java.util.stream.Collectors;
 @Service
 public class InventoryPromotionApprovalService implements UseCase {
 
+    private static final String RULE_TYPE = "FULL_REDUCTION";
+    private static final int RULE_PRIORITY = 50;
+    private static final String CONDITION_TYPE = "THRESHOLD_AMOUNT";
+    private static final String REWARD_TYPE = "DISCOUNT_PERCENT";
+
     private final JpaInventoryDrivenPromotionRepository promotionRepository;
     private final JpaPromotionRuleRepository ruleRepository;
     private final JpaPromotionRuleConditionRepository conditionRepository;
@@ -61,9 +66,9 @@ public class InventoryPromotionApprovalService implements UseCase {
         rule.setStoreId(storeId);
         rule.setRuleCode("INV-PROMO-" + draftId);
         rule.setRuleName(draft.getTriggerType() + " promotion (auto-generated)");
-        rule.setRuleType("FULL_REDUCTION");
+        rule.setRuleType(RULE_TYPE);
         rule.setRuleStatus("ACTIVE");
-        rule.setPriority(50);
+        rule.setPriority(RULE_PRIORITY);
         rule.setStartsAt(OffsetDateTime.now(ZoneOffset.UTC));
         rule.setEndsAt(draft.getExpiresAt().atOffset(ZoneOffset.UTC));
         PromotionRuleEntity savedRule = ruleRepository.save(rule);
@@ -71,14 +76,14 @@ public class InventoryPromotionApprovalService implements UseCase {
         // Create PromotionRuleConditionEntity
         PromotionRuleConditionEntity condition = new PromotionRuleConditionEntity();
         condition.setRuleId(savedRule.getId());
-        condition.setConditionType("THRESHOLD_AMOUNT");
+        condition.setConditionType(CONDITION_TYPE);
         condition.setThresholdAmountCents(0L);
         conditionRepository.save(condition);
 
         // Create PromotionRuleRewardEntity
         PromotionRuleRewardEntity reward = new PromotionRuleRewardEntity();
         reward.setRuleId(savedRule.getId());
-        reward.setRewardType("DISCOUNT_PERCENT");
+        reward.setRewardType(REWARD_TYPE);
         // NOTE: PromotionRuleRewardEntity.discountPercent is Integer.
         // Current auto-generated values (30/20/15/10%) are whole numbers.
         // Explicit rounding guards against future fractional values.
@@ -88,7 +93,7 @@ public class InventoryPromotionApprovalService implements UseCase {
 
         draft.approve(userId, savedRule.getId());
         promotionRepository.save(draft);
-        return toDto(draft);
+        return InventoryDrivenPromotionDto.from(draft);
     }
 
     @Transactional
@@ -101,7 +106,7 @@ public class InventoryPromotionApprovalService implements UseCase {
 
         draft.reject(userId);
         promotionRepository.save(draft);
-        return toDto(draft);
+        return InventoryDrivenPromotionDto.from(draft);
     }
 
     @Transactional(readOnly = true)
@@ -115,7 +120,7 @@ public class InventoryPromotionApprovalService implements UseCase {
         } else {
             entities = promotionRepository.findByStoreIdOrderByCreatedAtDesc(storeId);
         }
-        return entities.stream().map(this::toDto).collect(Collectors.toList());
+        return entities.stream().map(InventoryDrivenPromotionDto::from).collect(Collectors.toList());
     }
 
     private InventoryDrivenPromotionEntity loadDraftForStore(Long draftId, Long storeId) {
@@ -127,10 +132,4 @@ public class InventoryPromotionApprovalService implements UseCase {
         return draft;
     }
 
-    InventoryDrivenPromotionDto toDto(InventoryDrivenPromotionEntity e) {
-        return new InventoryDrivenPromotionDto(e.getId(), e.getStoreId(),
-            e.getInventoryItemId(), e.getInventoryBatchId(), e.getTriggerType(),
-            e.getSuggestedDiscountPercent(), e.getSuggestedSkuIds(),
-            e.getDraftStatus(), e.getPromotionRuleId(), e.getExpiresAt(), e.getCreatedAt());
-    }
 }

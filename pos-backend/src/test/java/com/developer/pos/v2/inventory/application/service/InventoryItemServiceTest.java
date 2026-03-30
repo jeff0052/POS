@@ -76,7 +76,7 @@ class InventoryItemServiceTest {
             return e;
         });
 
-        InventoryItemDto result = buildService().createItem(10L, "BEEF-001", "牛腩", "kg", BigDecimal.valueOf(5));
+        InventoryItemDto result = buildService().createItem(10L, "BEEF-001", "牛腩", "kg", BigDecimal.valueOf(5), null, null);
 
         assertThat(result.itemCode()).isEqualTo("BEEF-001");
         assertThat(result.itemName()).isEqualTo("牛腩");
@@ -91,7 +91,7 @@ class InventoryItemServiceTest {
         when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
         when(itemRepository.existsByStoreIdAndItemCode(10L, "BEEF-001")).thenReturn(true);
 
-        assertThatThrownBy(() -> buildService().createItem(10L, "BEEF-001", "牛腩", "kg", null))
+        assertThatThrownBy(() -> buildService().createItem(10L, "BEEF-001", "牛腩", "kg", null, null, null))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("BEEF-001");
     }
@@ -102,7 +102,7 @@ class InventoryItemServiceTest {
         StoreEntity store = buildStore(999L); // different merchant
         when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
 
-        assertThatThrownBy(() -> buildService().createItem(10L, "X001", "Item", "kg", null))
+        assertThatThrownBy(() -> buildService().createItem(10L, "X001", "Item", "kg", null, null, null))
             .isInstanceOf(SecurityException.class);
     }
 
@@ -166,5 +166,33 @@ class InventoryItemServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).itemCode()).isEqualTo("BEEF-001");
+    }
+
+    // ─── IDOR tests ─────────────────────────────────────────────────────
+
+    @Test
+    void getItem_crossStoreAccess_throwsSecurityException() {
+        setupActor(100L, 10L, Set.of("INVENTORY_VIEW"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        // Item belongs to store 99, not store 10
+        InventoryItemEntity item = new InventoryItemEntity(99L, "BEEF-001", "牛腩", "kg", BigDecimal.ZERO);
+        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> buildService().getItem(10L, 1L))
+            .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void updateItem_crossStoreAccess_throwsSecurityException() {
+        setupActor(100L, 10L, Set.of("INVENTORY_MANAGE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+        // Item belongs to store 99, not store 10
+        InventoryItemEntity item = new InventoryItemEntity(99L, "BEEF-001", "牛腩", "kg", BigDecimal.ZERO);
+        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
+
+        assertThatThrownBy(() -> buildService().updateItem(10L, 1L, "Hacked", null, null, null))
+            .isInstanceOf(SecurityException.class);
     }
 }

@@ -31,6 +31,10 @@ public class InventoryPromotionScanService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final BigDecimal OVERSTOCK_MULTIPLIER = new BigDecimal("3");
     private static final int MAX_EXPIRY_SCAN_DAYS = 14;
+    private static final BigDecimal DISCOUNT_3_DAYS = new BigDecimal("30.00");
+    private static final BigDecimal DISCOUNT_7_DAYS = new BigDecimal("20.00");
+    private static final BigDecimal DISCOUNT_DEFAULT = new BigDecimal("10.00");
+    private static final BigDecimal OVERSTOCK_DISCOUNT = new BigDecimal("15.00");
 
     private final JpaInventoryBatchRepository batchRepository;
     private final JpaInventoryItemRepository itemRepository;
@@ -82,7 +86,7 @@ public class InventoryPromotionScanService {
                 batch.getExpiryDate().atStartOfDay()
             );
             entity = promotionRepository.save(entity);
-            drafts.add(toDto(entity));
+            drafts.add(InventoryDrivenPromotionDto.from(entity));
         }
         return drafts;
     }
@@ -100,19 +104,19 @@ public class InventoryPromotionScanService {
 
             InventoryDrivenPromotionEntity entity = new InventoryDrivenPromotionEntity(
                 storeId, item.getId(), null,
-                "OVERSTOCK", new BigDecimal("15.00"), serializeSkuIds(affectedSkuIds),
+                "OVERSTOCK", OVERSTOCK_DISCOUNT, serializeSkuIds(affectedSkuIds),
                 LocalDateTime.now().plusDays(30)
             );
             entity = promotionRepository.save(entity);
-            drafts.add(toDto(entity));
+            drafts.add(InventoryDrivenPromotionDto.from(entity));
         }
         return drafts;
     }
 
     private BigDecimal computeExpiryDiscount(long daysToExpiry) {
-        if (daysToExpiry <= 3) return new BigDecimal("30.00");
-        if (daysToExpiry <= 7) return new BigDecimal("20.00");
-        return new BigDecimal("10.00");
+        if (daysToExpiry <= 3) return DISCOUNT_3_DAYS;
+        if (daysToExpiry <= 7) return DISCOUNT_7_DAYS;
+        return DISCOUNT_DEFAULT;
     }
 
     private List<Long> findAffectedSkuIds(Long inventoryItemId) {
@@ -132,10 +136,4 @@ public class InventoryPromotionScanService {
         catch (Exception e) { return "[]"; }
     }
 
-    InventoryDrivenPromotionDto toDto(InventoryDrivenPromotionEntity e) {
-        return new InventoryDrivenPromotionDto(e.getId(), e.getStoreId(),
-            e.getInventoryItemId(), e.getInventoryBatchId(), e.getTriggerType(),
-            e.getSuggestedDiscountPercent(), e.getSuggestedSkuIds(),
-            e.getDraftStatus(), e.getPromotionRuleId(), e.getExpiresAt(), e.getCreatedAt());
-    }
 }

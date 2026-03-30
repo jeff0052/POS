@@ -22,6 +22,7 @@ public class OcrAutoMatchService {
         this.itemRepository = itemRepository;
     }
 
+    // O(N*M) matching — acceptable for typical restaurant scale (50-200 items x 5-30 OCR lines)
     public List<OcrMatchedItem> match(Long storeId, List<OcrLineItem> ocrLines) {
         List<InventoryItemEntity> items = itemRepository.findByStoreIdAndItemStatusOrderByItemNameAsc(storeId, "ACTIVE");
         List<OcrMatchedItem> results = new ArrayList<>();
@@ -62,7 +63,9 @@ public class OcrAutoMatchService {
         );
     }
 
+    // Known limitation: character-bag overlap may produce false positives for CJK text. Consider Levenshtein for production.
     static BigDecimal computeSimilarity(String ocrText, String itemName) {
+        if (ocrText.length() < 2) return BigDecimal.ZERO;
         if (ocrText.contains(itemName)) {
             BigDecimal ratio = BigDecimal.valueOf(itemName.length())
                 .divide(BigDecimal.valueOf(ocrText.length()), 4, RoundingMode.HALF_UP);
