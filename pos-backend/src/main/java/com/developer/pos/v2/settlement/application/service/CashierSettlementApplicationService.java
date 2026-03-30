@@ -1,7 +1,11 @@
 package com.developer.pos.v2.settlement.application.service;
 
 import com.developer.pos.v2.common.application.UseCase;
+import com.developer.pos.v2.member.application.service.PointsEarningService;
+import com.developer.pos.v2.member.application.service.TierService;
+import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberAccountEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberEntity;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.order.application.dto.OrderStageTransitionDto;
 import com.developer.pos.v2.order.domain.status.ActiveOrderStatus;
@@ -43,6 +47,9 @@ public class CashierSettlementApplicationService implements UseCase {
     private final JpaTableSessionRepository tableSessionRepository;
     private final JpaSubmittedOrderRepository submittedOrderRepository;
     private final TableSettlementFinalizer tableSettlementFinalizer;
+    private final JpaMemberAccountRepository memberAccountRepository;
+    private final PointsEarningService pointsEarningService;
+    private final TierService tierService;
 
     public CashierSettlementApplicationService(
             JpaActiveTableOrderRepository activeTableOrderRepository,
@@ -53,7 +60,10 @@ public class CashierSettlementApplicationService implements UseCase {
             ObjectMapper objectMapper,
             JpaTableSessionRepository tableSessionRepository,
             JpaSubmittedOrderRepository submittedOrderRepository,
-            TableSettlementFinalizer tableSettlementFinalizer
+            TableSettlementFinalizer tableSettlementFinalizer,
+            JpaMemberAccountRepository memberAccountRepository,
+            PointsEarningService pointsEarningService,
+            TierService tierService
     ) {
         this.activeTableOrderRepository = activeTableOrderRepository;
         this.settlementRecordRepository = settlementRecordRepository;
@@ -64,6 +74,9 @@ public class CashierSettlementApplicationService implements UseCase {
         this.tableSessionRepository = tableSessionRepository;
         this.submittedOrderRepository = submittedOrderRepository;
         this.tableSettlementFinalizer = tableSettlementFinalizer;
+        this.memberAccountRepository = memberAccountRepository;
+        this.pointsEarningService = pointsEarningService;
+        this.tierService = tierService;
     }
 
     /**
@@ -310,6 +323,23 @@ public class CashierSettlementApplicationService implements UseCase {
         // Finalize settlement: mark orders SETTLED, close sessions, set tables PENDING_CLEAN, delete active orders
         tableSettlementFinalizer.finalize(sessionChain);
 
+        // Award points and update tier for member
+        Long memberId = unpaidOrders.stream()
+                .map(SubmittedOrderEntity::getMemberId)
+                .filter(id -> id != null)
+                .findFirst().orElse(null);
+        Long merchantId = settlementRecord.getMerchantId();
+        long collectedAmountCents = settlementRecord.getCollectedAmountCents();
+        if (memberId != null) {
+            MemberAccountEntity memberAccount = memberAccountRepository.findByMemberId(memberId).orElse(null);
+            if (memberAccount != null) {
+                memberAccount.setLifetimeSpendCents(memberAccount.getLifetimeSpendCents() + collectedAmountCents);
+                memberAccountRepository.save(memberAccount);
+            }
+            pointsEarningService.awardPostSettlementPoints(memberId, merchantId, settlementRecord.getId(), collectedAmountCents);
+            tierService.checkAndUpgrade(memberId, merchantId);
+        }
+
         return toSettlementResult(masterSession.getSessionId(), settlementRecord);
     }
 
@@ -367,6 +397,20 @@ public class CashierSettlementApplicationService implements UseCase {
                 .orElseThrow(() -> new IllegalStateException("Store table not found for settlement."));
         table.setTableStatus("PENDING_CLEAN");
         storeTableRepository.saveAndFlush(table);
+
+        // Award points and update tier for member
+        Long memberIdCollect = activeOrder.getMemberId();
+        Long merchantIdCollect = settlementRecord.getMerchantId();
+        long collectedCentsCollect = settlementRecord.getCollectedAmountCents();
+        if (memberIdCollect != null) {
+            MemberAccountEntity memberAccountCollect = memberAccountRepository.findByMemberId(memberIdCollect).orElse(null);
+            if (memberAccountCollect != null) {
+                memberAccountCollect.setLifetimeSpendCents(memberAccountCollect.getLifetimeSpendCents() + collectedCentsCollect);
+                memberAccountRepository.save(memberAccountCollect);
+            }
+            pointsEarningService.awardPostSettlementPoints(memberIdCollect, merchantIdCollect, settlementRecord.getId(), collectedCentsCollect);
+            tierService.checkAndUpgrade(memberIdCollect, merchantIdCollect);
+        }
 
         return toSettlementResult(activeOrder.getActiveOrderId(), settlementRecord);
     }

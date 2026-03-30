@@ -39,13 +39,17 @@ public class MemberV2Controller implements V2Api {
     }
 
     @GetMapping
-    public ApiResponse<List<MemberSummaryDto>> search(@RequestParam(defaultValue = "") String keyword) {
-        return ApiResponse.success(memberApplicationService.searchMembers(keyword));
+    public ApiResponse<List<MemberSummaryDto>> search(
+            @RequestParam Long merchantId,
+            @RequestParam(defaultValue = "") String keyword) {
+        return ApiResponse.success(memberApplicationService.searchMembers(merchantId, keyword));
     }
 
     @GetMapping("/by-phone")
-    public ApiResponse<MemberSummaryDto> getByPhone(@RequestParam String phone) {
-        return ApiResponse.success(memberApplicationService.getMemberByPhone(phone));
+    public ApiResponse<MemberSummaryDto> getByPhone(
+            @RequestParam Long merchantId,
+            @RequestParam String phone) {
+        return ApiResponse.success(memberApplicationService.getMemberByPhone(merchantId, phone));
     }
 
     @GetMapping("/{memberId}")

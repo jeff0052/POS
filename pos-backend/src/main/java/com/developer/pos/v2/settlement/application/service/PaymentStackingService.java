@@ -1,6 +1,9 @@
 package com.developer.pos.v2.settlement.application.service;
 
 import com.developer.pos.auth.security.AuthContext;
+import com.developer.pos.v2.member.application.service.PointsEarningService;
+import com.developer.pos.v2.member.application.service.TierService;
+import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberAccountEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaCouponTemplateRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCouponRepository;
@@ -49,6 +52,8 @@ public class PaymentStackingService {
     private final JpaCouponTemplateRepository couponTemplateRepo;
     private final CouponLockingService couponLockingService;
     private final TableSettlementFinalizer finalizer;
+    private final PointsEarningService pointsEarningService;
+    private final TierService tierService;
 
     public PaymentStackingService(
             JpaStoreTableRepository storeTableRepo,
@@ -61,7 +66,9 @@ public class PaymentStackingService {
             JpaMemberCouponRepository couponRepo,
             JpaCouponTemplateRepository couponTemplateRepo,
             CouponLockingService couponLockingService,
-            TableSettlementFinalizer finalizer) {
+            TableSettlementFinalizer finalizer,
+            PointsEarningService pointsEarningService,
+            TierService tierService) {
         this.storeTableRepo = storeTableRepo;
         this.sessionRepo = sessionRepo;
         this.submittedOrderRepo = submittedOrderRepo;
@@ -73,6 +80,8 @@ public class PaymentStackingService {
         this.couponTemplateRepo = couponTemplateRepo;
         this.couponLockingService = couponLockingService;
         this.finalizer = finalizer;
+        this.pointsEarningService = pointsEarningService;
+        this.tierService = tierService;
     }
 
     @Transactional(readOnly = true)
@@ -395,6 +404,19 @@ public class PaymentStackingService {
         // Finalize table (close session, mark table PENDING_CLEAN, etc.)
         List<Long> sessionChainIds = buildSessionChainFromSettlement(settlement);
         finalizer.finalize(sessionChainIds);
+
+        // Award points and update tier for member
+        if (memberId != null) {
+            long collectedAmountCents = settlement.getCollectedAmountCents();
+            Long merchantId = settlement.getMerchantId();
+            MemberAccountEntity memberAccount = memberAccountRepo.findByMemberId(memberId).orElse(null);
+            if (memberAccount != null) {
+                memberAccount.setLifetimeSpendCents(memberAccount.getLifetimeSpendCents() + collectedAmountCents);
+                memberAccountRepo.save(memberAccount);
+            }
+            pointsEarningService.awardPostSettlementPoints(memberId, merchantId, settlement.getId(), collectedAmountCents);
+            tierService.checkAndUpgrade(memberId, merchantId);
+        }
     }
 
     @Transactional
