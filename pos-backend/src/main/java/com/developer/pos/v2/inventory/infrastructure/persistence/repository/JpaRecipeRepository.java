@@ -8,4 +8,5 @@ public interface JpaRecipeRepository extends JpaRepository<RecipeEntity, Long> {
     List<RecipeEntity> findBySkuId(Long skuId);
     List<RecipeEntity> findBySkuIdIn(java.util.Collection<Long> skuIds);
     void deleteBySkuId(Long skuId);
+    List<RecipeEntity> findByInventoryItemId(Long inventoryItemId);
 }

@@ -4,6 +4,7 @@ import com.developer.pos.v2.inventory.infrastructure.persistence.entity.Inventor
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +18,12 @@ public interface JpaInventoryItemRepository extends JpaRepository<InventoryItemE
            "AND i.currentStock < i.safetyStock " +
            "ORDER BY i.itemName ASC")
     List<InventoryItemEntity> findLowStockByStoreId(@Param("storeId") Long storeId);
+
+    @Query("SELECT i FROM V2InventoryItemEntity i " +
+           "WHERE i.storeId = :storeId AND i.itemStatus = 'ACTIVE' " +
+           "AND i.safetyStock > 0 " +
+           "AND i.currentStock > i.safetyStock * :multiplier " +
+           "ORDER BY i.itemName ASC")
+    List<InventoryItemEntity> findOverstock(@Param("storeId") Long storeId,
+                                             @Param("multiplier") BigDecimal multiplier);
 }
