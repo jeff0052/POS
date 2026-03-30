@@ -9,15 +9,20 @@ import com.developer.pos.v2.member.application.dto.MemberPointsRecordDto;
 import com.developer.pos.v2.member.application.dto.MemberRechargeRecordDto;
 import com.developer.pos.v2.member.application.dto.MemberRechargeResultDto;
 import com.developer.pos.v2.member.application.dto.MemberSummaryDto;
+import com.developer.pos.v2.member.application.service.RechargeCampaignService.CampaignBonus;
 import com.developer.pos.v2.member.domain.policy.MemberDiscountPolicy;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberAccountEntity;
+import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberCashLedgerEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberPointsLedgerEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.entity.MemberRechargeOrderEntity;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCashLedgerRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberPointsLedgerRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRechargeOrderRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberTierRuleRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaRechargeCampaignRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.ActiveTableOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.repository.JpaActiveTableOrderRepository;
 import org.springframework.stereotype.Service;
@@ -33,24 +38,36 @@ public class MemberApplicationService implements UseCase {
     private final JpaMemberRechargeOrderRepository memberRechargeOrderRepository;
     private final JpaMemberPointsLedgerRepository memberPointsLedgerRepository;
     private final JpaActiveTableOrderRepository activeTableOrderRepository;
+    private final RechargeCampaignService rechargeCampaignService;
+    private final JpaRechargeCampaignRepository rechargeCampaignRepository;
+    private final JpaMemberCashLedgerRepository memberCashLedgerRepository;
+    private final JpaMemberTierRuleRepository memberTierRuleRepository;
 
     public MemberApplicationService(
             JpaMemberRepository memberRepository,
             JpaMemberAccountRepository memberAccountRepository,
             JpaMemberRechargeOrderRepository memberRechargeOrderRepository,
             JpaMemberPointsLedgerRepository memberPointsLedgerRepository,
-            JpaActiveTableOrderRepository activeTableOrderRepository
+            JpaActiveTableOrderRepository activeTableOrderRepository,
+            RechargeCampaignService rechargeCampaignService,
+            JpaRechargeCampaignRepository rechargeCampaignRepository,
+            JpaMemberCashLedgerRepository memberCashLedgerRepository,
+            JpaMemberTierRuleRepository memberTierRuleRepository
     ) {
         this.memberRepository = memberRepository;
         this.memberAccountRepository = memberAccountRepository;
         this.memberRechargeOrderRepository = memberRechargeOrderRepository;
         this.memberPointsLedgerRepository = memberPointsLedgerRepository;
         this.activeTableOrderRepository = activeTableOrderRepository;
+        this.rechargeCampaignService = rechargeCampaignService;
+        this.rechargeCampaignRepository = rechargeCampaignRepository;
+        this.memberCashLedgerRepository = memberCashLedgerRepository;
+        this.memberTierRuleRepository = memberTierRuleRepository;
     }
 
     @Transactional(readOnly = true)
-    public List<MemberSummaryDto> searchMembers(String keyword) {
-        return memberRepository.searchActiveMembers(keyword == null ? "" : keyword.trim()).stream()
+    public List<MemberSummaryDto> searchMembers(Long merchantId, String keyword) {
+        return memberRepository.searchActiveMembers(merchantId, keyword == null ? "" : keyword.trim()).stream()
                 .map(member -> {
                     MemberAccountEntity account = memberAccountRepository.findByMemberId(member.getId()).orElse(null);
                     return new MemberSummaryDto(
@@ -90,12 +107,12 @@ public class MemberApplicationService implements UseCase {
     }
 
     @Transactional(readOnly = true)
-    public MemberSummaryDto getMemberByPhone(String phone) {
+    public MemberSummaryDto getMemberByPhone(Long merchantId, String phone) {
         if (phone == null || phone.isBlank()) {
             return null;
         }
 
-        MemberEntity member = memberRepository.findByPhone(phone.trim()).orElse(null);
+        MemberEntity member = memberRepository.findByMerchantIdAndPhone(merchantId, phone.trim()).orElse(null);
         if (member == null || !"ACTIVE".equalsIgnoreCase(member.getMemberStatus())) {
             return null;
         }
@@ -289,26 +306,55 @@ public class MemberApplicationService implements UseCase {
         MemberAccountEntity account = memberAccountRepository.findByMemberId(memberId)
                 .orElseThrow(() -> new IllegalStateException("Member account not found: " + memberId));
 
-        long totalTopUp = amountCents + bonusAmountCents;
+        int memberTierLevel = memberTierRuleRepository
+                .findByMerchantIdOrderByTierLevelAsc(member.getMerchantId()).stream()
+                .filter(r -> r.getTierCode().equalsIgnoreCase(member.getTierCode()))
+                .mapToInt(r -> r.getTierLevel())
+                .findFirst()
+                .orElse(0);
+        CampaignBonus campaignBonus = rechargeCampaignService.findBestBonus(
+                member.getMerchantId(), amountCents, memberTierLevel);
+        long campaignBonusCash = campaignBonus.bonusCashCents();
+
+        long totalTopUp = amountCents + bonusAmountCents + campaignBonusCash;
         account.setCashBalanceCents(account.getCashBalanceCents() + totalTopUp);
         account.setLifetimeRechargeCents(account.getLifetimeRechargeCents() + amountCents);
         memberAccountRepository.save(account);
+
+        MemberCashLedgerEntity cashLedger = new MemberCashLedgerEntity();
+        cashLedger.setLedgerNo("CSH" + System.currentTimeMillis());
+        cashLedger.setMerchantId(member.getMerchantId());
+        cashLedger.setMemberId(memberId);
+        cashLedger.setChangeType("RECHARGE");
+        cashLedger.setAmountCents(amountCents + bonusAmountCents + campaignBonusCash);
+        cashLedger.setBalanceAfterCents(account.getCashBalanceCents());
+        cashLedger.setSourceType("RECHARGE");
+        cashLedger.setOperatorType("STAFF");
+        cashLedger.setOperatorId(operatorName);
+        memberCashLedgerRepository.save(cashLedger);
 
         MemberRechargeOrderEntity rechargeOrder = new MemberRechargeOrderEntity();
         rechargeOrder.setRechargeNo("RCH" + System.currentTimeMillis());
         rechargeOrder.setMerchantId(member.getMerchantId());
         rechargeOrder.setMemberId(memberId);
         rechargeOrder.setAmountCents(amountCents);
-        rechargeOrder.setBonusAmountCents(bonusAmountCents);
+        rechargeOrder.setBonusAmountCents(bonusAmountCents + campaignBonusCash);
         rechargeOrder.setFinalStatus("SUCCESS");
         rechargeOrder.setOperatorName(operatorName);
         memberRechargeOrderRepository.save(rechargeOrder);
+
+        if (campaignBonus.campaignId() != null) {
+            rechargeCampaignRepository.findById(campaignBonus.campaignId()).ifPresent(campaign -> {
+                campaign.setUsedQuota(campaign.getUsedQuota() + 1);
+                rechargeCampaignRepository.save(campaign);
+            });
+        }
 
         return new MemberRechargeResultDto(
                 memberId,
                 rechargeOrder.getRechargeNo(),
                 amountCents,
-                bonusAmountCents,
+                bonusAmountCents + campaignBonusCash,
                 account.getCashBalanceCents()
         );
     }
@@ -322,6 +368,8 @@ public class MemberApplicationService implements UseCase {
 
         long balanceAfter = Math.max(0, account.getPointsBalance() + pointsDelta);
         account.setPointsBalance(balanceAfter);
+        long newAvailable = Math.max(0, account.getAvailablePoints() + pointsDelta);
+        account.setAvailablePoints(newAvailable);
         memberAccountRepository.save(account);
 
         MemberPointsLedgerEntity ledger = new MemberPointsLedgerEntity();

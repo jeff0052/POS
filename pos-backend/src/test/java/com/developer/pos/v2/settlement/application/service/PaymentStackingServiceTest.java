@@ -1,5 +1,7 @@
 package com.developer.pos.v2.settlement.application.service;
 
+import com.developer.pos.v2.member.application.service.PointsEarningService;
+import com.developer.pos.v2.member.application.service.TierService;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberAccountRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCouponRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
@@ -42,6 +44,8 @@ class PaymentStackingServiceTest {
     @Mock CouponLockingService couponLockingService;
     @Mock TableSettlementFinalizer finalizer;
     @Mock VibeCashPaymentApplicationService vibecashService;
+    @Mock PointsEarningService pointsEarningService;
+    @Mock TierService tierService;
     @InjectMocks PaymentStackingService service;
 
     private TableSessionEntity buildSession(Long id, Long tableId, Long storeId) {

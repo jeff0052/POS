@@ -34,13 +34,14 @@ public class MemberTools {
 
         registry.register(new McpToolRegistry.ToolDefinition(
                 "list_members",
-                "Search and list members. Params: keyword (String, optional — name/phone/memberNo).",
+                "Search and list members. Params: merchantId (Long, required), keyword (String, optional — name/phone/memberNo).",
                 "member",
                 "QUERY",
                 null,
                 params -> {
+                    Long merchantId = toLong(params.get("merchantId"));
                     String keyword = params.containsKey("keyword") ? (String) params.get("keyword") : "";
-                    return memberService.searchMembers(keyword);
+                    return memberService.searchMembers(merchantId, keyword);
                 }
         ));
 
