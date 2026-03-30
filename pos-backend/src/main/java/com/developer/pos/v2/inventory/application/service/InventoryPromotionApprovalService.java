@@ -15,6 +15,7 @@ import com.developer.pos.v2.promotion.infrastructure.persistence.repository.JpaP
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -78,7 +79,11 @@ public class InventoryPromotionApprovalService implements UseCase {
         PromotionRuleRewardEntity reward = new PromotionRuleRewardEntity();
         reward.setRuleId(savedRule.getId());
         reward.setRewardType("DISCOUNT_PERCENT");
-        reward.setDiscountPercent(draft.getSuggestedDiscountPercent().intValue());
+        // NOTE: PromotionRuleRewardEntity.discountPercent is Integer.
+        // Current auto-generated values (30/20/15/10%) are whole numbers.
+        // Explicit rounding guards against future fractional values.
+        reward.setDiscountPercent(draft.getSuggestedDiscountPercent()
+            .setScale(0, RoundingMode.HALF_UP).intValueExact());
         rewardRepository.save(reward);
 
         draft.approve(userId, savedRule.getId());

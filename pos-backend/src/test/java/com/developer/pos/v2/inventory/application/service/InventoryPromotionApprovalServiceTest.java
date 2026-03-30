@@ -177,4 +177,19 @@ class InventoryPromotionApprovalServiceTest {
         assertThat(results).hasSize(2);
         assertThat(results).allMatch(d -> "DRAFT".equals(d.draftStatus()));
     }
+
+    @Test
+    void listDrafts_noStatusFilter_returnsAll() {
+        setupActor(5L, 10L, Set.of("INVENTORY_VIEW"));
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(5L)));
+
+        InventoryDrivenPromotionEntity draft = makeDraftEntity(1L, 10L, "DRAFT");
+        InventoryDrivenPromotionEntity approved = makeDraftEntity(2L, 10L, "APPROVED");
+        when(promotionRepository.findByStoreIdOrderByCreatedAtDesc(10L))
+            .thenReturn(List.of(draft, approved));
+
+        List<InventoryDrivenPromotionDto> results = buildService().listDrafts(10L, null);
+
+        assertThat(results).hasSize(2);
+    }
 }
