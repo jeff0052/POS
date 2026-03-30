@@ -20,6 +20,12 @@ public class MemberCouponEntity {
     @Column(name = "template_id", nullable = false)
     private Long templateId;
 
+    @Column(name = "source_type", nullable = false)
+    private String sourceType;
+
+    @Column(name = "source_ref")
+    private String sourceRef;
+
     @Column(name = "coupon_status", nullable = false)
     private String couponStatus;
 
@@ -54,6 +60,10 @@ public class MemberCouponEntity {
     public void setMemberId(Long memberId) { this.memberId = memberId; }
     public Long getTemplateId() { return templateId; }
     public void setTemplateId(Long templateId) { this.templateId = templateId; }
+    public String getSourceType() { return sourceType; }
+    public void setSourceType(String sourceType) { this.sourceType = sourceType; }
+    public String getSourceRef() { return sourceRef; }
+    public void setSourceRef(String sourceRef) { this.sourceRef = sourceRef; }
     public String getCouponStatus() { return couponStatus; }
     public void setCouponStatus(String couponStatus) { this.couponStatus = couponStatus; }
     public int getLockVersion() { return lockVersion; }

@@ -47,13 +47,14 @@ public class MemberTools {
 
         registry.register(new McpToolRegistry.ToolDefinition(
                 "get_member_profile",
-                "Get full profile for a member. Params: memberId (Long).",
+                "Get full profile for a member. Params: memberId (Long), merchantId (Long, required for ownership check).",
                 "member",
                 "QUERY",
                 null,
                 params -> {
                     Long memberId = toLong(params.get("memberId"));
-                    return memberService.getMember(memberId);
+                    Long merchantId = toLong(params.get("merchantId"));
+                    return memberService.getMember(memberId, merchantId);
                 }
         ));
 

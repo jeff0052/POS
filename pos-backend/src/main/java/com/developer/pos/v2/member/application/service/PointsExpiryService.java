@@ -77,6 +77,11 @@ public class PointsExpiryService {
             Long merchantId = memberRepo.findById(memberId)
                     .map(m -> m.getMerchantId()).orElse(null);
 
+            if (merchantId == null) {
+                log.warn("Skipping expiry ledger for deleted member {}", memberId);
+                continue;
+            }
+
             MemberPointsLedgerEntity ledger = new MemberPointsLedgerEntity();
             ledger.setLedgerNo("EXP" + System.currentTimeMillis() + "_" + memberId);
             ledger.setMerchantId(merchantId);

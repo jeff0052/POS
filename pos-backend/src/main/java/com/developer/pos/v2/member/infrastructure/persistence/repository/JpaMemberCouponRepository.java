@@ -33,7 +33,7 @@ public interface JpaMemberCouponRepository extends JpaRepository<MemberCouponEnt
         """, nativeQuery = true)
     int releaseCouponCas(@Param("couponId") Long couponId, @Param("sessionId") Long sessionId);
 
-    // CAS confirm: LOCKED + same session → USED
+    // CAS confirm: LOCKED + same session -> USED
     @Modifying
     @Query(value = """
         UPDATE member_coupons
@@ -48,8 +48,13 @@ public interface JpaMemberCouponRepository extends JpaRepository<MemberCouponEnt
 
     Optional<MemberCouponEntity> findByIdAndCouponStatusAndLockedBySession(Long id, String couponStatus, Long lockedBySession);
 
-    // 查超时锁（10分钟）
     List<MemberCouponEntity> findAllByCouponStatusAndLockedAtBefore(String couponStatus, OffsetDateTime before);
 
     List<MemberCouponEntity> findAllByMemberIdAndCouponStatus(Long memberId, String couponStatus);
+
+    List<MemberCouponEntity> findAllByMemberId(Long memberId);
+
+    long countByMemberIdAndTemplateId(Long memberId, Long templateId);
+
+    List<MemberCouponEntity> findAllByCouponStatusAndValidUntilBefore(String couponStatus, OffsetDateTime before);
 }

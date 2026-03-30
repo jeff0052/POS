@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class MemberApplicationService implements UseCase {
@@ -87,9 +88,8 @@ public class MemberApplicationService implements UseCase {
     }
 
     @Transactional(readOnly = true)
-    public MemberDetailDto getMember(Long memberId) {
-        MemberEntity member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+    public MemberDetailDto getMember(Long memberId, Long merchantId) {
+        MemberEntity member = requireMemberForMerchant(memberId, merchantId);
         MemberAccountEntity account = memberAccountRepository.findByMemberId(memberId).orElse(null);
 
         return new MemberDetailDto(
@@ -146,7 +146,7 @@ public class MemberApplicationService implements UseCase {
 
         MemberEntity member = new MemberEntity();
         member.setMerchantId(merchantId);
-        member.setMemberNo("MEM" + System.currentTimeMillis());
+        member.setMemberNo("MEM" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
         member.setName(name == null ? "" : name.trim());
         member.setPhone(normalizedPhone);
         member.setTierCode(tierCode == null || tierCode.isBlank() ? "STANDARD" : tierCode.trim().toUpperCase());
@@ -172,9 +172,8 @@ public class MemberApplicationService implements UseCase {
     }
 
     @Transactional
-    public MemberDetailDto updateMember(Long memberId, String name, String phone, String tierCode, String memberStatus) {
-        MemberEntity member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+    public MemberDetailDto updateMember(Long memberId, Long merchantId, String name, String phone, String tierCode, String memberStatus) {
+        MemberEntity member = requireMemberForMerchant(memberId, merchantId);
 
         String normalizedPhone = phone == null ? "" : phone.trim();
         if (normalizedPhone.isBlank()) {
@@ -208,9 +207,8 @@ public class MemberApplicationService implements UseCase {
     }
 
     @Transactional
-    public BindMemberResultDto bindActiveOrder(Long memberId, String activeOrderId) {
-        MemberEntity member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+    public BindMemberResultDto bindActiveOrder(Long memberId, Long merchantId, String activeOrderId) {
+        MemberEntity member = requireMemberForMerchant(memberId, merchantId);
         ActiveTableOrderEntity activeOrder = activeTableOrderRepository.findByActiveOrderId(activeOrderId)
                 .orElseThrow(() -> new IllegalArgumentException("Active order not found: " + activeOrderId));
 
@@ -300,9 +298,8 @@ public class MemberApplicationService implements UseCase {
     }
 
     @Transactional
-    public MemberRechargeResultDto rechargeMember(Long memberId, long amountCents, long bonusAmountCents, String operatorName) {
-        MemberEntity member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+    public MemberRechargeResultDto rechargeMember(Long memberId, Long merchantId, long amountCents, long bonusAmountCents, String operatorName) {
+        MemberEntity member = requireMemberForMerchant(memberId, merchantId);
         MemberAccountEntity account = memberAccountRepository.findByMemberId(memberId)
                 .orElseThrow(() -> new IllegalStateException("Member account not found: " + memberId));
 
@@ -319,10 +316,15 @@ public class MemberApplicationService implements UseCase {
         long totalTopUp = amountCents + bonusAmountCents + campaignBonusCash;
         account.setCashBalanceCents(account.getCashBalanceCents() + totalTopUp);
         account.setLifetimeRechargeCents(account.getLifetimeRechargeCents() + amountCents);
+
+        if (campaignBonus.bonusPoints() > 0) {
+            account.setPointsBalance(account.getPointsBalance() + campaignBonus.bonusPoints());
+            account.setAvailablePoints(account.getAvailablePoints() + campaignBonus.bonusPoints());
+        }
         memberAccountRepository.save(account);
 
         MemberCashLedgerEntity cashLedger = new MemberCashLedgerEntity();
-        cashLedger.setLedgerNo("CSH" + System.currentTimeMillis());
+        cashLedger.setLedgerNo("CSH" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
         cashLedger.setMerchantId(member.getMerchantId());
         cashLedger.setMemberId(memberId);
         cashLedger.setChangeType("RECHARGE");
@@ -333,8 +335,20 @@ public class MemberApplicationService implements UseCase {
         cashLedger.setOperatorId(operatorName);
         memberCashLedgerRepository.save(cashLedger);
 
+        if (campaignBonus.bonusPoints() > 0) {
+            MemberPointsLedgerEntity bonusLedger = new MemberPointsLedgerEntity();
+            bonusLedger.setLedgerNo("PTS" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
+            bonusLedger.setMerchantId(member.getMerchantId());
+            bonusLedger.setMemberId(memberId);
+            bonusLedger.setChangeType("EARN");
+            bonusLedger.setPointsDelta(campaignBonus.bonusPoints());
+            bonusLedger.setBalanceAfter(account.getPointsBalance());
+            bonusLedger.setSourceType("RECHARGE_CAMPAIGN");
+            memberPointsLedgerRepository.save(bonusLedger);
+        }
+
         MemberRechargeOrderEntity rechargeOrder = new MemberRechargeOrderEntity();
-        rechargeOrder.setRechargeNo("RCH" + System.currentTimeMillis());
+        rechargeOrder.setRechargeNo("RCH" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
         rechargeOrder.setMerchantId(member.getMerchantId());
         rechargeOrder.setMemberId(memberId);
         rechargeOrder.setAmountCents(amountCents);
@@ -360,9 +374,8 @@ public class MemberApplicationService implements UseCase {
     }
 
     @Transactional
-    public MemberPointsAdjustmentResultDto adjustPoints(Long memberId, long pointsDelta, String changeType, String source, String operatorName) {
-        MemberEntity member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+    public MemberPointsAdjustmentResultDto adjustPoints(Long memberId, Long merchantId, long pointsDelta, String changeType, String source, String operatorName) {
+        MemberEntity member = requireMemberForMerchant(memberId, merchantId);
         MemberAccountEntity account = memberAccountRepository.findByMemberId(memberId)
                 .orElseThrow(() -> new IllegalStateException("Member account not found: " + memberId));
 
@@ -373,7 +386,7 @@ public class MemberApplicationService implements UseCase {
         memberAccountRepository.save(account);
 
         MemberPointsLedgerEntity ledger = new MemberPointsLedgerEntity();
-        ledger.setLedgerNo("PTS" + System.currentTimeMillis());
+        ledger.setLedgerNo("PTS" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
         ledger.setMerchantId(member.getMerchantId());
         ledger.setMemberId(memberId);
         ledger.setChangeType(changeType == null || changeType.isBlank() ? "ADJUST" : changeType.trim().toUpperCase());
@@ -390,5 +403,14 @@ public class MemberApplicationService implements UseCase {
                 pointsDelta,
                 balanceAfter
         );
+    }
+
+    private MemberEntity requireMemberForMerchant(Long memberId, Long merchantId) {
+        MemberEntity member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found: " + memberId));
+        if (!member.getMerchantId().equals(merchantId)) {
+            throw new IllegalArgumentException("Member not found: " + memberId); // don't leak existence
+        }
+        return member;
     }
 }

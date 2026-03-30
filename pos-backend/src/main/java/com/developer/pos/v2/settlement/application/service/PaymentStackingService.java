@@ -407,14 +407,14 @@ public class PaymentStackingService {
 
         // Award points and update tier for member
         if (memberId != null) {
-            long collectedAmountCents = settlement.getCollectedAmountCents();
+            long payableAmountCents = settlement.getPayableAmountCents();
             Long merchantId = settlement.getMerchantId();
             MemberAccountEntity memberAccount = memberAccountRepo.findByMemberId(memberId).orElse(null);
             if (memberAccount != null) {
-                memberAccount.setLifetimeSpendCents(memberAccount.getLifetimeSpendCents() + collectedAmountCents);
+                memberAccount.setLifetimeSpendCents(memberAccount.getLifetimeSpendCents() + payableAmountCents);
                 memberAccountRepo.save(memberAccount);
             }
-            pointsEarningService.awardPostSettlementPoints(memberId, merchantId, settlement.getId(), collectedAmountCents);
+            pointsEarningService.awardPostSettlementPoints(memberId, merchantId, settlement.getId(), payableAmountCents);
             tierService.checkAndUpgrade(memberId, merchantId);
         }
     }

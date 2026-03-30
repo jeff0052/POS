@@ -53,18 +53,22 @@ public class MemberV2Controller implements V2Api {
     }
 
     @GetMapping("/{memberId}")
-    public ApiResponse<MemberDetailDto> getMember(@PathVariable Long memberId) {
-        return ApiResponse.success(memberApplicationService.getMember(memberId));
+    public ApiResponse<MemberDetailDto> getMember(
+            @PathVariable Long memberId,
+            @RequestParam Long merchantId) {
+        return ApiResponse.success(memberApplicationService.getMember(memberId, merchantId));
     }
 
     @PutMapping("/{memberId}")
     public ApiResponse<MemberDetailDto> updateMember(
             @PathVariable Long memberId,
+            @RequestParam Long merchantId,
             @Valid @RequestBody UpdateMemberRequest request
     ) {
         return ApiResponse.success(
                 memberApplicationService.updateMember(
                         memberId,
+                        merchantId,
                         request.name(),
                         request.phone(),
                         request.tierCode(),
@@ -98,9 +102,10 @@ public class MemberV2Controller implements V2Api {
     @PostMapping("/{memberId}/bind-active-order")
     public ApiResponse<BindMemberResultDto> bindActiveOrder(
             @PathVariable Long memberId,
+            @RequestParam Long merchantId,
             @Valid @RequestBody BindMemberActiveOrderRequest request
     ) {
-        return ApiResponse.success(memberApplicationService.bindActiveOrder(memberId, request.activeOrderId()));
+        return ApiResponse.success(memberApplicationService.bindActiveOrder(memberId, merchantId, request.activeOrderId()));
     }
 
     @PostMapping("/unbind-active-order")
@@ -113,11 +118,13 @@ public class MemberV2Controller implements V2Api {
     @PostMapping("/{memberId}/recharge")
     public ApiResponse<MemberRechargeResultDto> rechargeMember(
             @PathVariable Long memberId,
+            @RequestParam Long merchantId,
             @Valid @RequestBody MemberRechargeRequest request
     ) {
         return ApiResponse.success(
                 memberApplicationService.rechargeMember(
                         memberId,
+                        merchantId,
                         request.amountCents(),
                         request.bonusAmountCents(),
                         request.operatorName()
@@ -128,11 +135,13 @@ public class MemberV2Controller implements V2Api {
     @PostMapping("/{memberId}/points-adjustment")
     public ApiResponse<MemberPointsAdjustmentResultDto> adjustPoints(
             @PathVariable Long memberId,
+            @RequestParam Long merchantId,
             @Valid @RequestBody MemberPointsAdjustmentRequest request
     ) {
         return ApiResponse.success(
                 memberApplicationService.adjustPoints(
                         memberId,
+                        merchantId,
                         request.pointsDelta(),
                         request.changeType(),
                         request.source(),

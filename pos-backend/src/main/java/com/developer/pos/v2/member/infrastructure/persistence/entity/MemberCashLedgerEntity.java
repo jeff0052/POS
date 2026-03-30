@@ -50,7 +50,7 @@ public class MemberCashLedgerEntity {
     @Column(name = "notes")
     private String notes;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
     public MemberCashLedgerEntity() {
