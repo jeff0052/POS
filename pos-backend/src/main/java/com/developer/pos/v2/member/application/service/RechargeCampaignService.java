@@ -1,6 +1,7 @@
 package com.developer.pos.v2.member.application.service;
 
 import com.developer.pos.v2.member.infrastructure.persistence.entity.RechargeCampaignEntity;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCashLedgerRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaRechargeCampaignRepository;
 import org.springframework.stereotype.Service;
 
@@ -12,9 +13,12 @@ import java.util.List;
 public class RechargeCampaignService {
 
     private final JpaRechargeCampaignRepository rechargeCampaignRepository;
+    private final JpaMemberCashLedgerRepository memberCashLedgerRepository;
 
-    public RechargeCampaignService(JpaRechargeCampaignRepository rechargeCampaignRepository) {
+    public RechargeCampaignService(JpaRechargeCampaignRepository rechargeCampaignRepository,
+                                   JpaMemberCashLedgerRepository memberCashLedgerRepository) {
         this.rechargeCampaignRepository = rechargeCampaignRepository;
+        this.memberCashLedgerRepository = memberCashLedgerRepository;
     }
 
     public record CampaignBonus(long bonusCashCents, long bonusPoints, Long campaignId) {
@@ -27,7 +31,7 @@ public class RechargeCampaignService {
         }
     }
 
-    public CampaignBonus findBestBonus(Long merchantId, long rechargeAmountCents, int memberTierLevel) {
+    public CampaignBonus findBestBonus(Long merchantId, Long memberId, long rechargeAmountCents, int memberTierLevel) {
         List<RechargeCampaignEntity> activeCampaigns =
                 rechargeCampaignRepository.findByMerchantIdAndCampaignStatus(merchantId, "ACTIVE");
 
@@ -39,6 +43,9 @@ public class RechargeCampaignService {
                 .filter(c -> c.getStartsAt() == null || now.isAfter(c.getStartsAt()))
                 .filter(c -> c.getEndsAt() == null || now.isBefore(c.getEndsAt()))
                 .filter(c -> c.getTotalQuota() == 0 || c.getUsedQuota() < c.getTotalQuota())
+                .filter(c -> c.getMaxPerMember() == 0 || memberCashLedgerRepository
+                        .countByMemberIdAndSourceTypeAndSourceRef(memberId, "RECHARGE", "CAMPAIGN_" + c.getId())
+                        < c.getMaxPerMember())
                 .max(Comparator.comparingLong(RechargeCampaignEntity::getRechargeAmountCents))
                 .map(c -> new CampaignBonus(c.getBonusAmountCents(), c.getBonusPoints(), c.getId()))
                 .orElse(CampaignBonus.none());

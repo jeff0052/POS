@@ -1,6 +1,7 @@
 package com.developer.pos.v2.member.application.service;
 
 import com.developer.pos.v2.member.infrastructure.persistence.entity.RechargeCampaignEntity;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberCashLedgerRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaRechargeCampaignRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +21,8 @@ class RechargeCampaignServiceTest {
 
     @Mock
     private JpaRechargeCampaignRepository rechargeCampaignRepository;
+    @Mock
+    private JpaMemberCashLedgerRepository memberCashLedgerRepository;
 
     @InjectMocks
     private RechargeCampaignService rechargeCampaignService;
@@ -32,7 +35,7 @@ class RechargeCampaignServiceTest {
                 .thenReturn(List.of(campaign));
 
         RechargeCampaignService.CampaignBonus result =
-                rechargeCampaignService.findBestBonus(1L, 10000L, 0);
+                rechargeCampaignService.findBestBonus(1L, 100L, 10000L, 0);
 
         assertThat(result.bonusCashCents()).isEqualTo(1000L);
         assertThat(result.bonusPoints()).isEqualTo(0L);
@@ -47,7 +50,7 @@ class RechargeCampaignServiceTest {
                 .thenReturn(List.of(campaign));
 
         RechargeCampaignService.CampaignBonus result =
-                rechargeCampaignService.findBestBonus(1L, 3000L, 0);
+                rechargeCampaignService.findBestBonus(1L, 100L, 3000L, 0);
 
         assertThat(result).isEqualTo(RechargeCampaignService.CampaignBonus.none());
     }
@@ -61,7 +64,7 @@ class RechargeCampaignServiceTest {
                 .thenReturn(List.of(campaign));
 
         RechargeCampaignService.CampaignBonus result =
-                rechargeCampaignService.findBestBonus(1L, 10000L, 0);
+                rechargeCampaignService.findBestBonus(1L, 100L, 10000L, 0);
 
         assertThat(result).isEqualTo(RechargeCampaignService.CampaignBonus.none());
     }

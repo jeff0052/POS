@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface JpaMemberCashLedgerRepository extends JpaRepository<MemberCashLedgerEntity, Long> {
     List<MemberCashLedgerEntity> findByMemberIdOrderByIdDesc(Long memberId);
+    long countByMemberIdAndSourceTypeAndSourceRef(Long memberId, String sourceType, String sourceRef);
 }

@@ -310,7 +310,7 @@ public class MemberApplicationService implements UseCase {
                 .findFirst()
                 .orElse(0);
         CampaignBonus campaignBonus = rechargeCampaignService.findBestBonus(
-                member.getMerchantId(), amountCents, memberTierLevel);
+                member.getMerchantId(), memberId, amountCents, memberTierLevel);
         long campaignBonusCash = campaignBonus.bonusCashCents();
 
         long totalTopUp = amountCents + bonusAmountCents + campaignBonusCash;
@@ -331,6 +331,9 @@ public class MemberApplicationService implements UseCase {
         cashLedger.setAmountCents(amountCents + bonusAmountCents + campaignBonusCash);
         cashLedger.setBalanceAfterCents(account.getCashBalanceCents());
         cashLedger.setSourceType("RECHARGE");
+        if (campaignBonus.campaignId() != null) {
+            cashLedger.setSourceRef("CAMPAIGN_" + campaignBonus.campaignId());
+        }
         cashLedger.setOperatorType("STAFF");
         cashLedger.setOperatorId(operatorName);
         memberCashLedgerRepository.save(cashLedger);

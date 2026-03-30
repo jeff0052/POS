@@ -109,6 +109,14 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/v2/stores/*/reservations/*").hasAuthority("RESERVATION_MANAGE")
                 .requestMatchers(HttpMethod.POST, "/api/v2/stores/*/reservations/*/seat").hasAuthority("RESERVATION_MANAGE")
 
+                // Member write endpoints require authentication (cashier PIN-login JWT)
+                .requestMatchers(HttpMethod.POST, "/api/v2/members").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/v2/members/*").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v2/members/*/recharge").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v2/members/*/points-adjustment").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v2/members/*/bind-active-order").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v2/members/unbind-active-order").authenticated()
+
                 // POS tablet endpoints (WebView, no auth token)
                 .requestMatchers("/api/v2/stores/**").permitAll()
                 .requestMatchers("/api/v1/stores/**").permitAll()

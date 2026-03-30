@@ -93,7 +93,7 @@ class MemberApplicationServiceTest {
         when(memberAccountRepository.findByMemberId(memberId)).thenReturn(Optional.of(account));
         when(memberTierRuleRepository.findByMerchantIdOrderByTierLevelAsc(merchantId))
                 .thenReturn(Collections.emptyList());
-        when(rechargeCampaignService.findBestBonus(merchantId, 10000L, 0))
+        when(rechargeCampaignService.findBestBonus(merchantId, memberId, 10000L, 0))
                 .thenReturn(new CampaignBonus(500, 50L, 1L));
         when(memberRechargeOrderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(memberAccountRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

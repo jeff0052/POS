@@ -9,6 +9,7 @@ import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemb
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaMemberTierRuleRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaPointsBatchRepository;
+import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaPointsExpiryRuleRepository;
 import com.developer.pos.v2.member.infrastructure.persistence.repository.JpaPointsRuleRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,15 +35,19 @@ class PointsEarningServiceTest {
     @Mock JpaMemberPointsLedgerRepository memberPointsLedgerRepo;
     @Mock JpaMemberRepository memberRepo;
     @Mock JpaMemberTierRuleRepository tierRuleRepo;
+    @Mock JpaPointsExpiryRuleRepository expiryRuleRepo;
 
     @InjectMocks PointsEarningService service;
 
     private PointsRuleEntity buildSpendRule(int pointsPerDollar, long minSpendCents, Long maxPointsPerOrder) {
         PointsRuleEntity rule = new PointsRuleEntity();
         rule.setRuleType("SPEND");
+        rule.setRuleStatus("ACTIVE");
         rule.setPointsPerDollar(pointsPerDollar);
         rule.setMinSpendCents(minSpendCents);
         rule.setMaxPointsPerOrder(maxPointsPerOrder);
+        rule.setPriority(0);
+        // null startsAt/endsAt means no date restriction
         return rule;
     }
 
