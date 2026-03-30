@@ -8,4 +8,5 @@ public interface JpaInventoryDrivenPromotionRepository extends JpaRepository<Inv
     List<InventoryDrivenPromotionEntity> findByStoreIdAndDraftStatusOrderByCreatedAtDesc(Long storeId, String draftStatus);
     List<InventoryDrivenPromotionEntity> findByStoreIdOrderByCreatedAtDesc(Long storeId);
     boolean existsByStoreIdAndInventoryItemIdAndDraftStatus(Long storeId, Long inventoryItemId, String draftStatus);
+    boolean existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(Long storeId, Long inventoryItemId, String triggerType, String draftStatus);
 }

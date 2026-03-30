@@ -57,7 +57,7 @@ public class SopCsvParser {
                     errors.add(new RowError(rowNum, "sku_id", "sku_id must be a number")); continue;
                 }
 
-                String itemCode = sanitizeTextCell(cols[1]);
+                String itemCode = sanitizeCsvCell(cols[1]);
                 if (itemCode.isEmpty()) { errors.add(new RowError(rowNum, "inventory_item_code", "inventory_item_code is required")); continue; }
 
                 BigDecimal consumptionQty;
@@ -70,7 +70,7 @@ public class SopCsvParser {
                     errors.add(new RowError(rowNum, "consumption_qty", "consumption_qty must be a number")); continue;
                 }
 
-                String consumptionUnit = sanitizeTextCell(cols[3]);
+                String consumptionUnit = sanitizeCsvCell(cols[3]);
                 if (consumptionUnit.isEmpty()) { errors.add(new RowError(rowNum, "consumption_unit", "consumption_unit is required")); continue; }
 
                 BigDecimal baseMultiplier = BigDecimal.ONE;

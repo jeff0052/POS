@@ -136,4 +136,12 @@ class OcrAutoMatchServiceTest {
         BigDecimal score = OcrAutoMatchService.computeSimilarity("a", "apple");
         assertThat(score).isEqualByComparingTo("0.00");
     }
+
+    @Test
+    void exactMatch_scoreDoesNotExceedOne() {
+        // L9: exact match (ocrText == itemName) returns score <= 1.0
+        BigDecimal score = OcrAutoMatchService.computeSimilarity("牛腩", "牛腩");
+        assertThat(score).isLessThanOrEqualTo(BigDecimal.ONE);
+        assertThat(score).isGreaterThan(BigDecimal.ZERO);
+    }
 }

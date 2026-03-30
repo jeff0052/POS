@@ -19,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,6 +38,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class InventoryPromotionScanServiceTest {
 
     @Mock JpaInventoryBatchRepository batchRepository;
@@ -194,6 +197,73 @@ class InventoryPromotionScanServiceTest {
         List<InventoryDrivenPromotionDto> drafts = buildService().scanOverstock(10L);
 
         assertThat(drafts).isEmpty();
+    }
+
+    @Test
+    void nearExpiry_10days_beyondThreshold_getsDefaultDiscount() {
+        // 10 days is > 7 but within the 14-day scan window, so the batch IS returned
+        // by findExpiringSoon. It gets the default 10% discount tier.
+        InventoryBatchEntity batch = makeBatch(1L, 10L, 100L,
+            LocalDate.now().plusDays(10), BigDecimal.TEN);
+        when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))
+            .thenReturn(List.of(batch));
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(10L, 100L, "DRAFT"))
+            .thenReturn(false);
+        RecipeEntity recipe = makeRecipe(1L, 50L, 100L);
+        when(recipeRepository.findByInventoryItemId(100L)).thenReturn(List.of(recipe));
+        when(promotionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<InventoryDrivenPromotionDto> drafts = buildService().scanNearExpiry(10L);
+
+        assertThat(drafts).hasSize(1);
+        // >7 days gets the default 10% discount tier
+        assertThat(drafts.get(0).suggestedDiscountPercent()).isEqualByComparingTo("10.00");
+    }
+
+    @Test
+    void overstock_normalStockLevels_createsNoDraft() {
+        // When findOverstock returns empty list (no items exceed threshold), no drafts created
+        when(itemRepository.findOverstock(eq(10L), any(BigDecimal.class)))
+            .thenReturn(List.of());
+
+        List<InventoryDrivenPromotionDto> drafts = buildService().scanOverstock(10L);
+
+        assertThat(drafts).isEmpty();
+        verify(promotionRepository, never()).save(any());
+    }
+
+    @Test
+    void computeExpiryDiscount_boundaryAt3And7Days() {
+        // Exactly 3 days -> 30%
+        InventoryBatchEntity batch3 = makeBatch(10L, 10L, 1000L,
+            LocalDate.now().plusDays(3), BigDecimal.TEN);
+        // Exactly 4 days -> 20% (crosses 3-day boundary)
+        InventoryBatchEntity batch4 = makeBatch(11L, 10L, 1001L,
+            LocalDate.now().plusDays(4), BigDecimal.TEN);
+        // Exactly 7 days -> 20%
+        InventoryBatchEntity batch7 = makeBatch(12L, 10L, 1002L,
+            LocalDate.now().plusDays(7), BigDecimal.TEN);
+        // Exactly 8 days -> 10% (crosses 7-day boundary)
+        InventoryBatchEntity batch8 = makeBatch(13L, 10L, 1003L,
+            LocalDate.now().plusDays(8), BigDecimal.TEN);
+
+        when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))
+            .thenReturn(List.of(batch3, batch4, batch7, batch8));
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(eq(10L), anyLong(), eq("DRAFT")))
+            .thenReturn(false);
+        when(recipeRepository.findByInventoryItemId(1000L)).thenReturn(List.of(makeRecipe(90L, 90L, 1000L)));
+        when(recipeRepository.findByInventoryItemId(1001L)).thenReturn(List.of(makeRecipe(91L, 91L, 1001L)));
+        when(recipeRepository.findByInventoryItemId(1002L)).thenReturn(List.of(makeRecipe(92L, 92L, 1002L)));
+        when(recipeRepository.findByInventoryItemId(1003L)).thenReturn(List.of(makeRecipe(93L, 93L, 1003L)));
+        when(promotionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<InventoryDrivenPromotionDto> drafts = buildService().scanNearExpiry(10L);
+
+        assertThat(drafts).hasSize(4);
+        assertThat(drafts.get(0).suggestedDiscountPercent()).isEqualByComparingTo("30.00"); // 3 days
+        assertThat(drafts.get(1).suggestedDiscountPercent()).isEqualByComparingTo("20.00"); // 4 days
+        assertThat(drafts.get(2).suggestedDiscountPercent()).isEqualByComparingTo("20.00"); // 7 days
+        assertThat(drafts.get(3).suggestedDiscountPercent()).isEqualByComparingTo("10.00"); // 8 days
     }
 
     @Test

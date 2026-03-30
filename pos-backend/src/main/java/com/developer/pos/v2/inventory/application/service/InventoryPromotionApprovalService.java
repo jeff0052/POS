@@ -19,11 +19,13 @@ import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class InventoryPromotionApprovalService implements UseCase {
 
+    private static final Set<String> VALID_DRAFT_STATUSES = Set.of("DRAFT", "APPROVED", "REJECTED", "EXPIRED");
     private static final String RULE_TYPE = "FULL_REDUCTION";
     private static final int RULE_PRIORITY = 50;
     private static final String CONDITION_TYPE = "THRESHOLD_AMOUNT";
@@ -121,6 +123,10 @@ public class InventoryPromotionApprovalService implements UseCase {
     public List<InventoryDrivenPromotionDto> listDrafts(Long storeId, String status) {
         enforcer.enforce(storeId);
         enforcer.enforcePermission("INVENTORY_VIEW");
+
+        if (status != null && !VALID_DRAFT_STATUSES.contains(status)) {
+            throw new IllegalArgumentException("Invalid status: " + status + ". Valid values: " + VALID_DRAFT_STATUSES);
+        }
 
         List<InventoryDrivenPromotionEntity> entities;
         if (status != null && !status.isBlank()) {

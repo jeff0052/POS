@@ -3,12 +3,6 @@ package com.developer.pos.v2.inventory.application.service;
 import com.developer.pos.v2.catalog.infrastructure.persistence.entity.SkuEntity;
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.inventory.application.dto.ConsumptionResult;
-import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryBatchEntity;
-import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryItemEntity;
-import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryMovementEntity;
-import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryBatchRepository;
-import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryItemRepository;
-import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryMovementRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderItemEntity;
 import org.slf4j.Logger;
@@ -32,22 +26,16 @@ public class StockDeductionService {
 
     private final JpaSkuRepository skuRepository;
     private final ConsumptionCalculationService consumptionCalculationService;
-    private final JpaInventoryItemRepository inventoryItemRepository;
-    private final JpaInventoryBatchRepository batchRepository;
-    private final JpaInventoryMovementRepository movementRepository;
+    private final StockDeductionItemWorker worker;
 
     public StockDeductionService(
             JpaSkuRepository skuRepository,
             ConsumptionCalculationService consumptionCalculationService,
-            JpaInventoryItemRepository inventoryItemRepository,
-            JpaInventoryBatchRepository batchRepository,
-            JpaInventoryMovementRepository movementRepository
+            StockDeductionItemWorker worker
     ) {
         this.skuRepository = skuRepository;
         this.consumptionCalculationService = consumptionCalculationService;
-        this.inventoryItemRepository = inventoryItemRepository;
-        this.batchRepository = batchRepository;
-        this.movementRepository = movementRepository;
+        this.worker = worker;
     }
 
     /**
@@ -87,77 +75,26 @@ public class StockDeductionService {
             }
         }
 
-        // 4. FIFO deduct each inventoryItem
+        // 4. FEFO deduct each inventoryItem with retry on optimistic lock conflict
         for (Map.Entry<Long, BigDecimal> entry : deductionByItemId.entrySet()) {
-            deductItem(storeId, entry.getKey(), entry.getValue());
+            deductWithRetry(storeId, entry.getKey(), entry.getValue());
         }
     }
 
-    // NOTE: Concurrent safety via @Version optimistic locking on InventoryBatchEntity + InventoryItemEntity (V099 migration)
+    // M1: Each retry calls worker.deductItem() which runs in REQUIRES_NEW transaction,
+    // ensuring a fresh Hibernate session on each attempt. This fixes the original issue
+    // where retries within the same session would re-read stale cached entities.
     // C5: Retry up to 3 times on optimistic lock conflicts (concurrent settlement windows)
-    private void deductItem(Long storeId, Long inventoryItemId, BigDecimal totalDeduct) {
+    private void deductWithRetry(Long storeId, Long inventoryItemId, BigDecimal totalDeduct) {
         for (int attempt = 1; attempt <= 3; attempt++) {
             try {
-                doDeductItem(storeId, inventoryItemId, totalDeduct);
+                worker.deductItem(storeId, inventoryItemId, totalDeduct);
                 return;
             } catch (ObjectOptimisticLockingFailureException e) {
                 if (attempt == 3) throw e;
                 log.warn("StockDeductionService: optimistic lock conflict for item {}, retrying (attempt {})",
                         inventoryItemId, attempt);
-                // Retry: re-read fresh state from DB
             }
         }
-    }
-
-    private void doDeductItem(Long storeId, Long inventoryItemId, BigDecimal totalDeduct) {
-        InventoryItemEntity item = inventoryItemRepository.findById(inventoryItemId)
-                .orElseThrow(() -> new IllegalStateException(
-                    "StockDeductionService: inventoryItem " + inventoryItemId
-                    + " not found — recipe references a missing item"));
-
-        List<InventoryBatchEntity> batches = batchRepository
-                .findActiveByStoreAndItemFifo(storeId, inventoryItemId, "ACTIVE");
-
-        BigDecimal remaining = totalDeduct;
-
-        // Deduct from FIFO batches
-        for (InventoryBatchEntity batch : batches) {
-            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
-            BigDecimal deductFromBatch = remaining.min(batch.getRemainingQty());
-            batch.deductRemainingQty(deductFromBatch);
-            if (batch.getRemainingQty().compareTo(BigDecimal.ZERO) == 0) {
-                batch.exhaust();
-            }
-
-            batchRepository.save(batch);
-
-            item.deductStock(deductFromBatch);
-            // afterQty reflects stock after each batch deduction, not the final settled stock
-            movementRepository.save(new InventoryMovementEntity(
-                    storeId, inventoryItemId, batch.getId(),
-                    "SALE_DEDUCT", deductFromBatch.negate(), batch.getUnitCostCents(),
-                    item.getCurrentStock(), "SETTLEMENT", null
-            ));
-            remaining = remaining.subtract(deductFromBatch);
-        }
-
-        // If batches exhausted but still need to deduct — allow negative stock with audit
-        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-            log.warn("StockDeductionService: inventoryItem {} insufficient batch stock, going negative by {}",
-                    inventoryItemId, remaining);
-            item.deductStock(remaining);
-            movementRepository.save(new InventoryMovementEntity(
-                    storeId, inventoryItemId, null,
-                    "SALE_DEDUCT", remaining.negate(), null,
-                    item.getCurrentStock(), "SETTLEMENT", null,
-                    "Insufficient batch stock — stock went negative"
-            ));
-        }
-
-        // C6: Single save is sufficient — JPA dirty checking within @Transactional tracks
-        // the managed entity, and @Version on both batch and item provides conflict detection.
-        // Each batch.save() above persists batch state immediately; the final item save
-        // flushes the accumulated stock changes at transaction commit.
-        inventoryItemRepository.save(item);
     }
 }

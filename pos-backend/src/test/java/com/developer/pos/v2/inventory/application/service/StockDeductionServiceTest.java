@@ -11,9 +11,9 @@ import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaI
 import com.developer.pos.v2.catalog.infrastructure.persistence.repository.JpaSkuRepository;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderEntity;
 import com.developer.pos.v2.order.infrastructure.persistence.entity.SubmittedOrderItemEntity;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -40,7 +40,14 @@ class StockDeductionServiceTest {
     @Mock JpaInventoryBatchRepository batchRepository;
     @Mock JpaInventoryMovementRepository movementRepository;
 
-    @InjectMocks StockDeductionService stockDeductionService;
+    StockDeductionItemWorker worker;
+    StockDeductionService stockDeductionService;
+
+    @BeforeEach
+    void setUp() {
+        worker = new StockDeductionItemWorker(batchRepository, inventoryItemRepository, movementRepository);
+        stockDeductionService = new StockDeductionService(skuRepository, consumptionCalculationService, worker);
+    }
 
     // ── entity mutation helpers ──────────────────────────────────────────────
 
@@ -255,7 +262,7 @@ class StockDeductionServiceTest {
         verifyNoInteractions(inventoryItemRepository, batchRepository, movementRepository);
     }
 
-    // ── I8: Zero deduction quantity ────────────────────────────────────────
+    // ── L7: Zero deduction quantity ────────────────────────────────────────
 
     @Test
     void deductForOrders_zeroQuantity_isNoOp() {
@@ -265,24 +272,22 @@ class StockDeductionServiceTest {
         when(consumptionCalculationService.calculate(eq(100L), eq(0), any()))
             .thenReturn(List.of(new ConsumptionResult(1L, BigDecimal.ZERO, "kg")));
 
-        InventoryItemEntity inventoryItem = new InventoryItemEntity(10L, "BEEF-001", "牛肉", "kg", new BigDecimal("2.0000"));
-        inventoryItem.addStock(new BigDecimal("5.0000"));
-        when(inventoryItemRepository.findById(1L)).thenReturn(Optional.of(inventoryItem));
-
-        when(batchRepository.findActiveByStoreAndItemFifo(10L, 1L, "ACTIVE"))
-            .thenReturn(List.of(makeBatch(1L, new BigDecimal("5.0000"))));
-
         SubmittedOrderEntity order = mock(SubmittedOrderEntity.class);
         when(order.getItems()).thenReturn(List.of(makeOrderItem(100L, 0)));
 
         stockDeductionService.deductForOrders(10L, List.of(order));
 
-        // Zero deduction: stock unchanged, no movement records created
-        assertThat(inventoryItem.getCurrentStock()).isEqualByComparingTo("5.0000");
+        // L7: Zero deduction short-circuits in the worker — no DB queries for item/batch
+        verify(inventoryItemRepository, never()).findById(any());
+        verify(batchRepository, never()).findActiveByStoreAndItemFifo(any(), any(), any());
         verify(movementRepository, never()).save(any(InventoryMovementEntity.class));
     }
 
-    // ── I10: OptimisticLockException retry ──────────────────────────────────
+    // ── L8: OptimisticLockException retry ──────────────────────────────────
+    // NOTE: This test verifies retry logic at the service level with mocked repositories.
+    // In production, the REQUIRES_NEW propagation on StockDeductionItemWorker.deductItem()
+    // ensures a fresh persistence context on each retry attempt, preventing stale
+    // Hibernate session issues that would occur with retries in the same transaction.
 
     @Test
     void deductForOrders_optimisticLockRetry_succeedsOnSecondAttempt() {

@@ -8,7 +8,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface JpaInventoryBatchRepository extends JpaRepository<InventoryBatchEntity, Long> {
-    /** FIFO order with store isolation: oldest expiry first, NULL expiry last */
+    /** FEFO order (First Expiry, First Out) — batches closest to expiry are consumed first; null expiry dates sort last */
     @Query("SELECT b FROM V2InventoryBatchEntity b WHERE b.storeId = :storeId AND b.inventoryItemId = :itemId AND b.batchStatus = :status ORDER BY CASE WHEN b.expiryDate IS NULL THEN 1 ELSE 0 END, b.expiryDate ASC, b.id ASC")
     List<InventoryBatchEntity> findActiveByStoreAndItemFifo(@Param("storeId") Long storeId, @Param("itemId") Long itemId, @Param("status") String status);
     List<InventoryBatchEntity> findByStoreIdAndInventoryItemId(Long storeId, Long inventoryItemId);

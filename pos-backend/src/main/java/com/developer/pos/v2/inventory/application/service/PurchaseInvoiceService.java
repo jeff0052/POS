@@ -146,7 +146,7 @@ public class PurchaseInvoiceService implements UseCase {
             // 1. Create invoice line item
             PurchaseInvoiceItemEntity lineItem = new PurchaseInvoiceItemEntity(
                 invoiceId, confirmed.inventoryItemId(),
-                confirmed.quantity(), confirmed.unit(), confirmed.unitPriceCents());
+                confirmed.quantity(), confirmed.unit(), confirmed.unitPriceCents(), storeId);
             invoiceItemRepository.save(lineItem);
             totalCents += lineItem.getLineTotalCents();
 

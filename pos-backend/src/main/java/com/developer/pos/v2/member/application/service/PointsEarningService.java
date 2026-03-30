@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Service
@@ -57,43 +59,55 @@ public class PointsEarningService {
     public void awardPostSettlementPoints(Long memberId, Long merchantId, Long settlementId, long spendCents) {
         if (memberId == null) return;
 
-        // 1. Load active SPEND rule: filter by date window, pick highest priority
+        // 1. Load member (needed for tier-aware rule selection and tier multiplier)
+        MemberEntity member = memberRepo.findById(memberId).orElse(null);
+        if (member == null) return;
+
+        // 2. Load active SPEND rule: filter by date window + applicable tiers, pick highest priority
         LocalDateTime now = LocalDateTime.now();
         List<PointsRuleEntity> rules = pointsRuleRepo.findByMerchantIdAndRuleStatus(merchantId, "ACTIVE");
         PointsRuleEntity rule = rules.stream()
                 .filter(r -> "SPEND".equals(r.getRuleType()))
                 .filter(r -> r.getStartsAt() == null || !now.isBefore(r.getStartsAt()))
                 .filter(r -> r.getEndsAt() == null || !now.isAfter(r.getEndsAt()))
+                .filter(r -> tierMatchesRule(r, member.getTierCode()))
                 .max(java.util.Comparator.comparingInt(PointsRuleEntity::getPriority))
                 .orElse(null);
         if (rule == null) return;
 
-        // 2. Check min spend
+        // 3. Check min spend
         if (spendCents < rule.getMinSpendCents()) return;
 
-        // 3. base_points = spendCents / 100 * rule.getPointsPerDollar()
+        // 4. base_points = spendCents / 100 * rule.getPointsPerDollar()
         long basePoints = (spendCents / 100L) * rule.getPointsPerDollar();
         if (basePoints <= 0) return;
 
-        // 4. Apply tier multiplier
-        MemberEntity member = memberRepo.findById(memberId).orElse(null);
-        if (member == null) return;
+        // 5. Apply tier multiplier
         BigDecimal multiplier = getTierMultiplier(merchantId, member.getTierCode());
         long earnedPoints = new BigDecimal(basePoints).multiply(multiplier)
                 .setScale(0, java.math.RoundingMode.HALF_UP).longValue();
 
-        // 5. Cap at maxPointsPerOrder if set
+        // 6. Cap at maxPointsPerOrder if set
         if (rule.getMaxPointsPerOrder() != null && rule.getMaxPointsPerOrder() > 0) {
             earnedPoints = Math.min(earnedPoints, rule.getMaxPointsPerOrder());
         }
 
-        // 5.5 Idempotency guard
+        // 6.5 Cap at maxPointsPerDay if set
+        if (rule.getMaxPointsPerDay() != null && rule.getMaxPointsPerDay() > 0) {
+            OffsetDateTime startOfDay = now.toLocalDate().atStartOfDay().atOffset(ZoneOffset.UTC);
+            long todayEarned = memberPointsLedgerRepo.sumEarnedPointsToday(memberId, startOfDay);
+            long remainingDailyCapacity = rule.getMaxPointsPerDay() - todayEarned;
+            if (remainingDailyCapacity <= 0) return;
+            earnedPoints = Math.min(earnedPoints, remainingDailyCapacity);
+        }
+
+        // 7.5 Idempotency guard
         if (settlementId != null && pointsBatchRepo.existsByMemberIdAndSourceTypeAndSourceRef(
                 memberId, "SPEND", settlementId.toString())) {
             return; // already awarded, idempotent
         }
 
-        // 6. Create PointsBatchEntity
+        // 8. Create PointsBatchEntity
         PointsBatchEntity batch = new PointsBatchEntity();
         batch.setMemberId(memberId);
         batch.setBatchNo("PTB" + System.currentTimeMillis());
@@ -110,14 +124,14 @@ public class PointsEarningService {
         batch.setCreatedAt(now);
         pointsBatchRepo.save(batch);
 
-        // 7. Update MemberAccountEntity
+        // 9. Update MemberAccountEntity
         MemberAccountEntity account = memberAccountRepo.findByMemberId(memberId)
                 .orElseThrow(() -> new IllegalStateException("Member account not found: " + memberId));
         account.setPointsBalance(account.getPointsBalance() + earnedPoints);
         account.setAvailablePoints(account.getAvailablePoints() + earnedPoints);
         memberAccountRepo.save(account);
 
-        // 8. Write ledger entry
+        // 10. Write ledger entry
         MemberPointsLedgerEntity ledger = new MemberPointsLedgerEntity();
         ledger.setLedgerNo("PTS" + System.currentTimeMillis());
         ledger.setMerchantId(merchantId);
@@ -149,6 +163,14 @@ public class PointsEarningService {
                     return earnedAt.plusMonths(months);
                 })
                 .orElse(earnedAt.plusMonths(12)); // default 12-month rolling when no rule configured
+    }
+
+    /** Checks if a points rule applies to the given tier. Null/empty applicableTiers means "all tiers". */
+    private boolean tierMatchesRule(PointsRuleEntity rule, String tierCode) {
+        String tiers = rule.getApplicableTiers();
+        if (tiers == null || tiers.isBlank() || "[]".equals(tiers.trim())) return true;
+        // Simple JSON array contains check — applicableTiers is stored as ["GOLD","SILVER"]
+        return tiers.contains("\"" + tierCode + "\"");
     }
 
     private BigDecimal getTierMultiplier(Long merchantId, String tierCode) {

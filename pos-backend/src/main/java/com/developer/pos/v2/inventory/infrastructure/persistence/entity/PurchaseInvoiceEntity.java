@@ -105,8 +105,15 @@ public class PurchaseInvoiceEntity {
 
     public void failOcrScan(String errorMessage) {
         String safe = (errorMessage != null ? errorMessage : "unknown")
-            .replace("\\", "\\\\").replace("\"", "\\\"")
-            .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+            .replace("\b", "\\b")
+            .replace("\f", "\\f");
+        // Strip remaining control characters (U+0000 to U+001F)
+        safe = safe.replaceAll("[\\x00-\\x1f]", "");
         this.ocrRawResult = "{\"error\":\"" + safe + "\"}";
         this.ocrStatus = "FAILED";
         this.updatedAt = LocalDateTime.now();

@@ -62,6 +62,7 @@ public class PurchaseInvoiceItemEntity {
     public BigDecimal getQuantity() { return quantity; }
     public String getUnit() { return unit; }
     public Long getUnitPriceCents() { return unitPriceCents; }
+    // No NPE risk: lineTotalCents is computed in both constructors and the DB column is NOT NULL.
     public Long getLineTotalCents() { return lineTotalCents; }
     public Long getStoreId() { return storeId; }
 }

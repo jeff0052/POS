@@ -78,7 +78,7 @@ public class InventoryPromotionScanService {
         List<InventoryDrivenPromotionDto> drafts = new ArrayList<>();
 
         for (InventoryBatchEntity batch : expiring) {
-            if (isDuplicateDraft(storeId, batch.getInventoryItemId())) continue;
+            if (isDuplicateDraft(storeId, batch.getInventoryItemId(), "NEAR_EXPIRY")) continue;
 
             List<Long> affectedSkuIds = findAffectedSkuIds(batch.getInventoryItemId());
             if (affectedSkuIds.isEmpty()) continue;
@@ -103,7 +103,7 @@ public class InventoryPromotionScanService {
         List<InventoryDrivenPromotionDto> drafts = new ArrayList<>();
 
         for (InventoryItemEntity item : overstocked) {
-            if (isDuplicateDraft(storeId, item.getId())) continue;
+            if (isDuplicateDraft(storeId, item.getId(), "OVERSTOCK")) continue;
 
             List<Long> affectedSkuIds = findAffectedSkuIds(item.getId());
             if (affectedSkuIds.isEmpty()) continue;
@@ -132,9 +132,9 @@ public class InventoryPromotionScanService {
             .collect(Collectors.toList());
     }
 
-    private boolean isDuplicateDraft(Long storeId, Long inventoryItemId) {
-        return promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(
-            storeId, inventoryItemId, "DRAFT");
+    private boolean isDuplicateDraft(Long storeId, Long inventoryItemId, String triggerType) {
+        return promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(
+            storeId, inventoryItemId, triggerType, "DRAFT");
     }
 
     private String serializeSkuIds(List<Long> skuIds) {

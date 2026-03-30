@@ -472,4 +472,59 @@ class PurchaseInvoiceServiceTest {
         assertThat(result.items().get(0).matchedItemName()).isEqualTo("牛腩");
         verify(autoMatchService).match(eq(10L), any());
     }
+
+    // ─── L11: getOcrResult on CONFIRMED invoice ─────────────────────────
+
+    @Test
+    void getOcrResult_confirmedInvoice_returnsItemsWithNullMatchAndSkipsAutoMatch() throws Exception {
+        setupActor(100L, 10L, Set.of("INVENTORY_VIEW"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<OcrLineItem> ocrLines = List.of(
+            new OcrLineItem("牛腩", BigDecimal.valueOf(10), "kg", 5000L, 50000L));
+        OcrRawResult rawResult = new OcrRawResult("Supplier A", "2026-03-30", 50000L,
+            new BigDecimal("0.95"), ocrLines);
+        String rawJson = mapper.writeValueAsString(rawResult);
+
+        PurchaseInvoiceEntity invoice = buildInvoiceWithOcrResult(1L, 10L, "COMPLETED", rawJson);
+        // Set invoice status to CONFIRMED
+        try {
+            var f = PurchaseInvoiceEntity.class.getDeclaredField("invoiceStatus");
+            f.setAccessible(true); f.set(invoice, "CONFIRMED");
+        } catch (Exception e) { throw new RuntimeException(e); }
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        OcrResultDto result = buildService().getOcrResult(10L, 1L);
+
+        assertThat(result.supplierName()).isEqualTo("Supplier A");
+        assertThat(result.items()).hasSize(1);
+        // CONFIRMED invoice returns items with null matchedInventoryItemId
+        assertThat(result.items().get(0).matchedInventoryItemId()).isNull();
+        // autoMatchService.match() should NOT be called for CONFIRMED invoices
+        verify(autoMatchService, never()).match(anyLong(), any());
+    }
+
+    // ─── L12: confirmOcr idempotency (already CONFIRMED) ────────────────
+
+    @Test
+    void confirmOcr_alreadyConfirmed_throwsIllegalState() {
+        setupActor(100L, 10L, Set.of("PURCHASE_APPROVE"));
+        StoreEntity store = buildStore(100L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(store));
+
+        PurchaseInvoiceEntity invoice = buildInvoice(1L, 10L, "COMPLETED");
+        // Set invoice status to CONFIRMED
+        try {
+            var f = PurchaseInvoiceEntity.class.getDeclaredField("invoiceStatus");
+            f.setAccessible(true); f.set(invoice, "CONFIRMED");
+        } catch (Exception e) { throw new RuntimeException(e); }
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(invoice));
+
+        assertThatThrownBy(() -> buildService().confirmOcr(10L, 1L,
+            List.of(new ConfirmedItemInput(20L, BigDecimal.TEN, "kg", 5000L, null))))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("already confirmed");
+    }
 }

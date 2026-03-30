@@ -63,8 +63,12 @@ public class SopImportService implements UseCase {
         Map<String, Long> itemCodeToId = new HashMap<>();
 
         for (SopCsvRow row : parseResult.validRows()) {
-            // TODO: Add store-scoped SKU validation. Currently existsById is global.
-            // Store isolation is enforced at the recipe level via inventory item store check below.
+            // TODO [AUDIT-H2]: SKU validation is global (existsById) because SkuEntity lacks a storeId field.
+            // Risk: a CSV referencing SKU IDs from another store will pass this check.
+            // Mitigation: the inventory item lookup below IS store-scoped, so recipes will only
+            // link to inventory items that belong to this store. However, a cross-store SKU ID
+            // would still create a recipe row referencing another store's SKU. Fix by adding
+            // storeId to SkuEntity or joining through ProductEntity -> storeId.
             if (!skuRepository.existsById(row.skuId())) {
                 allErrors.add(new SopCsvParser.RowError(row.rowNumber(), "sku_id",
                     "SKU not found: " + row.skuId()));
@@ -89,6 +93,14 @@ public class SopImportService implements UseCase {
         String errorJson = serializeErrors(allErrors);
         batch.markValidated(totalRows, allErrors.size(), errorJson);
 
+        // M3: If all rows failed validation, complete early — don't proceed to actual import
+        if (dbValidRows.isEmpty()) {
+            batch.startImport();
+            batch.completeImport(0);
+            batchRepository.save(batch);
+            return toDto(batch);
+        }
+
         batch.startImport();
         Set<Long> processedSkuIds = new HashSet<>();
         int successCount = 0;
@@ -96,6 +108,12 @@ public class SopImportService implements UseCase {
         for (SopCsvRow row : dbValidRows) {
             Long itemId = itemCodeToId.get(row.inventoryItemCode());
             if (processedSkuIds.add(row.skuId())) {
+                // AUDIT-H2: Verify SKU belongs to this store before deleting its recipes.
+                // RecipeEntity lacks storeId, so deleteBySkuId is global. The inventory item
+                // store check above ensures we only CREATE recipes for this store's items,
+                // but deleteBySkuId could remove recipes created by another store if SKU IDs
+                // overlap. This is safe as long as SKU IDs are globally unique (auto-increment).
+                // TODO: Add a store-scoped delete when RecipeEntity gains a storeId column.
                 recipeRepository.deleteBySkuId(row.skuId());
             }
             RecipeEntity recipe = RecipeEntity.create(

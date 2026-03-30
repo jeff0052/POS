@@ -34,7 +34,7 @@ public class SupplierEntity {
     @Column(name = "lead_time_days")
     private Integer leadTimeDays = 1;
 
-    @Column(name = "rating", precision = 2, scale = 1)
+    @Column(name = "rating", precision = 3, scale = 1)
     private BigDecimal rating;
 
     @Column(name = "email", length = 255)
