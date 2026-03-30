@@ -315,6 +315,7 @@ public class MemberApplicationService implements UseCase {
 
         long totalTopUp = amountCents + bonusAmountCents + campaignBonusCash;
         account.setCashBalanceCents(account.getCashBalanceCents() + totalTopUp);
+        account.setAvailableCashCents(account.getAvailableCashCents() + totalTopUp);
         account.setLifetimeRechargeCents(account.getLifetimeRechargeCents() + amountCents);
 
         if (campaignBonus.bonusPoints() > 0) {

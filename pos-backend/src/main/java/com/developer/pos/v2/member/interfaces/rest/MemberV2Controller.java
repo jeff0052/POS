@@ -1,5 +1,6 @@
 package com.developer.pos.v2.member.interfaces.rest;
 
+import com.developer.pos.auth.security.AuthenticatedActor;
 import com.developer.pos.common.response.ApiResponse;
 import com.developer.pos.v2.common.interfaces.rest.V2Api;
 import com.developer.pos.v2.member.application.dto.BindMemberResultDto;
@@ -17,6 +18,7 @@ import com.developer.pos.v2.member.interfaces.rest.request.MemberPointsAdjustmen
 import com.developer.pos.v2.member.interfaces.rest.request.MemberRechargeRequest;
 import com.developer.pos.v2.member.interfaces.rest.request.UpdateMemberRequest;
 import jakarta.validation.Valid;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,35 +42,33 @@ public class MemberV2Controller implements V2Api {
 
     @GetMapping
     public ApiResponse<List<MemberSummaryDto>> search(
-            @RequestParam Long merchantId,
             @RequestParam(defaultValue = "") String keyword) {
-        return ApiResponse.success(memberApplicationService.searchMembers(merchantId, keyword));
+        AuthenticatedActor actor = currentActor();
+        return ApiResponse.success(memberApplicationService.searchMembers(actor.merchantId(), keyword));
     }
 
     @GetMapping("/by-phone")
-    public ApiResponse<MemberSummaryDto> getByPhone(
-            @RequestParam Long merchantId,
-            @RequestParam String phone) {
-        return ApiResponse.success(memberApplicationService.getMemberByPhone(merchantId, phone));
+    public ApiResponse<MemberSummaryDto> getByPhone(@RequestParam String phone) {
+        AuthenticatedActor actor = currentActor();
+        return ApiResponse.success(memberApplicationService.getMemberByPhone(actor.merchantId(), phone));
     }
 
     @GetMapping("/{memberId}")
-    public ApiResponse<MemberDetailDto> getMember(
-            @PathVariable Long memberId,
-            @RequestParam Long merchantId) {
-        return ApiResponse.success(memberApplicationService.getMember(memberId, merchantId));
+    public ApiResponse<MemberDetailDto> getMember(@PathVariable Long memberId) {
+        AuthenticatedActor actor = currentActor();
+        return ApiResponse.success(memberApplicationService.getMember(memberId, actor.merchantId()));
     }
 
     @PutMapping("/{memberId}")
     public ApiResponse<MemberDetailDto> updateMember(
             @PathVariable Long memberId,
-            @RequestParam Long merchantId,
             @Valid @RequestBody UpdateMemberRequest request
     ) {
+        AuthenticatedActor actor = currentActor();
         return ApiResponse.success(
                 memberApplicationService.updateMember(
                         memberId,
-                        merchantId,
+                        actor.merchantId(),
                         request.name(),
                         request.phone(),
                         request.tierCode(),
@@ -78,20 +78,23 @@ public class MemberV2Controller implements V2Api {
     }
 
     @GetMapping("/recharge-records")
-    public ApiResponse<List<MemberRechargeRecordDto>> getRechargeRecords(@RequestParam Long merchantId) {
-        return ApiResponse.success(memberApplicationService.getRechargeRecords(merchantId));
+    public ApiResponse<List<MemberRechargeRecordDto>> getRechargeRecords() {
+        AuthenticatedActor actor = currentActor();
+        return ApiResponse.success(memberApplicationService.getRechargeRecords(actor.merchantId()));
     }
 
     @GetMapping("/points-ledger")
-    public ApiResponse<List<MemberPointsRecordDto>> getPointsRecords(@RequestParam Long merchantId) {
-        return ApiResponse.success(memberApplicationService.getPointsRecords(merchantId));
+    public ApiResponse<List<MemberPointsRecordDto>> getPointsRecords() {
+        AuthenticatedActor actor = currentActor();
+        return ApiResponse.success(memberApplicationService.getPointsRecords(actor.merchantId()));
     }
 
     @PostMapping
     public ApiResponse<CreateMemberDto> createMember(@Valid @RequestBody CreateMemberRequest request) {
+        AuthenticatedActor actor = currentActor();
         return ApiResponse.success(
                 memberApplicationService.createMember(
-                        request.merchantId(),
+                        actor.merchantId(),
                         request.name(),
                         request.phone(),
                         request.tierCode()
@@ -102,10 +105,10 @@ public class MemberV2Controller implements V2Api {
     @PostMapping("/{memberId}/bind-active-order")
     public ApiResponse<BindMemberResultDto> bindActiveOrder(
             @PathVariable Long memberId,
-            @RequestParam Long merchantId,
             @Valid @RequestBody BindMemberActiveOrderRequest request
     ) {
-        return ApiResponse.success(memberApplicationService.bindActiveOrder(memberId, merchantId, request.activeOrderId()));
+        AuthenticatedActor actor = currentActor();
+        return ApiResponse.success(memberApplicationService.bindActiveOrder(memberId, actor.merchantId(), request.activeOrderId()));
     }
 
     @PostMapping("/unbind-active-order")
@@ -118,16 +121,16 @@ public class MemberV2Controller implements V2Api {
     @PostMapping("/{memberId}/recharge")
     public ApiResponse<MemberRechargeResultDto> rechargeMember(
             @PathVariable Long memberId,
-            @RequestParam Long merchantId,
             @Valid @RequestBody MemberRechargeRequest request
     ) {
+        AuthenticatedActor actor = currentActor();
         return ApiResponse.success(
                 memberApplicationService.rechargeMember(
                         memberId,
-                        merchantId,
+                        actor.merchantId(),
                         request.amountCents(),
                         request.bonusAmountCents(),
-                        request.operatorName()
+                        actor.username()
                 )
         );
     }
@@ -135,18 +138,26 @@ public class MemberV2Controller implements V2Api {
     @PostMapping("/{memberId}/points-adjustment")
     public ApiResponse<MemberPointsAdjustmentResultDto> adjustPoints(
             @PathVariable Long memberId,
-            @RequestParam Long merchantId,
             @Valid @RequestBody MemberPointsAdjustmentRequest request
     ) {
+        AuthenticatedActor actor = currentActor();
         return ApiResponse.success(
                 memberApplicationService.adjustPoints(
                         memberId,
-                        merchantId,
+                        actor.merchantId(),
                         request.pointsDelta(),
                         request.changeType(),
                         request.source(),
-                        request.operatorName()
+                        actor.username()
                 )
         );
+    }
+
+    private AuthenticatedActor currentActor() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof AuthenticatedActor actor)) {
+            throw new IllegalStateException("No authenticated actor in security context");
+        }
+        return actor;
     }
 }
