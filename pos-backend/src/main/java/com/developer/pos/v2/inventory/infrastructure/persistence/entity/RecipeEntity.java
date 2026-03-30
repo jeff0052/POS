@@ -39,6 +39,20 @@ public class RecipeEntity {
 
     protected RecipeEntity() {}
 
+    public static RecipeEntity create(Long skuId, Long inventoryItemId,
+                                        BigDecimal consumptionQty, String consumptionUnit,
+                                        BigDecimal baseMultiplier, String notes) {
+        RecipeEntity r = new RecipeEntity();
+        r.skuId = skuId;
+        r.inventoryItemId = inventoryItemId;
+        r.consumptionQty = consumptionQty;
+        r.consumptionUnit = consumptionUnit;
+        r.baseMultiplier = baseMultiplier != null ? baseMultiplier : BigDecimal.ONE;
+        r.notes = notes;
+        r.createdAt = java.time.LocalDateTime.now();
+        return r;
+    }
+
     public Long getId() { return id; }
     public Long getSkuId() { return skuId; }
     public Long getInventoryItemId() { return inventoryItemId; }
