@@ -139,7 +139,7 @@ public class MemberApplicationService implements UseCase {
             throw new IllegalArgumentException("Phone must not be blank.");
         }
 
-        MemberEntity existing = memberRepository.findByPhone(normalizedPhone).orElse(null);
+        MemberEntity existing = memberRepository.findByMerchantIdAndPhone(merchantId, normalizedPhone).orElse(null);
         if (existing != null) {
             throw new IllegalStateException("Member phone already exists: " + normalizedPhone);
         }
@@ -181,7 +181,7 @@ public class MemberApplicationService implements UseCase {
             throw new IllegalArgumentException("Phone must not be blank.");
         }
 
-        MemberEntity existing = memberRepository.findByPhone(normalizedPhone).orElse(null);
+        MemberEntity existing = memberRepository.findByMerchantIdAndPhone(member.getMerchantId(), normalizedPhone).orElse(null);
         if (existing != null && !existing.getId().equals(memberId)) {
             throw new IllegalStateException("Member phone already exists: " + normalizedPhone);
         }
