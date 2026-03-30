@@ -153,6 +153,27 @@ class PointsEarningServiceTest {
     }
 
     @Test
+    void awardPoints_alreadyAwarded_isIdempotent() {
+        Long memberId = 6L;
+        Long merchantId = 10L;
+        Long settlementId = 99L;
+
+        when(pointsRuleRepo.findByMerchantIdAndRuleStatus(merchantId, "ACTIVE"))
+                .thenReturn(List.of(buildSpendRule(1, 0L, 0L)));
+        when(memberRepo.findById(memberId))
+                .thenReturn(Optional.of(buildMember(memberId, "STANDARD")));
+        when(tierRuleRepo.findByMerchantIdOrderByTierLevelAsc(merchantId))
+                .thenReturn(List.of(buildTierRule("STANDARD", BigDecimal.ONE)));
+        when(pointsBatchRepo.existsByMemberIdAndSourceTypeAndSourceRef(memberId, "SPEND", "99"))
+                .thenReturn(true);
+
+        service.awardPostSettlementPoints(memberId, merchantId, settlementId, 1000L);
+
+        verify(memberAccountRepo, never()).save(any());
+        verify(pointsBatchRepo, never()).save(any());
+    }
+
+    @Test
     void awardPoints_capsAtMaxPointsPerOrder() {
         // 10000 cents, 2pt/dollar=200pts, but maxPointsPerOrder=50 → 50pts
         Long memberId = 5L;

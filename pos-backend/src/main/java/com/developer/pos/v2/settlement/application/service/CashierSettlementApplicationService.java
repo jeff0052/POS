@@ -329,14 +329,14 @@ public class CashierSettlementApplicationService implements UseCase {
                 .filter(id -> id != null)
                 .findFirst().orElse(null);
         Long merchantId = settlementRecord.getMerchantId();
-        long collectedAmountCents = settlementRecord.getCollectedAmountCents();
+        long payableAmountCentsForMember = settlementRecord.getPayableAmountCents();
         if (memberId != null) {
             MemberAccountEntity memberAccount = memberAccountRepository.findByMemberId(memberId).orElse(null);
             if (memberAccount != null) {
-                memberAccount.setLifetimeSpendCents(memberAccount.getLifetimeSpendCents() + collectedAmountCents);
+                memberAccount.setLifetimeSpendCents(memberAccount.getLifetimeSpendCents() + payableAmountCentsForMember);
                 memberAccountRepository.save(memberAccount);
             }
-            pointsEarningService.awardPostSettlementPoints(memberId, merchantId, settlementRecord.getId(), collectedAmountCents);
+            pointsEarningService.awardPostSettlementPoints(memberId, merchantId, settlementRecord.getId(), payableAmountCentsForMember);
             tierService.checkAndUpgrade(memberId, merchantId);
         }
 
@@ -401,14 +401,14 @@ public class CashierSettlementApplicationService implements UseCase {
         // Award points and update tier for member
         Long memberIdCollect = activeOrder.getMemberId();
         Long merchantIdCollect = settlementRecord.getMerchantId();
-        long collectedCentsCollect = settlementRecord.getCollectedAmountCents();
+        long payableAmountCentsCollect = settlementRecord.getPayableAmountCents();
         if (memberIdCollect != null) {
             MemberAccountEntity memberAccountCollect = memberAccountRepository.findByMemberId(memberIdCollect).orElse(null);
             if (memberAccountCollect != null) {
-                memberAccountCollect.setLifetimeSpendCents(memberAccountCollect.getLifetimeSpendCents() + collectedCentsCollect);
+                memberAccountCollect.setLifetimeSpendCents(memberAccountCollect.getLifetimeSpendCents() + payableAmountCentsCollect);
                 memberAccountRepository.save(memberAccountCollect);
             }
-            pointsEarningService.awardPostSettlementPoints(memberIdCollect, merchantIdCollect, settlementRecord.getId(), collectedCentsCollect);
+            pointsEarningService.awardPostSettlementPoints(memberIdCollect, merchantIdCollect, settlementRecord.getId(), payableAmountCentsCollect);
             tierService.checkAndUpgrade(memberIdCollect, merchantIdCollect);
         }
 
