@@ -1,5 +1,6 @@
 package com.developer.pos.v2.inventory.application.service;
 
+import com.developer.pos.v2.common.application.StoreAccessEnforcer;
 import com.developer.pos.v2.inventory.application.dto.InventoryDrivenPromotionDto;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryBatchEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryDrivenPromotionEntity;
@@ -35,20 +36,25 @@ public class InventoryPromotionScanService {
     private final JpaInventoryItemRepository itemRepository;
     private final JpaRecipeRepository recipeRepository;
     private final JpaInventoryDrivenPromotionRepository promotionRepository;
+    private final StoreAccessEnforcer enforcer;
 
     public InventoryPromotionScanService(
             JpaInventoryBatchRepository batchRepository,
             JpaInventoryItemRepository itemRepository,
             JpaRecipeRepository recipeRepository,
-            JpaInventoryDrivenPromotionRepository promotionRepository) {
+            JpaInventoryDrivenPromotionRepository promotionRepository,
+            StoreAccessEnforcer enforcer) {
         this.batchRepository = batchRepository;
         this.itemRepository = itemRepository;
         this.recipeRepository = recipeRepository;
         this.promotionRepository = promotionRepository;
+        this.enforcer = enforcer;
     }
 
     @Transactional
     public List<InventoryDrivenPromotionDto> scanAll(Long storeId) {
+        enforcer.enforce(storeId);
+        enforcer.enforcePermission("INVENTORY_VIEW");
         List<InventoryDrivenPromotionDto> all = new ArrayList<>();
         all.addAll(scanNearExpiry(storeId));
         all.addAll(scanOverstock(storeId));

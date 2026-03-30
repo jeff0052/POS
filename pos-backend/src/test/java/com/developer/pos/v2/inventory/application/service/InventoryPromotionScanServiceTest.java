@@ -1,5 +1,7 @@
 package com.developer.pos.v2.inventory.application.service;
 
+import com.developer.pos.auth.security.AuthenticatedActor;
+import com.developer.pos.v2.common.application.StoreAccessEnforcer;
 import com.developer.pos.v2.inventory.application.dto.InventoryDrivenPromotionDto;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryBatchEntity;
 import com.developer.pos.v2.inventory.infrastructure.persistence.entity.InventoryDrivenPromotionEntity;
@@ -9,16 +11,25 @@ import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaI
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryDrivenPromotionRepository;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaInventoryItemRepository;
 import com.developer.pos.v2.inventory.infrastructure.persistence.repository.JpaRecipeRepository;
+import com.developer.pos.v2.store.infrastructure.persistence.entity.StoreEntity;
+import com.developer.pos.v2.store.infrastructure.persistence.repository.JpaStoreLookupRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -31,10 +42,39 @@ class InventoryPromotionScanServiceTest {
     @Mock JpaInventoryItemRepository itemRepository;
     @Mock JpaRecipeRepository recipeRepository;
     @Mock JpaInventoryDrivenPromotionRepository promotionRepository;
+    @Mock JpaStoreLookupRepository storeLookupRepository;
+
+    MockedStatic<SecurityContextHolder> securityMock;
+
+    @AfterEach
+    void tearDown() { if (securityMock != null) securityMock.close(); }
 
     private InventoryPromotionScanService buildService() {
+        StoreAccessEnforcer enforcer = new StoreAccessEnforcer(storeLookupRepository);
         return new InventoryPromotionScanService(batchRepository, itemRepository,
-            recipeRepository, promotionRepository);
+            recipeRepository, promotionRepository, enforcer);
+    }
+
+    private void setupActor(Long merchantId, Long storeId) {
+        AuthenticatedActor actor = new AuthenticatedActor(
+            1L, "manager", "M001", "STORE_MANAGER",
+            merchantId, storeId, Set.of(storeId), Set.of("INVENTORY_VIEW"));
+        SecurityContext ctx = mock(SecurityContext.class);
+        Authentication auth = mock(Authentication.class);
+        lenient().when(auth.getPrincipal()).thenReturn(actor);
+        lenient().when(ctx.getAuthentication()).thenReturn(auth);
+        securityMock = mockStatic(SecurityContextHolder.class);
+        securityMock.when(SecurityContextHolder::getContext).thenReturn(ctx);
+    }
+
+    private StoreEntity buildStore(Long merchantId) {
+        try {
+            Constructor<StoreEntity> ctor = StoreEntity.class.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            StoreEntity store = ctor.newInstance();
+            setField(store, "merchantId", merchantId);
+            return store;
+        } catch (Exception e) { throw new RuntimeException(e); }
     }
 
     private InventoryBatchEntity makeBatch(Long id, Long storeId, Long itemId,
@@ -158,6 +198,8 @@ class InventoryPromotionScanServiceTest {
 
     @Test
     void scanAll_combinesNearExpiryAndOverstock() {
+        setupActor(5L, 10L);
+        when(storeLookupRepository.findById(10L)).thenReturn(Optional.of(buildStore(5L)));
         InventoryBatchEntity batch = makeBatch(1L, 10L, 100L,
             LocalDate.now().plusDays(2), BigDecimal.TEN);
         when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))

@@ -57,6 +57,9 @@ public class SopImportBatchEntity {
     }
 
     public void markValidated(int totalRows, int errorRows, String errorDetailsJson) {
+        if (!"VALIDATING".equals(this.batchStatus)) {
+            throw new IllegalStateException("Batch " + id + " is not validating, current: " + batchStatus);
+        }
         this.totalRows = totalRows;
         this.errorRows = errorRows;
         this.errorDetails = errorDetailsJson;
@@ -73,6 +76,9 @@ public class SopImportBatchEntity {
     }
 
     public void completeImport(int successRows) {
+        if (!"IMPORTING".equals(this.batchStatus)) {
+            throw new IllegalStateException("Batch " + id + " is not importing, current: " + batchStatus);
+        }
         this.successRows = successRows;
         this.batchStatus = "COMPLETED";
         this.updatedAt = LocalDateTime.now();
