@@ -122,7 +122,7 @@ class InventoryPromotionScanServiceTest {
             LocalDate.now().plusDays(2), BigDecimal.TEN);
         when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))
             .thenReturn(List.of(batch));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(10L, 100L, "DRAFT"))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(10L, 100L, "NEAR_EXPIRY", "DRAFT"))
             .thenReturn(false);
         RecipeEntity recipe = makeRecipe(1L, 50L, 100L);
         when(recipeRepository.findByInventoryItemId(100L)).thenReturn(List.of(recipe));
@@ -141,7 +141,7 @@ class InventoryPromotionScanServiceTest {
             LocalDate.now().plusDays(5), BigDecimal.TEN);
         when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))
             .thenReturn(List.of(batch));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(10L, 100L, "DRAFT"))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(10L, 100L, "NEAR_EXPIRY", "DRAFT"))
             .thenReturn(false);
         RecipeEntity recipe = makeRecipe(1L, 50L, 100L);
         when(recipeRepository.findByInventoryItemId(100L)).thenReturn(List.of(recipe));
@@ -158,7 +158,7 @@ class InventoryPromotionScanServiceTest {
             LocalDate.now().plusDays(2), BigDecimal.TEN);
         when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))
             .thenReturn(List.of(batch));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(10L, 100L, "DRAFT"))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(10L, 100L, "NEAR_EXPIRY", "DRAFT"))
             .thenReturn(true);
 
         List<InventoryDrivenPromotionDto> drafts = buildService().scanNearExpiry(10L);
@@ -172,7 +172,7 @@ class InventoryPromotionScanServiceTest {
         InventoryItemEntity item = makeItem(100L, 10L, new BigDecimal("50"), new BigDecimal("10"));
         when(itemRepository.findOverstock(eq(10L), any(BigDecimal.class)))
             .thenReturn(List.of(item));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(10L, 100L, "DRAFT"))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(10L, 100L, "OVERSTOCK", "DRAFT"))
             .thenReturn(false);
         RecipeEntity recipe = makeRecipe(1L, 50L, 100L);
         when(recipeRepository.findByInventoryItemId(100L)).thenReturn(List.of(recipe));
@@ -190,7 +190,7 @@ class InventoryPromotionScanServiceTest {
         InventoryItemEntity item = makeItem(100L, 10L, new BigDecimal("50"), new BigDecimal("10"));
         when(itemRepository.findOverstock(eq(10L), any(BigDecimal.class)))
             .thenReturn(List.of(item));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(10L, 100L, "DRAFT"))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(10L, 100L, "OVERSTOCK", "DRAFT"))
             .thenReturn(false);
         when(recipeRepository.findByInventoryItemId(100L)).thenReturn(List.of());
 
@@ -207,7 +207,7 @@ class InventoryPromotionScanServiceTest {
             LocalDate.now().plusDays(10), BigDecimal.TEN);
         when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))
             .thenReturn(List.of(batch));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(10L, 100L, "DRAFT"))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(10L, 100L, "NEAR_EXPIRY", "DRAFT"))
             .thenReturn(false);
         RecipeEntity recipe = makeRecipe(1L, 50L, 100L);
         when(recipeRepository.findByInventoryItemId(100L)).thenReturn(List.of(recipe));
@@ -249,7 +249,7 @@ class InventoryPromotionScanServiceTest {
 
         when(batchRepository.findExpiringSoon(eq(10L), any(LocalDate.class)))
             .thenReturn(List.of(batch3, batch4, batch7, batch8));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(eq(10L), anyLong(), eq("DRAFT")))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(eq(10L), anyLong(), eq("NEAR_EXPIRY"), eq("DRAFT")))
             .thenReturn(false);
         when(recipeRepository.findByInventoryItemId(1000L)).thenReturn(List.of(makeRecipe(90L, 90L, 1000L)));
         when(recipeRepository.findByInventoryItemId(1001L)).thenReturn(List.of(makeRecipe(91L, 91L, 1001L)));
@@ -279,7 +279,7 @@ class InventoryPromotionScanServiceTest {
             .thenReturn(List.of(item));
         when(recipeRepository.findByInventoryItemId(100L)).thenReturn(List.of(makeRecipe(1L, 50L, 100L)));
         when(recipeRepository.findByInventoryItemId(200L)).thenReturn(List.of(makeRecipe(2L, 60L, 200L)));
-        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndDraftStatus(anyLong(), anyLong(), eq("DRAFT")))
+        when(promotionRepository.existsByStoreIdAndInventoryItemIdAndTriggerTypeAndDraftStatus(anyLong(), anyLong(), anyString(), eq("DRAFT")))
             .thenReturn(false);
         when(promotionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
